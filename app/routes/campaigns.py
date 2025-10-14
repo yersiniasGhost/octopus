@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 campaigns_bp = Blueprint('campaigns', __name__)
 
-# Path to enriched data directory
+# Path to data directories
 ENRICHED_DATA_DIR = Path(__file__).parent.parent.parent / 'data' / 'enriched'
+EXPORTS_DATA_DIR = Path(__file__).parent.parent.parent / 'data' / 'exports'
 
 
 @campaigns_bp.route('/campaigns')
@@ -441,34 +442,29 @@ def api_savings_histogram(campaign_id):
         JSON response with histogram data (ranges, counts, opened counts)
     """
     try:
-        # Find enriched CSV file for this campaign
-        enriched_file = None
-        if ENRICHED_DATA_DIR.exists():
-            for file in ENRICHED_DATA_DIR.glob(f'enriched_campaign_{campaign_id}_*.csv'):
-                enriched_file = file
+        # Find exports CSV file for this campaign (full participant list)
+        exports_file = None
+        if EXPORTS_DATA_DIR.exists():
+            for file in EXPORTS_DATA_DIR.glob(f'campaign_{campaign_id}_*.csv'):
+                exports_file = file
                 break
 
-        if not enriched_file or not enriched_file.exists():
+        if not exports_file or not exports_file.exists():
             return jsonify({
                 'success': False,
                 'error': 'not_found',
-                'message': 'Enriched data file not found for this campaign'
+                'message': 'Campaign data file not found for this campaign'
             }), 404
 
-        # Read CSV and extract savings and opened data
-        savings_data = []
-        with open(enriched_file, 'r', encoding='utf-8') as f:
+        # Read total participants from exports CSV
+        total_savings_data = []
+        with open(exports_file, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 # Try different possible column names for savings
                 savings_str = (row.get('annual_savings') or
                              row.get('AnnualSavings') or
-                             row.get('annual_saving') or
-                             row.get('monthly_saving') or
-                             row.get('monthly_savings') or
-                             row.get('MonthlySaving') or '0')
-
-                opened = int(row.get('opened', 0))
+                             row.get('annual_saving') or '0')
 
                 # Clean and parse savings value
                 try:
@@ -476,24 +472,49 @@ def api_savings_histogram(campaign_id):
                     savings_clean = savings_str.replace('$', '').replace(',', '').strip()
                     if savings_clean:
                         savings = float(savings_clean)
-                        savings_data.append({
-                            'savings': savings,
-                            'opened': opened
-                        })
+                        total_savings_data.append(savings)
                 except (ValueError, AttributeError):
                     continue
 
-        if not savings_data:
+        if not total_savings_data:
             return jsonify({
                 'success': False,
                 'error': 'no_data',
                 'message': 'No valid savings data found'
             }), 404
 
-        # Calculate histogram bins
-        all_savings = [d['savings'] for d in savings_data]
-        min_savings = min(all_savings)
-        max_savings = max(all_savings)
+        # Read opened participants from enriched CSV
+        opened_savings_data = []
+        enriched_file = None
+        if ENRICHED_DATA_DIR.exists():
+            for file in ENRICHED_DATA_DIR.glob(f'enriched_campaign_{campaign_id}_*.csv'):
+                enriched_file = file
+                break
+
+        if enriched_file and enriched_file.exists():
+            with open(enriched_file, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Try different possible column names for savings
+                    savings_str = (row.get('annual_savings') or
+                                 row.get('AnnualSavings') or
+                                 row.get('annual_saving') or '0')
+
+                    # Check if opened (enriched data should only have opened=1)
+                    opened = int(row.get('opened', 0))
+
+                    # Clean and parse savings value
+                    try:
+                        savings_clean = savings_str.replace('$', '').replace(',', '').strip()
+                        if savings_clean and opened == 1:
+                            savings = float(savings_clean)
+                            opened_savings_data.append(savings)
+                    except (ValueError, AttributeError):
+                        continue
+
+        # Calculate histogram bins based on all participants
+        min_savings = min(total_savings_data)
+        max_savings = max(total_savings_data)
 
         # Create 10 bins
         num_bins = 10
@@ -512,23 +533,24 @@ def api_savings_histogram(campaign_id):
                 'opened_count': 0
             })
 
-        # Populate bins
-        for data_point in savings_data:
-            savings = data_point['savings']
-            opened = data_point['opened']
-
-            # Find appropriate bin
+        # Populate bins with total participants
+        for savings in total_savings_data:
             bin_index = min(int((savings - min_savings) / bin_width), num_bins - 1)
             bins[bin_index]['total_count'] += 1
-            if opened == 1:
-                bins[bin_index]['opened_count'] += 1
+
+        # Populate bins with opened participants
+        for savings in opened_savings_data:
+            bin_index = min(int((savings - min_savings) / bin_width), num_bins - 1)
+            bins[bin_index]['opened_count'] += 1
 
         logger.info(f"Generated histogram with {num_bins} bins for campaign {campaign_id}")
+        logger.info(f"Total participants: {len(total_savings_data)}, Opened: {len(opened_savings_data)}")
 
         return jsonify({
             'success': True,
             'bins': bins,
-            'total_participants': len(savings_data),
+            'total_participants': len(total_savings_data),
+            'opened_participants': len(opened_savings_data),
             'min_savings': round(min_savings, 2),
             'max_savings': round(max_savings, 2)
         })

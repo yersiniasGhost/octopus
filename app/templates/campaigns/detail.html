@@ -529,9 +529,11 @@
                                 <div class="mb-3">
                                     <h5>Annual Savings Distribution</h5>
                                     <p class="text-muted">
-                                        Shows the distribution of participants across savings ranges.
-                                        <span class="badge bg-primary">Blue</span> = Total Participants |
-                                        <span class="badge bg-success">Green</span> = Opened Email
+                                        Shows the distribution of all campaign participants across savings ranges with engagement rates.
+                                        <br>
+                                        <span class="badge bg-primary">Blue Bars (Left Axis)</span> = Total Participants |
+                                        <span class="badge bg-success">Green Bars (Middle Right Axis)</span> = Opened Email |
+                                        <span class="badge bg-danger">Red Line (Far Right Axis)</span> = Open Rate %
                                     </p>
                                 </div>
                                 <div class="chart-wrapper" style="position: relative; height: 400px;">
@@ -783,7 +785,13 @@ function renderHistogram(data) {
     const totalCounts = data.bins.map(bin => bin.total_count);
     const openedCounts = data.bins.map(bin => bin.opened_count);
 
-    // Create chart
+    // Calculate percentage for each bin
+    const percentages = data.bins.map(bin => {
+        if (bin.total_count === 0) return 0;
+        return ((bin.opened_count / bin.total_count) * 100);
+    });
+
+    // Create chart with dual y-axes and line overlay
     histogramChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -794,20 +802,47 @@ function renderHistogram(data) {
                     data: totalCounts,
                     backgroundColor: 'rgba(13, 110, 253, 0.6)',
                     borderColor: 'rgba(13, 110, 253, 1)',
-                    borderWidth: 1
+                    borderWidth: 1,
+                    yAxisID: 'y-total',
+                    order: 2
                 },
                 {
                     label: 'Opened Email',
                     data: openedCounts,
                     backgroundColor: 'rgba(25, 135, 84, 0.6)',
                     borderColor: 'rgba(25, 135, 84, 1)',
-                    borderWidth: 1
+                    borderWidth: 1,
+                    yAxisID: 'y-opened',
+                    order: 2
+                },
+                {
+                    label: 'Open Rate %',
+                    data: percentages,
+                    type: 'line',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: 'rgba(220, 53, 69, 1)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(220, 53, 69, 1)',
+                    tension: 0.4,
+                    fill: false,
+                    yAxisID: 'y-percentage',
+                    order: 1
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
                 title: {
                     display: false
@@ -823,12 +858,20 @@ function renderHistogram(data) {
                             if (label) {
                                 label += ': ';
                             }
-                            label += context.parsed.y + ' participants';
 
-                            // Add percentage for opened
-                            if (context.datasetIndex === 1 && totalCounts[context.dataIndex] > 0) {
-                                const percentage = (context.parsed.y / totalCounts[context.dataIndex] * 100).toFixed(1);
-                                label += ` (${percentage}%)`;
+                            // Format based on dataset type
+                            if (context.datasetIndex === 2) {
+                                // Percentage line
+                                label += context.parsed.y.toFixed(1) + '%';
+                            } else {
+                                // Bar charts
+                                label += context.parsed.y + ' participants';
+
+                                // Add percentage for opened
+                                if (context.datasetIndex === 1 && totalCounts[context.dataIndex] > 0) {
+                                    const percentage = (context.parsed.y / totalCounts[context.dataIndex] * 100).toFixed(1);
+                                    label += ` (${percentage}%)`;
+                                }
                             }
 
                             return label;
@@ -851,21 +894,75 @@ function renderHistogram(data) {
                         minRotation: 45
                     }
                 },
-                y: {
+                'y-total': {
+                    type: 'linear',
+                    position: 'left',
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Number of Participants',
+                        text: 'Total Participants',
                         font: {
                             size: 14,
                             weight: 'bold'
-                        }
+                        },
+                        color: 'rgba(13, 110, 253, 1)'
                     },
                     ticks: {
                         stepSize: 1,
                         callback: function(value) {
                             return Number.isInteger(value) ? value : '';
-                        }
+                        },
+                        color: 'rgba(13, 110, 253, 1)'
+                    },
+                    grid: {
+                        drawOnChartArea: true
+                    }
+                },
+                'y-opened': {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Opened Email',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: 'rgba(25, 135, 84, 1)'
+                    },
+                    ticks: {
+                        stepSize: 1,
+                        callback: function(value) {
+                            return Number.isInteger(value) ? value : '';
+                        },
+                        color: 'rgba(25, 135, 84, 1)'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                },
+                'y-percentage': {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Open Rate %',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: 'rgba(220, 53, 69, 1)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(1) + '%';
+                        },
+                        color: 'rgba(220, 53, 69, 1)'
+                    },
+                    grid: {
+                        drawOnChartArea: false
                     }
                 }
             }
