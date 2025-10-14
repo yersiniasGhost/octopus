@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Campaigns - Octopus{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>EmailOctopus Campaigns</h1>
+            <p class="text-muted">View and analyze your email campaigns</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% if campaigns %}
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Campaign Name</th>
+                                <th>Subject</th>
+                                <th>Status</th>
+                                <th>From</th>
+                                <th>Created</th>
+                                <th>Sent</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for campaign in campaigns %}
+                            <tr>
+                                <td>
+                                    <strong>{{ campaign.name }}</strong>
+                                </td>
+                                <td>{{ campaign.subject or 'N/A' }}</td>
+                                <td>
+                                    {% if campaign.status == 'SENT' %}
+                                        <span class="badge bg-success">{{ campaign.status }}</span>
+                                    {% elif campaign.status == 'DRAFT' %}
+                                        <span class="badge bg-secondary">{{ campaign.status }}</span>
+                                    {% elif campaign.status == 'SENDING' %}
+                                        <span class="badge bg-primary">{{ campaign.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ campaign.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if campaign.from %}
+                                        {{ campaign.from.name }}<br>
+                                        <small class="text-muted">{{ campaign.from.email_address }}</small>
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if campaign.created_at %}
+                                        {{ campaign.created_at[:10] }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if campaign.sent_at %}
+                                        {{ campaign.sent_at[:10] }}
+                                    {% else %}
+                                        <span class="text-muted">Not sent</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign.id) }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        View Details
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if paging %}
+                <nav aria-label="Campaign pagination" class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        {% if paging.previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('campaigns.campaigns_list', page=current_page-1) }}">
+                                Previous
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Previous</span>
+                        </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">Page {{ current_page }}</span>
+                        </li>
+
+                        {% if paging.next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('campaigns.campaigns_list', page=current_page+1) }}">
+                                Next
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Next</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col">
+                <div class="alert alert-info">
+                    <strong>Total Campaigns on Page:</strong> {{ campaigns|length }}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <h4 class="alert-heading">No Campaigns Found</h4>
+            <p>No campaigns were found in your EmailOctopus account.</p>
+            <hr>
+            <p class="mb-0">Create campaigns in EmailOctopus to see them here.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

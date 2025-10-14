@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section py-5 bg-light">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-4">EmailOctopus Campaign Dashboard</h1>
+                <p class="lead text-muted mb-4">
+                    Simplify partner campaign report generation through automated data extraction and visualization.
+                    Access comprehensive campaign analytics, generate custom reports, and track performance metrics
+                    all in one place.
+                </p>
+                <div class="d-grid gap-2 d-md-flex">
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg px-4">
+                            Go to Dashboard
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg px-4">
+                            Get Started
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="text-center">
+                    <svg class="img-fluid" width="500" height="400" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Dashboard Icon -->
+                        <rect x="50" y="50" width="400" height="300" rx="10" fill="#0d6efd" opacity="0.1"/>
+                        <rect x="70" y="80" width="160" height="100" rx="5" fill="#0d6efd" opacity="0.3"/>
+                        <rect x="270" y="80" width="160" height="100" rx="5" fill="#0d6efd" opacity="0.3"/>
+                        <rect x="70" y="220" width="360" height="100" rx="5" fill="#0d6efd" opacity="0.3"/>
+                        <!-- Chart Elements -->
+                        <line x1="100" y1="150" x2="200" y2="120" stroke="#0d6efd" stroke-width="3"/>
+                        <circle cx="100" cy="150" r="5" fill="#0d6efd"/>
+                        <circle cx="150" cy="135" r="5" fill="#0d6efd"/>
+                        <circle cx="200" cy="120" r="5" fill="#0d6efd"/>
+                        <!-- Text -->
+                        <text x="250" y="200" font-size="80" fill="#0d6efd" opacity="0.5" font-weight="bold">📊</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Key Features</h2>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="feature-icon mb-3">
+                            <span class="display-4">📈</span>
+                        </div>
+                        <h5 class="card-title">Campaign Analytics</h5>
+                        <p class="card-text text-muted">
+                            Track campaign performance with detailed metrics including opens, clicks, bounces, and conversions.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="feature-icon mb-3">
+                            <span class="display-4">📊</span>
+                        </div>
+                        <h5 class="card-title">Visual Reports</h5>
+                        <p class="card-text text-muted">
+                            Generate comprehensive reports with interactive charts and export to PDF for partners.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="feature-icon mb-3">
+                            <span class="display-4">🔄</span>
+                        </div>
+                        <h5 class="card-title">Automated Sync</h5>
+                        <p class="card-text text-muted">
+                            Automatic data synchronization with EmailOctopus API for up-to-date campaign insights.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Ready to streamline your campaign reporting?</h2>
+        <p class="lead mb-4">
+            Login to access your dashboard and start generating reports in minutes.
+        </p>
+        {% if not current_user.is_authenticated %}
+            <a href="{{ url_for('auth.login') }}" class="btn btn-light btn-lg px-5">
+                Login Now
+            </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

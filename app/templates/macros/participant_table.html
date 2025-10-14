@@ -1,0 +1,212 @@
+{% macro participant_table(participants, show_pagination=False, paging=None, current_page=1, base_url=None, show_filters=False, filter_type='all', campaign_id=None, show_energy_toggle=True, table_id='participants-table') %}
+{#
+    Reusable participant/contact table macro for displaying EmailOctopus contact data.
+
+    Args:
+        participants: List of participant/contact dictionaries
+        show_pagination: Boolean to show/hide pagination controls
+        paging: Paging dictionary from EmailOctopus API
+        current_page: Current page number (for pagination)
+        base_url: Base URL for pagination links (without page parameter)
+        show_filters: Boolean to show/hide filter controls
+        filter_type: Current filter type (all, opened, clicked, bounced, complained, unsubscribed)
+        campaign_id: Campaign ID for filter links
+        show_energy_toggle: Boolean to show/hide energy cost toggle button
+        table_id: Unique ID for table (for multiple tables on same page)
+
+    Usage in templates:
+        {% from 'macros/participant_table.html' import participant_table %}
+        {{ participant_table(participants, show_pagination=True, paging=participants_paging,
+                           current_page=page, show_filters=True, filter_type='opened',
+                           campaign_id=campaign.id, show_energy_toggle=True) }}
+#}
+
+{# Filter Controls #}
+{% if show_filters and campaign_id %}
+<div class="mb-3">
+    <div class="btn-group" role="group" aria-label="Filter participants">
+        <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign_id, filter='all') }}"
+           class="btn btn-sm {{ 'btn-primary' if filter_type == 'all' else 'btn-outline-primary' }}">
+            <i class="bi bi-people"></i> All Subscribed
+        </a>
+        <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign_id, filter='opened') }}"
+           class="btn btn-sm {{ 'btn-success' if filter_type == 'opened' else 'btn-outline-success' }}">
+            <i class="bi bi-envelope-open"></i> Opened
+        </a>
+        <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign_id, filter='clicked') }}"
+           class="btn btn-sm {{ 'btn-info' if filter_type == 'clicked' else 'btn-outline-info' }}">
+            <i class="bi bi-hand-index"></i> Clicked
+        </a>
+        <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign_id, filter='bounced') }}"
+           class="btn btn-sm {{ 'btn-warning' if filter_type == 'bounced' else 'btn-outline-warning' }}">
+            <i class="bi bi-exclamation-triangle"></i> Bounced
+        </a>
+        <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign_id, filter='complained') }}"
+           class="btn btn-sm {{ 'btn-danger' if filter_type == 'complained' else 'btn-outline-danger' }}">
+            <i class="bi bi-flag"></i> Complained
+        </a>
+        <a href="{{ url_for('campaigns.campaign_detail', campaign_id=campaign_id, filter='unsubscribed') }}"
+           class="btn btn-sm {{ 'btn-secondary' if filter_type == 'unsubscribed' else 'btn-outline-secondary' }}">
+            <i class="bi bi-x-circle"></i> Unsubscribed
+        </a>
+    </div>
+    <small class="text-muted d-block mt-2">
+        {% if filter_type == 'all' %}
+        Showing all subscribed contacts from campaign list
+        {% elif filter_type == 'opened' %}
+        Showing contacts who opened this email
+        {% elif filter_type == 'clicked' %}
+        Showing contacts who clicked a link in this email
+        {% elif filter_type == 'bounced' %}
+        Showing contacts whose emails bounced
+        {% elif filter_type == 'complained' %}
+        Showing contacts who marked this as spam
+        {% elif filter_type == 'unsubscribed' %}
+        Showing contacts who unsubscribed from this campaign
+        {% endif %}
+    </small>
+</div>
+{% endif %}
+
+{# Energy Cost Toggle Button #}
+{% if show_energy_toggle %}
+<div class="mb-2">
+    <button class="btn btn-sm btn-outline-secondary" id="toggle-energy-costs-{{ table_id }}" onclick="toggleEnergyCosts{{ table_id }}()">
+        <i class="bi bi-currency-dollar"></i> Show Energy Costs
+    </button>
+</div>
+{% endif %}
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover participant-table" id="{{ table_id }}">
+        <thead>
+            <tr>
+                <th>Email Address</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>City</th>
+                <th>ZIP</th>
+                <th>kWh</th>
+                <th>Cell</th>
+                <th>Address</th>
+                <th class="energy-cost-column-{{ table_id }}" style="display: none;">Annual Cost</th>
+                <th class="energy-cost-column-{{ table_id }}" style="display: none;">Annual Savings</th>
+                <th class="energy-cost-column-{{ table_id }}" style="display: none;">Monthly Cost</th>
+                <th class="energy-cost-column-{{ table_id }}" style="display: none;">Monthly Saving</th>
+                <th class="energy-cost-column-{{ table_id }}" style="display: none;">Daily Cost</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for participant in participants %}
+            <tr>
+                <td>{{ participant.email_address }}</td>
+                <td>{{ participant.fields.FirstName|default('N/A', true) }}</td>
+                <td>{{ participant.fields.LastName|default('N/A', true) }}</td>
+                <td>{{ participant.fields.City|default('N/A', true) }}</td>
+                <td>{{ participant.fields.ZIP|default('N/A', true) }}</td>
+                <td>{{ participant.fields.kWh|default('N/A', true) }}</td>
+                <td>{{ participant.fields.Cell|default('N/A', true) }}</td>
+                <td>{{ participant.fields.Address|default('N/A', true) }}</td>
+                <td class="energy-cost-column-{{ table_id }}" style="display: none;">{{ participant.fields.annualcost|default('N/A', true) }}</td>
+                <td class="energy-cost-column-{{ table_id }}" style="display: none;">{{ participant.fields.AnnualSavings|default('N/A', true) }}</td>
+                <td class="energy-cost-column-{{ table_id }}" style="display: none;">{{ participant.fields.MonthlyCost|default('N/A', true) }}</td>
+                <td class="energy-cost-column-{{ table_id }}" style="display: none;">{{ participant.fields.MonthlySaving|default('N/A', true) }}</td>
+                <td class="energy-cost-column-{{ table_id }}" style="display: none;">{{ participant.fields.DailyCost|default('N/A', true) }}</td>
+                <td>
+                    {% if participant.status == 'SUBSCRIBED' %}
+                        <span class="badge bg-success">{{ participant.status }}</span>
+                    {% elif participant.status == 'UNSUBSCRIBED' %}
+                        <span class="badge bg-secondary">{{ participant.status }}</span>
+                    {% elif participant.status == 'PENDING' %}
+                        <span class="badge bg-warning">{{ participant.status }}</span>
+                    {% else %}
+                        <span class="badge bg-info">{{ participant.status }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if show_energy_toggle %}
+<script>
+function toggleEnergyCosts{{ table_id }}() {
+    const columns = document.querySelectorAll('.energy-cost-column-{{ table_id }}');
+    const button = document.getElementById('toggle-energy-costs-{{ table_id }}');
+    const isHidden = columns[0].style.display === 'none';
+
+    columns.forEach(col => {
+        col.style.display = isHidden ? '' : 'none';
+    });
+
+    if (isHidden) {
+        button.innerHTML = '<i class="bi bi-currency-dollar"></i> Hide Energy Costs';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-secondary');
+    } else {
+        button.innerHTML = '<i class="bi bi-currency-dollar"></i> Show Energy Costs';
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-outline-secondary');
+    }
+}
+</script>
+{% endif %}
+
+{% if show_pagination and paging %}
+<nav aria-label="Participant pagination" class="mt-3">
+    <ul class="pagination justify-content-center">
+        {% if paging.previous %}
+        <li class="page-item">
+            <a class="page-link" href="{{ base_url }}?page={{ current_page - 1 }}">
+                <i class="bi bi-chevron-left"></i> Previous
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link"><i class="bi bi-chevron-left"></i> Previous</span>
+        </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">Page {{ current_page }}</span>
+        </li>
+
+        {% if paging.next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ base_url }}?page={{ current_page + 1 }}">
+                Next <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">Next <i class="bi bi-chevron-right"></i></span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endmacro %}
+
+
+{% macro participant_export_buttons(campaign_id=None) %}
+{#
+    Export buttons for participant data - placeholder for future reporting functionality
+
+    Args:
+        campaign_id: Optional campaign ID for export filtering
+#}
+<div class="btn-group" role="group" aria-label="Export options">
+    <button type="button" class="btn btn-outline-primary btn-sm" disabled>
+        <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+    </button>
+    <button type="button" class="btn btn-outline-danger btn-sm" disabled>
+        <i class="bi bi-file-earmark-pdf"></i> Export PDF
+    </button>
+    <button type="button" class="btn btn-outline-success btn-sm" disabled>
+        <i class="bi bi-file-earmark-excel"></i> Export Excel
+    </button>
+</div>
+<small class="text-muted d-block mt-1">Export functionality coming soon</small>
+{% endmacro %}

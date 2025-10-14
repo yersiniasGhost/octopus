@@ -1,0 +1,67 @@
+================================================================================
+PARTICIPANT MATCHING EXPORT SUMMARY
+================================================================================
+
+Export Date: 2025-10-10
+
+OUTPUT FILES:
+- Matched:   matched_participants_20251010_003725.csv (539 records)
+- Debug:     unmatched_debug_20251010_003725.csv (50 sample records)
+
+RESULTS:
+- Total engaged participants: 4,778
+- Successfully matched:        539 (11.3%)
+- Unmatched:                 4,239 (88.7%)
+
+MISSING DATA BREAKDOWN:
+- No zipcode:                  891 (18.6%)
+- Had zipcode, no match:     3,348 (70.1%)
+
+MATCH RATE BY COUNTY:
+- MarionCounty:    100.0% (42/42)
+- MorrowCounty:    100.0% (21/21)
+- FranklinCounty:   93.3% (14/15)
+- RichlandCounty:   54.4% (462/850)
+- AthensCounty:      0.0% (0/2755)  ⚠️ ISSUE IDENTIFIED
+
+ISSUE IDENTIFIED:
+================================================================================
+The zipcode-to-county mapping in data/zipcode_to_county_cache.json has errors.
+
+Incorrect Mappings:
+- 44903, 44904 → AthensCounty (should be RichlandCounty)
+  These are Mansfield/Lexington addresses in Richland County
+
+- 43302, 43315 → AthensCounty (should be MarionCounty)
+  These are Marion/Cardington addresses in Marion County
+
+Impact:
+- 2,755 participants mapped to AthensCounty had 0 matches
+- Most are actually in RichlandCounty or MarionCounty
+- Fixing the zipcode mapping would likely increase match rate to 60%+
+
+Correct Mappings Observed:
+- 44901, 44902, 44905-44907 → RichlandCounty ✓
+- 43301, 43314, 43322, etc. → MarionCounty ✓
+
+SAMPLE UNMATCHED (All incorrectly mapped to AthensCounty):
+1. 45 CHAMBERS RD, MANSFIELD 44903 (should be RichlandCounty)
+2. 2436 MIDDLE BELLVILLE RD, MANSFIELD 44904 (should be RichlandCounty)
+3. 997 HOCH RD, MARION 43302 (should be MarionCounty)
+4. 2757 COUNTY ROAD 165, CARDINGTON 43315 (should be MarionCounty)
+
+MATCHED EXPORT COLUMNS:
+- Name (from county demographic data)
+- Campaign
+- County
+- Opened (0/1)
+- Clicked (0/1)
+- Applied (always 0)
+- Age (empty for these counties)
+- Income (from county demographic data)
+- YearBuilt (actual year from residential data)
+
+RECOMMENDATION:
+Fix the zipcode_to_county_cache.json mapping file and re-run the export
+to significantly improve match rates.
+================================================================================

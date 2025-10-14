@@ -1,0 +1,29 @@
+# Flask Core
+Flask==1.0.2
+Werkzeug==3.0.1
+
+# Database
+Flask-SQLAlchemy==3.1.1
+
+# Authentication
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+email-validator==2.1.0
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# API Requests (for EmailOctopus API)
+requests==2.31.0
+
+# Data Processing
+numpy==1.26.3
+
+# MongoDB and Data Models (for sync tool)
+pymongo==4.15.3
+pydantic==2.10.3
+
+# Future dependencies (commented out for Phase 2)
+# plotly==5.18.0
+# ReportLab==4.0.7
+# APScheduler==3.10.4

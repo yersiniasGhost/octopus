@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Campaigns{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> Campaign Error
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <h5>An error occurred while accessing campaigns</h5>
+                    <p class="text-muted">{{ error }}</p>
+
+                    <hr>
+
+                    <h6>Possible Solutions:</h6>
+                    <ul>
+                        <li>Verify your EmailOctopus API key is correctly set in <code>.env</code></li>
+                        <li>Check your internet connection</li>
+                        <li>Ensure you have access to the EmailOctopus API</li>
+                        <li>Try refreshing the page</li>
+                    </ul>
+
+                    <div class="mt-4">
+                        <a href="{{ url_for('campaigns.campaigns_list') }}" class="btn btn-primary">
+                            <i class="bi bi-arrow-clockwise"></i> Try Again
+                        </a>
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-house"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Configuration Help -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">API Configuration Help</h5>
+                </div>
+                <div class="card-body">
+                    <p>To configure your EmailOctopus API key:</p>
+                    <ol>
+                        <li>Open your <code>.env</code> file in the project root</li>
+                        <li>Add or update the following line:
+                            <pre class="bg-light p-2 mt-2"><code>EMAILOCTOPUS_API_KEY=your-api-key-here</code></pre>
+                        </li>
+                        <li>Get your API key from: <a href="https://emailoctopus.com/api-documentation" target="_blank">EmailOctopus API Documentation</a></li>
+                        <li>Restart the application</li>
+                    </ol>
+
+                    <div class="alert alert-info mt-3">
+                        <strong>Note:</strong> Your API key can be found in your EmailOctopus account settings.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

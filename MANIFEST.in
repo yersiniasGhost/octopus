@@ -1,0 +1,28 @@
+# Include important files
+include README.md
+include LICENSE
+include QUICKSTART.md
+include INSTALLATION.md
+include IMPLEMENTATION_SUMMARY.md
+include PROJECT_SPEC.md
+include requirements.txt
+include .env.example
+
+# Include all templates
+recursive-include app/templates *.html
+
+# Include all static files
+recursive-include app/static *.css *.js *.png *.jpg *.svg *.ico
+
+# Include scripts
+recursive-include scripts *.py
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.swp
+global-exclude *.swo
+exclude .env
+exclude octopus.db
+exclude .gitignore

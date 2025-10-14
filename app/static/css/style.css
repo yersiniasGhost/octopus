@@ -1,0 +1,74 @@
+/* Custom styles for EmailOctopus Dashboard */
+
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+    --danger-color: #dc3545;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Hero Section */
+.hero-section {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+/* Feature Cards */
+.feature-icon {
+    font-size: 3rem;
+}
+
+.card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Navigation */
+.navbar-brand {
+    font-size: 1.25rem;
+}
+
+/* Dashboard Stats Cards */
+.dashboard-section .card {
+    height: 100%;
+}
+
+/* Footer */
+footer {
+    margin-top: auto;
+}
+
+/* Forms */
+.form-control {
+    border-radius: 5px;
+}
+
+.btn {
+    border-radius: 5px;
+    font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .hero-section h1 {
+        font-size: 2rem;
+    }
+
+    .hero-section .lead {
+        font-size: 1rem;
+    }
+}
