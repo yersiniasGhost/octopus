@@ -1,11 +1,35 @@
 /* Custom styles for EmailOctopus Dashboard */
+/* EmpowerSaves.com Brand Colors */
 
 :root {
-    --primary-color: #0d6efd;
-    --secondary-color: #6c757d;
-    --success-color: #198754;
-    --info-color: #0dcaf0;
-    --danger-color: #dc3545;
+    /* Primary Brand Colors */
+    --primary-color: #198fd9;           /* EmpowerSaves Blue */
+    --primary-dark: #1577b5;            /* Darker Blue for hover states */
+    --secondary-color: #65bd7d;         /* EmpowerSaves Green */
+    --success-color: #65bd7d;           /* Green for success states */
+    --info-color: #8ed1fc;              /* Pale Cyan Blue */
+    --danger-color: #dc3545;            /* Keep Bootstrap red for errors */
+    --warning-color: #ffc107;           /* Keep Bootstrap yellow for warnings */
+
+    /* Background Colors */
+    --bg-primary: #ffffff;              /* White */
+    --bg-secondary: #f9f9fb;            /* Light gray/off-white */
+    --bg-dark: #32373c;                 /* Dark gray/charcoal */
+
+    /* Text Colors */
+    --text-primary: #212326;            /* Very dark gray */
+    --text-secondary: #555555;          /* Medium gray */
+    --text-muted: #6c757d;              /* Muted gray */
+    --text-light: #ffffff;              /* White text */
+
+    /* Accent Colors */
+    --accent-cyan: #0693e3;             /* Vivid cyan blue */
+    --accent-purple: #9b51e0;           /* Vivid purple */
+
+    /* Neutral Tones */
+    --neutral-dark: #434549;            /* Dark gray */
+    --neutral-darker: #212326;          /* Very dark gray */
+    --neutral-darkest: #141617;         /* Almost black */
 }
 
 body {
@@ -20,7 +44,7 @@ main {
 
 /* Hero Section */
 .hero-section {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--info-color) 50%, var(--primary-color) 100%);
 }
 
 /* Feature Cards */
