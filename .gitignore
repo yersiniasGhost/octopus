@@ -43,6 +43,8 @@ instance/
 *.swo
 *~
 
+.swarm/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -141,8 +141,11 @@ Currently all users have role: `super_user`
 ### Environment Variables (.env)
 
 ```bash
-# Security
+# Flask Configuration
 SECRET_KEY=your-secret-key-change-this-in-production
+FLASK_HOST=0.0.0.0
+FLASK_PORT=5000
+FLASK_DEBUG=1
 
 # Database
 DATABASE_URI=sqlite:///octopus.db
