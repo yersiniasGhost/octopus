@@ -1,69 +1,127 @@
 /* Custom styles for EmailOctopus Dashboard */
-/* EmpowerSaves.com Brand Colors */
+/* EmpowerSaves.com Brand Colors - Dark Theme */
 
 :root {
     /* Primary Brand Colors */
     --primary-color: #198fd9;           /* EmpowerSaves Blue */
     --primary-dark: #1577b5;            /* Darker Blue for hover states */
+    --primary-light: #4da8e0;           /* Lighter Blue */
     --secondary-color: #65bd7d;         /* EmpowerSaves Green */
     --success-color: #65bd7d;           /* Green for success states */
     --info-color: #8ed1fc;              /* Pale Cyan Blue */
     --danger-color: #dc3545;            /* Keep Bootstrap red for errors */
     --warning-color: #ffc107;           /* Keep Bootstrap yellow for warnings */
 
-    /* Background Colors */
-    --bg-primary: #ffffff;              /* White */
-    --bg-secondary: #f9f9fb;            /* Light gray/off-white */
-    --bg-dark: #32373c;                 /* Dark gray/charcoal */
+    /* Dark Theme Background Colors */
+    --bg-dark-primary: #1a1d23;         /* Very dark blue-gray (main background) */
+    --bg-dark-secondary: #24282f;       /* Dark gray (cards, containers) */
+    --bg-dark-tertiary: #2d3139;        /* Lighter dark gray (hover states) */
+    --bg-dark-navbar: #ffffff;          /* White navbar */
 
-    /* Text Colors */
-    --text-primary: #212326;            /* Very dark gray */
-    --text-secondary: #555555;          /* Medium gray */
-    --text-muted: #6c757d;              /* Muted gray */
-    --text-light: #ffffff;              /* White text */
+    /* Dark Theme Text Colors */
+    --text-light-primary: #e8eaed;      /* Light gray (primary text) */
+    --text-light-secondary: #bdc1c6;    /* Medium light gray (secondary text) */
+    --text-light-muted: #9aa0a6;        /* Muted light gray */
+    --text-dark: #212326;               /* Dark text for white navbar */
+
+    /* Dark Theme Border Colors */
+    --border-dark: #3a3f47;             /* Subtle borders on dark background */
+    --border-dark-light: #4a5058;       /* Slightly lighter borders */
 
     /* Accent Colors */
     --accent-cyan: #0693e3;             /* Vivid cyan blue */
     --accent-purple: #9b51e0;           /* Vivid purple */
-
-    /* Neutral Tones */
-    --neutral-dark: #434549;            /* Dark gray */
-    --neutral-darker: #212326;          /* Very dark gray */
-    --neutral-darkest: #141617;         /* Almost black */
 }
 
 body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    background-color: var(--bg-dark-primary);
+    color: var(--text-light-primary);
 }
 
 main {
     flex: 1;
+    background-color: var(--bg-dark-primary);
 }
 
 /* Hero Section */
 .hero-section {
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--info-color) 50%, var(--primary-color) 100%);
+    background: linear-gradient(135deg, var(--bg-dark-secondary) 0%, var(--primary-dark) 50%, var(--primary-color) 100%);
 }
 
 /* Feature Cards */
 .feature-icon {
     font-size: 3rem;
+    color: var(--primary-color);
 }
 
+/* Dark Theme Cards */
 .card {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    background-color: var(--bg-dark-secondary);
+    border-color: var(--border-dark);
+    color: var(--text-light-primary);
 }
 
 .card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4) !important;
+    border-color: var(--primary-color);
 }
 
-/* Navigation */
+.card-header {
+    background-color: var(--bg-dark-tertiary);
+    border-bottom-color: var(--border-dark);
+    color: var(--text-light-primary);
+}
+
+.card-body {
+    color: var(--text-light-primary);
+}
+
+.card-footer {
+    background-color: var(--bg-dark-tertiary);
+    border-top-color: var(--border-dark);
+}
+
+/* Navigation - White Theme */
 .navbar-brand {
     font-size: 1.25rem;
+}
+
+/* Dark Theme Tables */
+.table {
+    color: var(--text-light-primary);
+    border-color: var(--border-dark);
+}
+
+.table thead th {
+    background-color: var(--bg-dark-tertiary);
+    border-color: var(--border-dark);
+    color: var(--text-light-primary);
+}
+
+.table tbody tr {
+    border-color: var(--border-dark);
+}
+
+.table tbody tr:hover {
+    background-color: var(--bg-dark-tertiary);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.table-bordered {
+    border-color: var(--border-dark);
+}
+
+.table-bordered td,
+.table-bordered th {
+    border-color: var(--border-dark);
 }
 
 /* Dashboard Stats Cards */
@@ -71,19 +129,219 @@ main {
     height: 100%;
 }
 
-/* Footer */
+/* Footer - Dark Theme */
 footer {
     margin-top: auto;
+    background-color: var(--bg-dark-secondary) !important;
+    color: var(--text-light-secondary) !important;
+    border-top: 1px solid var(--border-dark);
 }
 
-/* Forms */
-.form-control {
+/* Forms - Dark Theme */
+.form-control,
+.form-select {
     border-radius: 5px;
+    background-color: var(--bg-dark-tertiary);
+    border-color: var(--border-dark);
+    color: var(--text-light-primary);
 }
 
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--bg-dark-tertiary);
+    border-color: var(--primary-color);
+    color: var(--text-light-primary);
+    box-shadow: 0 0 0 0.25rem rgba(25, 143, 217, 0.25);
+}
+
+.form-control::placeholder {
+    color: var(--text-light-muted);
+}
+
+.form-label {
+    color: var(--text-light-secondary);
+}
+
+/* Buttons */
 .btn {
     border-radius: 5px;
     font-weight: 500;
+}
+
+.btn-outline-primary {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.btn-outline-secondary,
+.btn-outline-success {
+    color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-success:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    color: white;
+}
+
+/* Alerts - Dark Theme */
+.alert {
+    border-color: var(--border-dark);
+}
+
+.alert-info {
+    background-color: rgba(142, 209, 252, 0.1);
+    border-color: var(--info-color);
+    color: var(--info-color);
+}
+
+.alert-success {
+    background-color: rgba(101, 189, 125, 0.1);
+    border-color: var(--secondary-color);
+    color: var(--secondary-color);
+}
+
+.alert-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+}
+
+.alert-danger {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+/* Badges - Dark Theme */
+.badge {
+    font-weight: 500;
+}
+
+.badge.bg-light {
+    background-color: var(--bg-dark-tertiary) !important;
+    color: var(--text-light-primary);
+}
+
+/* Dropdown Menus - Dark Theme */
+.dropdown-menu {
+    background-color: var(--bg-dark-secondary);
+    border-color: var(--border-dark);
+}
+
+.dropdown-item {
+    color: var(--text-light-primary);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--bg-dark-tertiary);
+    color: var(--text-light-primary);
+}
+
+.dropdown-divider {
+    border-color: var(--border-dark);
+}
+
+/* Nav Tabs - Dark Theme */
+.nav-tabs {
+    border-bottom-color: var(--border-dark);
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-light-secondary);
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: var(--border-dark) var(--border-dark) transparent;
+    color: var(--text-light-primary);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--bg-dark-secondary);
+    border-color: var(--border-dark) var(--border-dark) var(--bg-dark-secondary);
+    color: var(--primary-color);
+}
+
+/* Tab Content - Dark Theme */
+.tab-content {
+    background-color: var(--bg-dark-secondary);
+    color: var(--text-light-primary);
+}
+
+/* Pagination - Dark Theme */
+.pagination .page-link {
+    background-color: var(--bg-dark-secondary);
+    border-color: var(--border-dark);
+    color: var(--primary-color);
+}
+
+.pagination .page-link:hover {
+    background-color: var(--bg-dark-tertiary);
+    border-color: var(--border-dark);
+    color: var(--primary-light);
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.pagination .page-item.disabled .page-link {
+    background-color: var(--bg-dark-secondary);
+    border-color: var(--border-dark);
+    color: var(--text-light-muted);
+}
+
+/* Progress Bars - Adjust for Dark Theme */
+.progress {
+    background-color: var(--bg-dark-tertiary);
+}
+
+/* Text Colors for Dark Theme */
+.text-muted {
+    color: var(--text-light-muted) !important;
+}
+
+.text-secondary {
+    color: var(--text-light-secondary) !important;
+}
+
+/* Links */
+a {
+    color: var(--primary-color);
+}
+
+a:hover {
+    color: var(--primary-light);
+}
+
+/* Modal - Dark Theme */
+.modal-content {
+    background-color: var(--bg-dark-secondary);
+    border-color: var(--border-dark);
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--border-dark);
+}
+
+.modal-title {
+    color: var(--text-light-primary);
+}
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
 }
 
 /* Responsive adjustments */
