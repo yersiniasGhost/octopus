@@ -27,7 +27,7 @@ For more information, visit: https://github.com/empowersaves/octopus
     run_parser = subparsers.add_parser('run', help='Run the development server')
     run_parser.add_argument(
         '--host',
-        default='127.0.0.1',
+        default='.0.0.1',
         help='Host to bind to (default: 127.0.0.1)'
     )
     run_parser.add_argument(
