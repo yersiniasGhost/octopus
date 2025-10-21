@@ -19,6 +19,41 @@ from pymongo import MongoClient
 from src.utils.envvars import EnvVars
 
 
+def clean_currency(value, default=-1):
+    """
+    Convert currency string to float.
+
+    Handles formats like:
+    - "$1,705.35" → 1705.35
+    - "1705.35" → 1705.35
+    - "" → default
+    - None → default
+
+    Args:
+        value: String or numeric value to convert
+        default: Default value if conversion fails
+
+    Returns:
+        Float value or default
+    """
+    if value is None or value == '':
+        return default
+
+    # If already a number, return it
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    # Convert to string and clean
+    try:
+        # Remove currency symbols, commas, and whitespace
+        cleaned = str(value).replace('$', '').replace(',', '').strip()
+        if cleaned == '' or cleaned == '-1':
+            return default
+        return float(cleaned)
+    except (ValueError, AttributeError):
+        return default
+
+
 class BayesianDataPrep:
     """Data preparation for Bayesian engagement models."""
 
@@ -97,11 +132,11 @@ class BayesianDataPrep:
             row['last_name'] = fields.get('LastName', '')
             row['city'] = fields.get('City', '')
             row['zip'] = fields.get('ZIP', '')
-            row['kwh'] = float(fields.get('kWh', -1))
+            row['kwh'] = clean_currency(fields.get('kWh'), default=-1)
             row['cell'] = fields.get('Cell', '')
             row['address'] = fields.get('Address', '')
-            row['annual_cost'] = float(fields.get('annualcost', -1))
-            row['annual_savings'] = float(fields.get('AnnualSavings', -1))
+            row['annual_cost'] = clean_currency(fields.get('annualcost'), default=-1)
+            row['annual_savings'] = clean_currency(fields.get('AnnualSavings'), default=-1)
 
             data.append(row)
 
@@ -144,14 +179,14 @@ class BayesianDataPrep:
             row = {
                 'parcel_id': d.get('parcel_id'),
                 'address': d.get('address', ''),
-                'energy_burden_gas': float(d.get('energy_burden_gas', -1)),
-                'energy_burden_kwh': float(d.get('energy_burden_kwh', -1)),
-                'annual_kwh_cost': float(d.get('annual_kwh_cost', -1)),
-                'annual_gas_cost': float(d.get('annual_gas_cost', -1)),
-                'total_energy_burden': float(d.get('total_energy_burden', -1)),
-                'estimated_income': float(d.get('estimated_income', -1)),
-                'income_level': float(d.get('income_level', -1)),
-                'md_householdsize': float(d.get('md_householdsize', -1)),
+                'energy_burden_gas': clean_currency(d.get('energy_burden_gas'), default=-1),
+                'energy_burden_kwh': clean_currency(d.get('energy_burden_kwh'), default=-1),
+                'annual_kwh_cost': clean_currency(d.get('annual_kwh_cost'), default=-1),
+                'annual_gas_cost': clean_currency(d.get('annual_gas_cost'), default=-1),
+                'total_energy_burden': clean_currency(d.get('total_energy_burden'), default=-1),
+                'estimated_income': clean_currency(d.get('estimated_income'), default=-1),
+                'income_level': clean_currency(d.get('income_level'), default=-1),
+                'md_householdsize': clean_currency(d.get('md_householdsize'), default=-1),
                 'has_mobile': 1 if d.get('mobile', -1) != -1 else 0,
                 'parcel_zip': str(d.get('parcel_zip', '')),
                 'service_city': d.get('service_city', ''),
@@ -188,11 +223,11 @@ class BayesianDataPrep:
                 'parcel_id': r.get('parcel_id'),
                 'parcel_zip': str(r.get('parcel_zip', '')),
                 'address': r.get('address', ''),
-                'story_height': float(r.get('story_height', -1)),
-                'age': float(r.get('age', -1)),
+                'story_height': clean_currency(r.get('story_height'), default=-1),
+                'age': clean_currency(r.get('age'), default=-1),
                 'heat_type': r.get('heat_type', 'NA'),
-                'living_area_total': float(r.get('living_area_total', -1)),
-                'bedrooms': float(r.get('bedrooms', -1)),
+                'living_area_total': clean_currency(r.get('living_area_total'), default=-1),
+                'bedrooms': clean_currency(r.get('bedrooms'), default=-1),
                 'census_tract': r.get('census_tract', 'NA'),
             }
             data.append(row)
