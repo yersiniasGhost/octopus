@@ -196,12 +196,13 @@ def main():
         save_path=str(ppc_plot_path)
     )
 
-    # Marginal effects plot
-    marginal_plot_path = output_dir / 'model_02_marginal_effects.png'
-    model.plot_marginal_effects(
-        data=model_data,
-        save_path=str(marginal_plot_path)
-    )
+    # Marginal effects plot - DISABLED due to PyMC v5 limitation with pm.Data
+    # (Cannot change data size for predictions)
+    # marginal_plot_path = output_dir / 'model_02_marginal_effects.png'
+    # model.plot_marginal_effects(
+    #     data=model_data,
+    #     save_path=str(marginal_plot_path)
+    # )
 
     print(f"\nPlots saved to {output_dir}/")
 
@@ -243,7 +244,6 @@ def main():
     print(f"  - {posterior_plot_path.name}: Posterior distributions")
     print(f"  - {forest_plot_path.name}: Forest plot")
     print(f"  - {ppc_plot_path.name}: Posterior predictive check")
-    print(f"  - {marginal_plot_path.name}: Marginal effects of energy burden")
 
     print("\n" + "✅ " * 20)
     print("MODEL 2 FITTING COMPLETE!")

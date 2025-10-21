@@ -15,6 +15,9 @@ import pandas as pd
 from typing import Tuple, Dict, List, Optional
 from sklearn.preprocessing import StandardScaler
 from pymongo import MongoClient
+import os
+import json
+import hashlib
 
 from src.utils.envvars import EnvVars
 
@@ -323,8 +326,8 @@ class BayesianDataPrep:
         Handle missing values according to project conventions.
 
         Strategy:
-        - -1 indicates missing for numeric fields
-        - Replace -1 with median for continuous predictors
+        - -1 and NaN indicate missing for numeric fields
+        - Replace both -1 and NaN with median for continuous predictors
         - Create missing indicators for important features
 
         Args:
@@ -344,14 +347,18 @@ class BayesianDataPrep:
 
         for feature in continuous_features:
             if feature in df.columns:
-                # Create missing indicator
-                df[f'{feature}_missing'] = (df[feature] == -1).astype(int)
+                # Create missing indicator (NaN or -1)
+                df[f'{feature}_missing'] = ((df[feature] == -1) | df[feature].isna()).astype(int)
 
-                # Replace -1 with median of non-missing values
-                valid_values = df[df[feature] != -1][feature]
+                # Replace both -1 and NaN with median of valid values
+                valid_mask = (df[feature] != -1) & df[feature].notna()
+                valid_values = df[valid_mask][feature]
+
                 if len(valid_values) > 0:
                     median_value = valid_values.median()
-                    df.loc[df[feature] == -1, feature] = median_value
+                    # Replace both -1 and NaN
+                    missing_mask = (df[feature] == -1) | df[feature].isna()
+                    df.loc[missing_mask, feature] = median_value
 
         return df
 
@@ -413,17 +420,50 @@ class BayesianDataPrep:
 
     def prepare_model_data(self,
                           campaign_ids: Optional[List[str]] = None,
-                          min_observations: int = 100) -> Tuple[pd.DataFrame, Dict]:
+                          min_observations: int = 100,
+                          use_cache: bool = True) -> Tuple[pd.DataFrame, Dict]:
         """
         Complete data preparation pipeline for Bayesian modeling.
 
         Args:
             campaign_ids: Optional list of campaign IDs to include
             min_observations: Minimum required observations
+            use_cache: Whether to use cached data if available
 
         Returns:
             Tuple of (prepared DataFrame, metadata dictionary)
         """
+        # Create cache directory
+        cache_dir = 'data/bayes'
+        os.makedirs(cache_dir, exist_ok=True)
+
+        # Generate cache key from campaign_ids
+        if campaign_ids:
+            cache_key = hashlib.md5('_'.join(sorted(campaign_ids)).encode()).hexdigest()[:8]
+        else:
+            cache_key = 'all_campaigns'
+
+        cache_file = os.path.join(cache_dir, f'prepared_data_{cache_key}.parquet')
+        metadata_file = os.path.join(cache_dir, f'metadata_{cache_key}.json')
+
+        # Try to load from cache
+        if use_cache and os.path.exists(cache_file) and os.path.exists(metadata_file):
+            print(f"Loading cached data from {cache_file}...")
+            merged = pd.read_parquet(cache_file)
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+
+            print("Data loaded from cache!")
+            print(f"  Observations: {metadata['n_observations']:,}")
+            print(f"  Campaigns: {metadata['n_campaigns']}")
+            print(f"  ZIP codes: {metadata['n_zips']}")
+            print(f"  Open rate: {metadata['open_rate']:.2%}")
+            print(f"  Click rate: {metadata['click_rate']:.2%}")
+
+            return merged, metadata
+
+        # Otherwise, prepare data from scratch
+        print("Preparing data from MongoDB...")
         print("Loading participants...")
         participants = self.load_participants(campaign_ids)
         print(f"Loaded {len(participants)} participants")
@@ -471,11 +511,17 @@ class BayesianDataPrep:
             'click_rate': merged['clicked'].mean(),
             'heat_type_encoding': heat_type_encoding,
             'continuous_features': continuous_features,
-            'campaign_ids': merged['campaign_id'].unique().tolist(),
+            'campaign_ids': merged['campaign_id'].unique().tolist() if campaign_ids else [],
         }
 
+        # Save to cache
+        print(f"\nCaching data to {cache_file}...")
+        merged.to_parquet(cache_file, index=False)
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
         print("\nData preparation complete!")
-        print(f"  Observations: {metadata['n_observations']}")
+        print(f"  Observations: {metadata['n_observations']:,}")
         print(f"  Campaigns: {metadata['n_campaigns']}")
         print(f"  ZIP codes: {metadata['n_zips']}")
         print(f"  Open rate: {metadata['open_rate']:.2%}")
