@@ -13,18 +13,53 @@ This module handles:
 import numpy as np
 import pandas as pd
 from typing import Tuple, Dict, List, Optional
-from pymongo import MongoClient
 from sklearn.preprocessing import StandardScaler
+from pymongo import MongoClient
+
+from src.utils.envvars import EnvVars
 
 
 class BayesianDataPrep:
     """Data preparation for Bayesian engagement models."""
 
-    def __init__(self, mongo_uri: str = "mongodb://localhost:27017/", db_name: str = "octopus"):
-        """Initialize with MongoDB connection."""
-        self.client = MongoClient(mongo_uri)
-        self.db = self.client[db_name]
+    def __init__(self):
+        """
+        Initialize with MongoDB connections from environment variables.
+
+        Uses two databases:
+        - MONGODB_OCTOPUS: Campaign and participant data
+        - MONGODB_DATABASE: Demographic, residential, and energy data
+        """
+        env = EnvVars()
+
+        # Get connection details
+        host = env.get_env('MONGODB_HOST', 'localhost')
+        port = int(env.get_env('MONGODB_PORT', '27017'))
+
+        # Get database names
+        octopus_db_name = env.get_env('MONGODB_OCTOPUS')
+        county_db_name = env.get_env('MONGODB_DATABASE')
+
+        if not octopus_db_name:
+            raise ValueError("MONGODB_OCTOPUS environment variable is required for participant data")
+        if not county_db_name:
+            raise ValueError("MONGODB_DATABASE environment variable is required for demographic data")
+
+        # Create MongoDB client
+        self.client = MongoClient(host, port)
+
+        # Connect to both databases
+        self.octopus_db = self.client[octopus_db_name]  # Participants, campaigns
+        self.county_db = self.client[county_db_name]    # Demographics, property data
+
+        # For backwards compatibility
+        self.db = self.octopus_db
+
         self.scaler = StandardScaler()
+
+        print(f"Connected to MongoDB at {host}:{port}")
+        print(f"  - Octopus DB (participants/campaigns): {octopus_db_name}")
+        print(f"  - County DB (demographics/property): {county_db_name}")
 
     def load_participants(self, campaign_ids: Optional[List[str]] = None) -> pd.DataFrame:
         """
@@ -40,7 +75,7 @@ class BayesianDataPrep:
         if campaign_ids:
             query['campaign_id'] = {'$in': campaign_ids}
 
-        participants = list(self.db.participants.find(query))
+        participants = list(self.octopus_db.participants.find(query))
 
         if not participants:
             raise ValueError("No participants found with the given criteria")
@@ -88,8 +123,8 @@ class BayesianDataPrep:
         Returns:
             DataFrame with demographic data
         """
-        # Get all county demographic collections
-        collections = [name for name in self.db.list_collection_names()
+        # Get all county demographic collections from county database
+        collections = [name for name in self.county_db.list_collection_names()
                       if 'CountyDemographic' in name]
 
         if not collections:
@@ -97,7 +132,7 @@ class BayesianDataPrep:
 
         all_demographics = []
         for coll_name in collections:
-            demographics = list(self.db[coll_name].find())
+            demographics = list(self.county_db[coll_name].find())
             all_demographics.extend(demographics)
 
         if not all_demographics:
@@ -132,7 +167,7 @@ class BayesianDataPrep:
         Returns:
             DataFrame with property data
         """
-        collections = [name for name in self.db.list_collection_names()
+        collections = [name for name in self.county_db.list_collection_names()
                       if 'CountyResidential' in name]
 
         if not collections:
@@ -140,7 +175,7 @@ class BayesianDataPrep:
 
         all_residential = []
         for coll_name in collections:
-            residential = list(self.db[coll_name].find())
+            residential = list(self.county_db[coll_name].find())
             all_residential.extend(residential)
 
         if not all_residential:

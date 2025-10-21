@@ -60,18 +60,6 @@ def parse_args():
         default='reports/bayesian_models',
         help='Output directory for results (default: reports/bayesian_models)'
     )
-    parser.add_argument(
-        '--mongo-uri',
-        type=str,
-        default='mongodb://localhost:27017/',
-        help='MongoDB connection URI'
-    )
-    parser.add_argument(
-        '--db-name',
-        type=str,
-        default='octopus',
-        help='MongoDB database name'
-    )
 
     return parser.parse_args()
 
@@ -99,7 +87,7 @@ def main():
     print("STEP 1: DATA PREPARATION")
     print("=" * 60 + "\n")
 
-    data_prep = BayesianDataPrep(mongo_uri=args.mongo_uri, db_name=args.db_name)
+    data_prep = BayesianDataPrep()
 
     try:
         df, metadata = data_prep.prepare_model_data(
