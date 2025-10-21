@@ -42,9 +42,9 @@ class BaselineOpenModel:
             PyMC Model object
         """
         with pm.Model() as model:
-            # Data containers
-            annual_cost = pm.MutableData("annual_cost", data['annual_cost'])
-            annual_savings = pm.MutableData("annual_savings", data['annual_savings'])
+            # Data containers (PyMC v5 API)
+            annual_cost = pm.Data("annual_cost", data['annual_cost'])
+            annual_savings = pm.Data("annual_savings", data['annual_savings'])
 
             # Priors
             # Intercept: weakly informative prior centered at 0

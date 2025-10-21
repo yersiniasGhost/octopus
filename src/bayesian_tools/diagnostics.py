@@ -289,9 +289,15 @@ class BayesianDiagnostics:
         # Calculate odds ratios for logistic regression coefficients
         beta_vars = [v for v in summary.index if 'beta' in v.lower()]
         if beta_vars:
-            summary['odds_ratio'] = np.exp(summary['mean'])
-            summary['or_lower'] = np.exp(summary[f'hdi_{(1-hdi_prob)/2*100:.0f}%'])
-            summary['or_upper'] = np.exp(summary[f'hdi_{100-((1-hdi_prob)/2*100):.0f}%'])
+            # Find HDI column names dynamically (handles both 'hdi_2.5%' and 'hdi_3%' formats)
+            hdi_cols = [col for col in summary.columns if col.startswith('hdi_')]
+            if len(hdi_cols) >= 2:
+                hdi_lower_col = sorted(hdi_cols)[0]  # Lower bound
+                hdi_upper_col = sorted(hdi_cols)[-1]  # Upper bound
+
+                summary['odds_ratio'] = np.exp(summary['mean'])
+                summary['or_lower'] = np.exp(summary[hdi_lower_col])
+                summary['or_upper'] = np.exp(summary[hdi_upper_col])
 
         return summary
 

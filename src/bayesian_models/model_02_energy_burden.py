@@ -51,10 +51,10 @@ class EnergyBurdenOpenModel:
             PyMC Model object
         """
         with pm.Model() as model:
-            # Data containers
-            energy_burden = pm.MutableData("energy_burden", data['energy_burden'])
-            income_level = pm.MutableData("income_level", data['income_level'])
-            household_size = pm.MutableData("household_size", data['household_size'])
+            # Data containers (PyMC v5 API)
+            energy_burden = pm.Data("energy_burden", data['energy_burden'])
+            income_level = pm.Data("income_level", data['income_level'])
+            household_size = pm.Data("household_size", data['household_size'])
 
             # Priors
             # Intercept: weakly informative prior centered at 0

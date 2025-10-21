@@ -252,15 +252,6 @@ class BayesianDataPrep:
         Returns:
             Merged DataFrame
         """
-        # Normalize addresses for matching
-        for df in [participants_df, demographics_df, property_df]:
-            if 'address' in df.columns:
-                df['address_normalized'] = (
-                    df['address']
-                    .str.upper()
-                    .str.replace(r'[^A-Z0-9]', '', regex=True)
-                )
-
         # First merge demographics with property on parcel_id
         demo_property = pd.merge(
             demographics_df,
@@ -270,6 +261,29 @@ class BayesianDataPrep:
             suffixes=('_demo', '_prop')
         )
 
+        # Normalize addresses for matching AFTER merging demo and property
+        # Participants have 'address', demo_property will have 'address_demo' or 'address_prop'
+        if 'address' in participants_df.columns:
+            participants_df['address_normalized'] = (
+                participants_df['address']
+                .str.upper()
+                .str.replace(r'[^A-Z0-9]', '', regex=True)
+            )
+
+        # Use address_demo from merged demographics/property (demographics takes precedence)
+        if 'address_demo' in demo_property.columns:
+            demo_property['address_normalized'] = (
+                demo_property['address_demo']
+                .str.upper()
+                .str.replace(r'[^A-Z0-9]', '', regex=True)
+            )
+        elif 'address' in demo_property.columns:
+            demo_property['address_normalized'] = (
+                demo_property['address']
+                .str.upper()
+                .str.replace(r'[^A-Z0-9]', '', regex=True)
+            )
+
         # Then merge with participants on normalized address
         merged = pd.merge(
             participants_df,
@@ -277,7 +291,7 @@ class BayesianDataPrep:
             left_on='address_normalized',
             right_on='address_normalized',
             how='left',
-            suffixes=('_part', '_demo')
+            suffixes=('_part', '_county')
         )
 
         # For rows that didn't match on address, try ZIP code
