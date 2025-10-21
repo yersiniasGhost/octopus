@@ -562,8 +562,7 @@ def get_model_matrices(df: pd.DataFrame,
         matrices['energy_burden'] = df['total_energy_burden_scaled'].values
         matrices['income_level'] = df['income_level_scaled'].values
         matrices['household_size'] = df['md_householdsize_scaled'].values
-        matrices['has_mobile'] = df['has_mobile'].values
-        matrices['estimated_income'] = df['estimated_income_scaled'].values
+        matrices['kwh_usage'] = df['kwh_scaled'].values
 
     elif model_spec == 'property':
         matrices['energy_burden'] = df['total_energy_burden_scaled'].values
