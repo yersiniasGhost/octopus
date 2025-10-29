@@ -60,3 +60,6 @@ htmlcov/
 # Node (if using npm for frontend)
 node_modules/
 package-lock.json
+
+.claude-flow/
+.swarm/
