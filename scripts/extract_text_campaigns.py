@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Extract text campaign data from Excel and import into MongoDB.
+Extract text campaign data from Excel and import into MongoDB campaigns collection.
 
-Reads text campaign statistics from Empower_Saves_Texts_All.xlsx,
-parses campaign metadata, and imports into MongoDB text_campaigns collection.
+Reads text campaign statistics from Empower_Saves_Texts_All.xlsx (Stats sheet),
+parses campaign metadata, and imports into MongoDB campaigns collection as type="text".
 
 Usage:
     python scripts/extract_text_campaigns.py [--dry-run] [--output json|mongo] [--verbose]
@@ -27,9 +27,9 @@ env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(env_path)
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'empower_analytics' / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mongo_models.text_campaign import TextCampaign
+from src.models.campaign import Campaign, TextStatistics, CampaignStatCount
 
 
 def parse_shortened_name(name: str) -> Tuple[Optional[int], Optional[str], Optional[str], Optional[str]]:
@@ -101,7 +101,7 @@ def parse_datetime(dt_str: str) -> Optional[datetime]:
             return None
 
 
-def extract_campaigns_from_excel(excel_path: Path, verbose: bool = False) -> List[TextCampaign]:
+def extract_campaigns_from_excel(excel_path: Path, verbose: bool = False) -> List[Campaign]:
     """
     Extract text campaigns from Excel file.
 
@@ -110,7 +110,7 @@ def extract_campaigns_from_excel(excel_path: Path, verbose: bool = False) -> Lis
         verbose: Enable verbose output
 
     Returns:
-        List of TextCampaign objects
+        List of Campaign objects
     """
     if verbose:
         print(f"Reading Excel file: {excel_path}")
@@ -145,39 +145,51 @@ def extract_campaigns_from_excel(excel_path: Path, verbose: bool = False) -> Lis
             skipped += 1
             continue
 
-        # Create campaign object
+        # Create campaign object using unified Campaign model
         try:
-            campaign = TextCampaign(
+            # Build TextStatistics
+            sent_count = int(row['sent'])
+            delivered_count = int(row['delivered'])
+            replies_count = int(row['replies'])
+            dnd_count = int(row['dnd'])
+
+            statistics = TextStatistics(
+                sent=CampaignStatCount(unique=sent_count, total=sent_count),
+                delivered=CampaignStatCount(unique=delivered_count, total=delivered_count),
+                clicked=CampaignStatCount(unique=replies_count, total=replies_count),  # Use replies as clicked
+                failed=CampaignStatCount(unique=int(row['err']), total=int(row['err'])),
+                opt_outs=CampaignStatCount(unique=dnd_count, total=dnd_count)
+            )
+
+            # Build campaign name from parsed components
+            campaign_name = f"Text{text_num}_{msg_key}_{agency}"
+            if time_var:
+                campaign_name += f"_{time_var}"
+
+            campaign = Campaign(
                 campaign_id=str(row['campaignId']),
-                text_number=text_num,
-                message_key=msg_key,
-                agency=agency,
-                time_variant=time_var,
-                sent_time=sent_time,
-                update_time=update_time,
-                target_size=int(row['target']),
-                sent_count=int(row['sent']),
-                delivered_count=int(row['delivered']),
-                received_count=int(row['received']),
-                replies_count=int(row['replies']),
-                responses_count=int(row['responses']),
-                segments_sent=int(row['segments_sent']),
-                dnd_count=int(row['dnd']),
-                bad_number_count=int(row['bad']),
-                spam_count=int(row['spam']),
-                landline_count=int(row['landline']),
-                error_count=int(row['err'])
+                name=campaign_name,
+                campaign_type='text',
+                status='SENT',  # Campaigns from Stats sheet are already sent
+                created_at=sent_time,
+                sent_at=sent_time,
+                target_audience=agency,
+                message_body=f"{msg_key} message campaign",
+                statistics=statistics,
+                synced_at=update_time
             )
 
             campaigns.append(campaign)
 
             if verbose:
-                print(f"  [OK] Row {idx}: Text{text_num}_{msg_key}_{agency} "
-                      f"(sent: {campaign.sent_count}, delivered: {campaign.delivered_count})")
+                print(f"  [OK] Row {idx}: {campaign_name} "
+                      f"(sent: {sent_count}, delivered: {delivered_count})")
 
         except Exception as e:
             if verbose:
                 print(f"  [ERROR] Row {idx}: {str(e)}")
+                import traceback
+                traceback.print_exc()
             skipped += 1
 
     if verbose:
@@ -186,13 +198,13 @@ def extract_campaigns_from_excel(excel_path: Path, verbose: bool = False) -> Lis
     return campaigns
 
 
-def save_to_mongodb(campaigns: List[TextCampaign], collection_name: str = 'text_campaigns',
+def save_to_mongodb(campaigns: List[Campaign], collection_name: str = 'campaigns',
                    verbose: bool = False) -> int:
     """
     Save campaigns to MongoDB.
 
     Args:
-        campaigns: List of TextCampaign objects
+        campaigns: List of Campaign objects
         collection_name: MongoDB collection name
         verbose: Enable verbose output
 
@@ -203,9 +215,9 @@ def save_to_mongodb(campaigns: List[TextCampaign], collection_name: str = 'text_
         print(f"\nConnecting to MongoDB...")
 
     # Get MongoDB connection details from environment
-    mongo_host = os.getenv('MONGODB_HOST', 'localhost')
-    mongo_port = int(os.getenv('MONGODB_PORT', '27017'))
-    mongo_db = os.getenv('MONGODB_DATABASE', 'emailoctopus_db')
+    mongo_host = os.getenv('MONGODB_HOST_RM', 'localhost')
+    mongo_port = int(os.getenv('MONGODB_PORT_RM', '27017'))
+    mongo_db = os.getenv('MONGODB_DATABASE_RM', 'empower_development')
 
     if verbose:
         print(f"MongoDB: {mongo_host}:{mongo_port}/{mongo_db}")
@@ -219,8 +231,8 @@ def save_to_mongodb(campaigns: List[TextCampaign], collection_name: str = 'text_
         print(f"Using collection: {collection_name}")
         print(f"Inserting {len(campaigns)} campaigns...")
 
-    # Convert to dict format for MongoDB
-    campaign_dicts = [campaign.dict(by_alias=True, exclude={'id'}) for campaign in campaigns]
+    # Convert to dict format for MongoDB using to_mongo_dict()
+    campaign_dicts = [campaign.to_mongo_dict() for campaign in campaigns]
 
     # Insert into MongoDB
     result = collection.insert_many(campaign_dicts)
@@ -230,15 +242,16 @@ def save_to_mongodb(campaigns: List[TextCampaign], collection_name: str = 'text_
         print(f"Successfully inserted {inserted_count} campaigns")
         print(f"Sample IDs: {result.inserted_ids[:3]}")
 
+    client.close()
     return inserted_count
 
 
-def save_to_json(campaigns: List[TextCampaign], output_path: Path, verbose: bool = False) -> None:
+def save_to_json(campaigns: List[Campaign], output_path: Path, verbose: bool = False) -> None:
     """
     Save campaigns to JSON file.
 
     Args:
-        campaigns: List of TextCampaign objects
+        campaigns: List of Campaign objects
         output_path: Output JSON file path
         verbose: Enable verbose output
     """
@@ -246,7 +259,7 @@ def save_to_json(campaigns: List[TextCampaign], output_path: Path, verbose: bool
         print(f"\nExporting to JSON: {output_path}")
 
     # Convert to dict format
-    campaign_dicts = [campaign.dict(by_alias=True, exclude={'id'}) for campaign in campaigns]
+    campaign_dicts = [campaign.to_mongo_dict() for campaign in campaigns]
 
     # Convert datetime objects to ISO format strings
     def json_serializer(obj):
@@ -286,8 +299,8 @@ def main():
     parser.add_argument(
         '--collection',
         type=str,
-        default='text_campaigns',
-        help='MongoDB collection name (default: text_campaigns)'
+        default='campaigns',
+        help='MongoDB collection name (default: campaigns)'
     )
     parser.add_argument(
         '--verbose',
@@ -329,12 +342,12 @@ def main():
         sample = campaigns[0]
         print(f"\nSample campaign:")
         print(f"  Campaign ID: {sample.campaign_id}")
-        print(f"  Text Number: {sample.text_number}")
-        print(f"  Message Key: {sample.message_key}")
-        print(f"  Agency: {sample.agency}")
-        print(f"  Sent: {sample.sent_count} / Target: {sample.target_size}")
-        print(f"  Delivered: {sample.delivered_count} ({sample.delivered_count/sample.sent_count*100:.1f}%)")
-        print(f"  Replies: {sample.replies_count}")
+        print(f"  Name: {sample.name}")
+        print(f"  Type: {sample.campaign_type}")
+        print(f"  Agency: {sample.target_audience}")
+        print(f"  Sent: {sample.statistics.sent.total}")
+        print(f"  Delivered: {sample.statistics.delivered.total} ({sample.statistics.delivered.total/sample.statistics.sent.total*100:.1f}%)")
+        print(f"  Replies: {sample.statistics.clicked.total}")
 
     # Handle dry-run
     if args.dry_run:
