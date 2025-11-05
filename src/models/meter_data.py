@@ -1,6 +1,6 @@
 from typing import Dict, List
 from datetime import datetime
-from config.pyobject_id import PyObjectId
+from src.utils.pyobject_id import PyObjectId
 from bson import ObjectId
 from pydantic import BaseModel, Field as PydanticField
 

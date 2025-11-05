@@ -1,5 +1,5 @@
 from typing import Dict, List
-from src.config.pyobject_id import PyObjectId
+from src.utils.pyobject_id import PyObjectId
 from pydantic import BaseModel, Field as PydanticField
 
 

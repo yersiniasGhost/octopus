@@ -1,4 +1,4 @@
-from config.pyobject_id import PyObjectId
+from src.utils.pyobject_id import PyObjectId
 from pydantic import BaseModel, Field as PydanticField
 
 
