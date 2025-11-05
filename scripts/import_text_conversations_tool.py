@@ -2,7 +2,7 @@
 """
 Tool: Import Text Conversations
 
-Imports text conversation data from Excel into MongoDB participants collection.
+Imports text conversation data from CSV into MongoDB participants collection.
 Performs residence/demographic matching and creates participant engagement records.
 
 This is a reusable tool for one-time imports/updates of text campaign data.
@@ -14,8 +14,8 @@ Usage:
     # Import conversations
     python scripts/import_text_conversations_tool.py --campaign-id 690b0058eadaad6f0e0dbfb3
 
-    # Import with specific Excel file
-    python scripts/import_text_conversations_tool.py --excel data/campaign_texting/custom.xlsx --sheet Conversations
+    # Import with specific CSV file
+    python scripts/import_text_conversations_tool.py --csv data/campaign_texting/custom.csv
 """
 import os
 import sys
@@ -30,7 +30,6 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import openpyxl
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from bson import ObjectId
@@ -43,15 +42,15 @@ from src.tools.residence_matcher import ResidenceMatcher, PhoneNormalizer
 load_dotenv()
 
 # Default paths
-DEFAULT_EXCEL = Path(__file__).parent.parent / 'data' / 'campaign_texting' / 'Empower_Saves_Texts_All.xlsx'
+DEFAULT_CSV = Path(__file__).parent.parent / 'data' / 'campaign_texting' / 'Empower_Saves_Texts_All.csv'
 ZIPCODE_COUNTY_MAP = Path(__file__).parent.parent / 'data' / 'zipcode_to_county_cache.json'
 
 
 class ConversationImporter:
     """Import text conversations with residence matching"""
 
-    def __init__(self, excel_path: Path, campaign_id: str, dry_run: bool = False, verbose: bool = False, limit: Optional[int] = None):
-        self.excel_path = excel_path
+    def __init__(self, csv_path: Path, campaign_id: str, dry_run: bool = False, verbose: bool = False, limit: Optional[int] = None):
+        self.csv_path = csv_path
         self.campaign_id = campaign_id
         self.dry_run = dry_run
         self.verbose = verbose
@@ -86,46 +85,49 @@ class ConversationImporter:
         # Track unmatched contacts for CSV export
         self.unmatched_contacts = []
 
-    def load_conversations(self, sheet_name: str = 'Conversations') -> Dict[str, List[Dict]]:
+    def load_conversations(self) -> Dict[str, List[Dict]]:
         """
-        Load conversations from Excel and group by phone number
+        Load conversations from CSV and group by phone number
 
         Returns:
             Dict mapping phone number to list of conversation records
         """
-        print(f"\nLoading conversations from: {self.excel_path}")
-        print(f"Sheet: {sheet_name}")
-
-        wb = openpyxl.load_workbook(self.excel_path, read_only=True)
-        ws = wb[sheet_name]
-
-        # Get headers from first row
-        headers = [cell.value for cell in ws[1]]
+        print(f"\nLoading conversations from: {self.csv_path}")
 
         # Group conversations by phone
         conversations_by_phone = defaultdict(list)
 
-        # Determine max rows to process
-        max_row = ws.max_row
-        if self.limit:
-            max_row = min(max_row, self.limit + 1)  # +1 because row 1 is header
-            print(f"LIMIT: Processing first {self.limit} conversation rows only")
+        # Track phones seen in CSV to skip duplicates
+        p_phones = set()
+        row_idx = 0
 
-        for row_idx in range(2, max_row + 1):
-            row_data = {}
-            for col_idx, header in enumerate(headers, start=1):
-                cell_value = ws.cell(row_idx, col_idx).value
-                row_data[header] = cell_value
+        with open(self.csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
 
-            phone = row_data.get('Phone Number')
-            if phone:
-                norm_phone = PhoneNormalizer.normalize(phone)
-                conversations_by_phone[norm_phone].append(row_data)
+            for row in reader:
+                row_idx += 1
 
-            self.stats['total_conversations'] += 1
+                # Check limit
+                if self.limit and row_idx > self.limit:
+                    print(f"LIMIT: Stopped after {self.limit} conversation rows")
+                    break
 
-            if row_idx % 10000 == 0:
-                print(f"  Loaded {row_idx} rows...")
+                phone = row.get('Phone Number')
+                if phone and phone in p_phones:
+                    continue
+
+                if phone:
+                    norm_phone = PhoneNormalizer.normalize(phone)
+                    conversations_by_phone[norm_phone].append(row)
+                    p_phones.add(phone)
+
+                self.stats['total_conversations'] += 1
+
+                # Progress output
+                if self.verbose and row_idx % 100 == 0:
+                    print(f"  Loaded {row_idx} rows... ({len(conversations_by_phone)} unique contacts)")
+                elif row_idx % 10000 == 0:
+                    print(f"  Loaded {row_idx} rows...")
 
         self.stats['total_contacts'] = len(conversations_by_phone)
         print(f"Loaded {self.stats['total_conversations']} conversation records")
@@ -139,6 +141,57 @@ class ConversationImporter:
             return None
         clean_zip = re.sub(r'\D', '', str(zipcode))[:5]
         return self.zipcode_map.get(clean_zip)
+
+    def get_county_from_city(self, city: str) -> Optional[str]:
+        """Map city to county (fallback when County field and zipcode lookup fail)"""
+        if not city:
+            return None
+
+        # Common Ohio city to county mappings
+        city_map = {
+            'columbus': 'FranklinCounty',
+            'athens': 'AthensCounty',
+            'cleveland': 'CuyahogaCounty',
+            'cincinnati': 'HamiltonCounty',
+            'toledo': 'LucasCounty',
+            'akron': 'SummitCounty',
+            'dayton': 'MontgomeryCounty',
+            'youngstown': 'MahoningingCounty',
+            'canton': 'StarkCounty',
+            'lorain': 'LorainCounty',
+            'hamilton': 'ButlerCounty',
+            'springfield': 'ClarkCounty',
+            'kettering': 'MontgomeryCounty',
+            'elyria': 'LorainCounty',
+            'newark': 'LickingCounty',
+            'mansfield': 'RichlandCounty',
+            'mentor': 'LakeCounty',
+            'beavercreek': 'GreeneCounty',
+            'strongsville': 'CuyahogaCounty',
+            'dublin': 'FranklinCounty',
+            'fairfield': 'ButlerCounty',
+            'findlay': 'HancockCounty',
+            'warren': 'TrumbullCounty',
+            'lancaster': 'FairfieldCounty',
+            'lima': 'AllenCounty',
+            'huber heights': 'MontgomeryCounty',
+            'westerville': 'FranklinCounty',
+            'marion': 'MarionCounty',
+            'grove city': 'FranklinCounty',
+            'reynoldsburg': 'FranklinCounty',
+            'upper arlington': 'FranklinCounty',
+            'gahanna': 'FranklinCounty',
+            'hilliard': 'FranklinCounty',
+            'pickerington': 'FairfieldCounty',
+            'worthington': 'FranklinCounty',
+            'bexley': 'FranklinCounty',
+            'whitehall': 'FranklinCounty',
+            'groveport': 'FranklinCounty',
+            'canal winchester': 'FranklinCounty',
+        }
+
+        city_lower = city.lower().strip()
+        return city_map.get(city_lower)
 
     def match_to_residence(self, phone: str, conversation_data: List[Dict]) -> Tuple[Optional[ResidenceReference], Optional[DemographicReference], str]:
         """
@@ -154,28 +207,45 @@ class ConversationImporter:
         # Get contact info from first conversation record (all should be same)
         first_msg = conversation_data[0]
 
+        # Extract all available contact fields
+        email = first_msg.get('Email')
+        first_name = first_msg.get('First Name')
+        last_name = first_msg.get('Last Name')
         street = first_msg.get('Street')
         city = first_msg.get('City')
         state = first_msg.get('State')
         zipcode = first_msg.get('Zipcode')
         county_raw = first_msg.get('County')
 
-        # Determine county
+        # Determine county with priority: County field > City lookup > Zipcode lookup
         county = None
         if county_raw:
+            # County field is populated
             county = f"{county_raw}County" if not county_raw.endswith('County') else county_raw
-        elif zipcode:
+        elif city:
+            # Try city-to-county mapping (more reliable than broken zipcode cache)
+            county = self.get_county_from_city(city)
+            if county and self.verbose:
+                print(f"  📍 Determined county from city: {city} → {county}")
+
+        # Fallback to zipcode only if still no county
+        if not county and zipcode:
             county = self.get_county_from_zipcode(zipcode)
+            if county and self.verbose:
+                print(f"  📍 Determined county from zipcode: {zipcode} → {county}")
 
         if not county:
             if self.verbose:
-                print(f"  ⚠️  No county found for phone {phone}")
+                print(f"  ⚠️  No county found for {city}/{zipcode}")
             return None, None, "no_county"
 
-        # Use enhanced matcher with 8 strategies
+        # Use enhanced matcher with 8 strategies (now including email and name!)
         matcher = ResidenceMatcher(self.db, county=county)
         residence_ref, demographic_ref, match_method = matcher.match(
             phone=phone,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
             address=street,
             zipcode=zipcode
         )
@@ -231,12 +301,75 @@ class ConversationImporter:
         total_failed = 0
         total_opt_outs = 0
 
+        # Track processed phones to avoid duplicates
+        processed_phones = set()
+
         for idx, (phone, conversations) in enumerate(conversations_by_phone.items(), 1):
-            if idx % 100 == 0:
+            # Skip if already processed in this run
+            if phone in processed_phones:
+                if self.verbose:
+                    print(f"\n[{idx}/{self.stats['total_contacts']}] Skipping {phone} - already processed")
+                continue
+
+            # Mark as processed
+            processed_phones.add(phone)
+            # Progress output
+            if self.verbose:
+                first_msg = conversations[0]
+                county = first_msg.get('County', 'Unknown')
+                city = first_msg.get('City', 'Unknown')
+                print(f"\n[{idx}/{self.stats['total_contacts']}] Processing {phone} ({city}, {county}) - {len(conversations)} messages")
+            elif idx % 100 == 0:
                 print(f"Processing contact {idx}/{self.stats['total_contacts']}...")
 
-            # Match to residence/demographic
-            residence_ref, demographic_ref, match_method = self.match_to_residence(phone, conversations)
+            # Check if participant already exists (cheap query)
+            existing = participants_coll.find_one({'contact_id': phone})
+
+            # Only skip matching if participant exists AND has references
+            has_references = False
+            if existing:
+                has_residence = existing.get('residence') is not None
+                has_demographic = existing.get('demographic') is not None
+                has_references = has_residence or has_demographic
+
+            if existing and has_references:
+                # Reuse existing residence/demographic references (no matching needed!)
+                if self.verbose:
+                    print(f"  ♻️  Participant exists with references - reusing")
+
+                # Extract existing references
+                residence_ref = None
+                demographic_ref = None
+                if existing.get('residence'):
+                    residence_ref = ResidenceReference(**existing['residence'])
+                if existing.get('demographic'):
+                    demographic_ref = DemographicReference(**existing['demographic'])
+
+                match_method = "existing"
+                self.stats['updated_participants'] += 1
+            else:
+                # New participant OR existing without references - do matching
+                if self.verbose:
+                    if existing:
+                        print(f"  🔍 Participant exists but missing references - performing matching...")
+                    else:
+                        print(f"  🔍 New participant - performing residence matching...")
+
+                residence_ref, demographic_ref, match_method = self.match_to_residence(phone, conversations)
+
+                # Verbose output for match result
+                if self.verbose:
+                    if match_method in ("no_match", "no_county", "collection_not_found"):
+                        print(f"  ❌ No match: {match_method}")
+                    else:
+                        ref_type = "residence" if residence_ref else "demographic"
+                        parcel = residence_ref.parcel_id if residence_ref else (demographic_ref.parcel_id if demographic_ref else "N/A")
+                        print(f"  ✅ Matched via {match_method} ({ref_type}: {parcel})")
+
+                if existing:
+                    self.stats['updated_participants'] += 1
+                else:
+                    self.stats['created_participants'] += 1
 
             # Track unmatched for CSV export
             if match_method in ("no_match", "no_county", "collection_not_found"):
@@ -275,22 +408,15 @@ class ConversationImporter:
                         total_opt_outs += 1
 
             if not self.dry_run:
-                # Check if participant already exists
-                existing = participants_coll.find_one({'contact_id': phone})
-
                 if existing:
                     # Update existing participant (add/update engagement)
                     participants_coll.update_one(
                         {'_id': existing['_id']},
                         {'$set': participant.to_mongo_dict()}
                     )
-                    self.stats['updated_participants'] += 1
                 else:
                     # Insert new participant
                     participants_coll.insert_one(participant.to_mongo_dict())
-                    self.stats['created_participants'] += 1
-            else:
-                self.stats['created_participants'] += 1
 
         # Update campaign statistics
         if not self.dry_run:
@@ -331,8 +457,13 @@ class ConversationImporter:
             print(f"  {method:20s}: {count:,}")
 
         print(f"\nParticipants:")
-        print(f"  Created:                    {self.stats['created_participants']:,}")
-        print(f"  Updated:                    {self.stats['updated_participants']:,}")
+        print(f"  Created (new):              {self.stats['created_participants']:,}")
+        print(f"  Updated (existing):         {self.stats['updated_participants']:,}")
+
+        if self.stats['updated_participants'] > 0:
+            print(f"\n⚡ Performance:")
+            print(f"  Skipped expensive matching: {self.stats['updated_participants']:,} participants")
+            print(f"  Only matched new contacts:  {self.stats['created_participants']:,} participants")
 
         print(f"{'='*80}")
 
@@ -362,8 +493,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Import text conversations into MongoDB')
-    parser.add_argument('--excel', type=Path, default=DEFAULT_EXCEL, help='Excel file path')
-    parser.add_argument('--sheet', default='Conversations', help='Worksheet name')
+    parser.add_argument('--csv', type=Path, default=DEFAULT_CSV, help='CSV file path')
     parser.add_argument('--campaign-id', required=True, help='MongoDB Campaign _id')
     parser.add_argument('--dry-run', action='store_true', help='Validation only (no writes)')
     parser.add_argument('--verbose', action='store_true', help='Verbose output')
@@ -375,13 +505,12 @@ def main():
     print(f"TEXT CONVERSATIONS IMPORT TOOL")
     print(f"{'='*80}")
     print(f"Started at: {datetime.now()}")
-    print(f"Excel file: {args.excel}")
-    print(f"Worksheet: {args.sheet}")
+    print(f"CSV file: {args.csv}")
     print(f"Campaign ID: {args.campaign_id}")
     print(f"Mode: {'DRY RUN' if args.dry_run else 'LIVE IMPORT'}")
 
     importer = ConversationImporter(
-        excel_path=args.excel,
+        csv_path=args.csv,
         campaign_id=args.campaign_id,
         dry_run=args.dry_run,
         verbose=args.verbose,
@@ -389,7 +518,7 @@ def main():
     )
 
     try:
-        conversations = importer.load_conversations(args.sheet)
+        conversations = importer.load_conversations()
         importer.import_conversations(conversations)
         importer.print_statistics()
         importer.write_unmatched_csv()
