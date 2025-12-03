@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dashboard-section py-5">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Letter Campaigns</li>
+            </ol>
+        </nav>
+
+        <!-- Coming Soon Card -->
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-file-text-fill text-info" style="font-size: 6rem;"></i>
+                        <h1 class="mt-4">
+                            <span class="badge bg-info mb-3">LETTER</span>
+                        </h1>
+                        <h2 class="mb-3">Letter Campaign Dashboard</h2>
+                        <p class="lead text-muted mb-4">Coming Soon</p>
+
+                        <div class="text-start mt-4 px-5">
+                            <h5 class="mb-3">This dashboard will display:</h5>
+                            <ul class="list-unstyled">
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Total letter campaigns</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Print and mail statistics</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Certified mail tracking</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Delivery confirmation rates</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Return/undeliverable rates</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Cost per letter</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Response tracking</li>
+                            </ul>
+                        </div>
+
+                        <div class="mt-4">
+                            <span class="badge bg-secondary px-3 py-2">Status: Planning Phase</span>
+                        </div>
+
+                        <div class="mt-4">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-info">
+                                <i class="bi bi-arrow-left-circle"></i> Return to Main Dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

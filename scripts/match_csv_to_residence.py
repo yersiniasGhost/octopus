@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-Match CSV applicants to MongoDB Residence records
+Match CSV applicants to MongoDB Residence records using comprehensive 8-strategy matcher
 
 This script:
 1. Loads CSV file: data/APPLICANTS_sign-up-today-2025-09-03.csv
 2. Maps zipcodes to counties using: data/zipcode_to_county_cache.json
-3. Searches {County}CountyResidential MongoDB collections for matching records
-4. Provides detailed results with match statistics
+3. Uses ResidenceMatcher with 8 strategies:
+   - Email matching (Demographic)
+   - Name matching (Demographic) - Fuzzy name logic
+   - Phone matching (Demographic)
+   - Exact address (Residential)
+   - Normalized address (Residential)
+   - State route variations (OH-314, US-40)
+   - Hyphenated road variations
+   - Fuzzy address (Residential)
 
 Usage:
     source venv/bin/activate
@@ -28,6 +35,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from src.tools.residence_matcher import ResidenceMatcher as ComprehensiveResidenceMatcher, MatchQuality as RMMatchQuality
 
 # Load environment variables
 load_dotenv()
@@ -39,9 +47,10 @@ ZIPCODE_COUNTY_MAP = Path(__file__).parent.parent / 'data' / 'zipcode_to_county_
 
 class MatchQuality(Enum):
     """Match quality levels"""
-    EXACT = "exact"           # Exact match on address
-    GOOD = "good"             # Good match with normalized address
+    EXACT = "exact"           # Exact match
+    GOOD = "good"             # Good match (email, name, normalized address)
     FUZZY = "fuzzy"           # Fuzzy match (partial address)
+    DEMOGRAPHIC = "demographic"  # Matched via demographic data (email/name/phone)
     NO_MATCH = "no_match"     # No match found
 
 
@@ -183,6 +192,7 @@ class ResidenceMatcher:
             'exact_matches': 0,
             'good_matches': 0,
             'fuzzy_matches': 0,
+            'demographic_matches': 0,  # Email, name, or phone matches
             'no_matches': 0,
             'county_not_found': 0,
             'collection_not_found': 0,
@@ -222,7 +232,7 @@ class ResidenceMatcher:
         return f"{county}Residential"
 
     def match_applicant(self, applicant: ApplicantRecord) -> MatchResult:
-        """Match a single applicant to residence record"""
+        """Match a single applicant to residence record using comprehensive 8-strategy matcher"""
 
         # Determine county from CSV or zipcode mapping
         county = applicant.county
@@ -241,10 +251,8 @@ class ResidenceMatcher:
                 match_details="County not found (no zipcode or county in CSV)"
             )
 
-        # Get collection name
+        # Check if collections exist
         collection_name = self.get_residence_collection_name(county)
-
-        # Check if collection exists
         if collection_name not in self.db.list_collection_names():
             self.stats['collection_not_found'] += 1
             return MatchResult(
@@ -253,106 +261,68 @@ class ResidenceMatcher:
                 match_details=f"Collection '{collection_name}' not found in database"
             )
 
-        collection = self.db[collection_name]
+        # Use comprehensive ResidenceMatcher with 8 strategies:
+        # 1. Email matching (Demographic)
+        # 2. Name matching (Demographic) - Fuzzy name logic
+        # 3. Phone matching (Demographic)
+        # 4. Exact address (Residential)
+        # 5. Normalized address (Residential)
+        # 6. State route variations (OH-314, US-40)
+        # 7. Hyphenated road variations
+        # 8. Fuzzy address (Residential)
 
-        # Strategy 1: Exact address match
-        if applicant.address:
-            result = self._match_by_address(collection, applicant, exact=True)
-            if result:
-                self.stats['exact_matches'] += 1
-                return result
-
-        # Strategy 2: Normalized address match
-        if applicant.address:
-            result = self._match_by_address(collection, applicant, exact=False)
-            if result:
-                self.stats['good_matches'] += 1
-                return result
-
-        # Strategy 3: Fuzzy address match
-        if applicant.address:
-            result = self._fuzzy_match_by_address(collection, applicant)
-            if result:
-                self.stats['fuzzy_matches'] += 1
-                return result
-
-        # No match found
-        self.stats['no_matches'] += 1
-        return MatchResult(
-            applicant=applicant,
-            match_quality=MatchQuality.NO_MATCH,
-            match_details=f"No matching residence found in {collection_name}"
+        matcher = ComprehensiveResidenceMatcher(self.db, county)
+        residence_ref, demographic_ref, match_method = matcher.match(
+            phone=applicant.phone,
+            email=applicant.email,
+            first_name=applicant.first_name,
+            last_name=applicant.last_name,
+            address=applicant.address,
+            zipcode=applicant.zip_code
         )
 
-    def _match_by_address(self, collection, applicant: ApplicantRecord, exact: bool = True) -> Optional[MatchResult]:
-        """Match by address (exact or normalized)"""
-
-        # Query all records (we'll filter in Python for flexibility)
-        query = {}
-        if applicant.zip_code:
-            try:
-                # Try to filter by zipcode if available
-                query['parcel_zip'] = int(applicant.zip_code)
-            except ValueError:
-                pass
-
-        for record in collection.find(query):
-            db_address = record.get('address', '')
-
-            if exact:
-                # Exact string match
-                if applicant.address == db_address:
-                    return MatchResult(
-                        applicant=applicant,
-                        match_quality=MatchQuality.EXACT,
-                        residence_record=record,
-                        match_method='exact_address',
-                        match_details=f"Exact address match: {applicant.address}"
-                    )
-            else:
-                # Normalized match
-                if AddressNormalizer.exact_match(applicant.address, db_address):
-                    return MatchResult(
-                        applicant=applicant,
-                        match_quality=MatchQuality.GOOD,
-                        residence_record=record,
-                        match_method='normalized_address',
-                        match_details=f"Normalized match: '{applicant.address}' -> '{db_address}'"
-                    )
-
-        return None
-
-    def _fuzzy_match_by_address(self, collection, applicant: ApplicantRecord) -> Optional[MatchResult]:
-        """Fuzzy match by address"""
-
-        query = {}
-        if applicant.zip_code:
-            try:
-                query['parcel_zip'] = int(applicant.zip_code)
-            except ValueError:
-                pass
-
-        best_match = None
-        best_score = 0.0
-
-        for record in collection.find(query):
-            db_address = record.get('address', '')
-            is_match, score = AddressNormalizer.fuzzy_match(applicant.address, db_address)
-
-            if is_match and score > best_score:
-                best_score = score
-                best_match = record
-
-        if best_match:
+        # Determine match quality based on method
+        if not residence_ref and not demographic_ref:
+            self.stats['no_matches'] += 1
             return MatchResult(
                 applicant=applicant,
-                match_quality=MatchQuality.FUZZY,
-                residence_record=best_match,
-                match_method='fuzzy_address',
-                match_details=f"Fuzzy match (score: {best_score:.2f}): '{applicant.address}' ~= '{best_match.get('address', '')}'"
+                match_quality=MatchQuality.NO_MATCH,
+                match_details=f"No match found using any of the 8 strategies (method: {match_method})"
             )
 
-        return None
+        # Map match method to quality category
+        match_quality = MatchQuality.GOOD
+        if 'email' in match_method or 'name' in match_method or 'phone' in match_method:
+            match_quality = MatchQuality.DEMOGRAPHIC
+            self.stats['demographic_matches'] += 1
+        elif 'exact' in match_method:
+            match_quality = MatchQuality.EXACT
+            self.stats['exact_matches'] += 1
+        elif 'fuzzy' in match_method:
+            match_quality = MatchQuality.FUZZY
+            self.stats['fuzzy_matches'] += 1
+        else:
+            self.stats['good_matches'] += 1
+
+        # Build residence record from reference
+        residence_record = None
+        if residence_ref:
+            residence_record = {
+                'parcel_id': residence_ref.parcel_id,
+                'address': residence_ref.address,
+                'parcel_zip': residence_ref.parcel_zip
+            }
+
+        return MatchResult(
+            applicant=applicant,
+            match_quality=match_quality,
+            residence_record=residence_record,
+            match_method=match_method,
+            match_details=f"Matched via {match_method}" +
+                         (f" to demographic: {demographic_ref.customer_name}" if demographic_ref else "") +
+                         (f" at {residence_ref.address}" if residence_ref else "")
+        )
+
 
     def run_matching(self) -> List[MatchResult]:
         """Run matching process for all applicants"""
@@ -382,6 +352,7 @@ class ResidenceMatcher:
         exact = [r for r in results if r.match_quality == MatchQuality.EXACT]
         good = [r for r in results if r.match_quality == MatchQuality.GOOD]
         fuzzy = [r for r in results if r.match_quality == MatchQuality.FUZZY]
+        demographic = [r for r in results if r.match_quality == MatchQuality.DEMOGRAPHIC]
         no_match = [r for r in results if r.match_quality == MatchQuality.NO_MATCH]
 
         # Print exact matches
@@ -421,6 +392,19 @@ class ResidenceMatcher:
                 print(f"  Address: {r.applicant.address}, {r.applicant.city}, {r.applicant.zip_code}")
                 print(f"  Match: {r.match_details}")
 
+        # Print demographic matches (email/name/phone)
+        if demographic:
+            print(f"\n{'='*80}")
+            print(f"DEMOGRAPHIC MATCHES (Email/Name/Phone) ({len(demographic)})")
+            print(f"{'='*80}")
+            for r in demographic[:10]:  # Show first 10
+                print(f"\nEntry ID: {r.applicant.entry_id}")
+                print(f"  Applicant: {r.applicant.first_name} {r.applicant.last_name}")
+                print(f"  Email: {r.applicant.email}")
+                print(f"  Phone: {r.applicant.phone}")
+                print(f"  Address: {r.applicant.address}, {r.applicant.city}, {r.applicant.zip_code}")
+                print(f"  Match: {r.match_details}")
+
         # Print no matches sample
         if no_match:
             print(f"\n{'='*80}")
@@ -439,17 +423,19 @@ class ResidenceMatcher:
         print("="*80)
         total = self.stats['total_applicants']
 
-        print(f"\nTotal Applicants:       {total}")
-        print(f"Exact Matches:          {self.stats['exact_matches']:4d} ({self._pct('exact_matches')}%)")
-        print(f"Good Matches:           {self.stats['good_matches']:4d} ({self._pct('good_matches')}%)")
-        print(f"Fuzzy Matches:          {self.stats['fuzzy_matches']:4d} ({self._pct('fuzzy_matches')}%)")
-        print(f"No Matches:             {self.stats['no_matches']:4d} ({self._pct('no_matches')}%)")
+        print(f"\nTotal Applicants:         {total}")
+        print(f"Exact Matches:            {self.stats['exact_matches']:4d} ({self._pct('exact_matches')}%)")
+        print(f"Good Matches:             {self.stats['good_matches']:4d} ({self._pct('good_matches')}%)")
+        print(f"Fuzzy Matches:            {self.stats['fuzzy_matches']:4d} ({self._pct('fuzzy_matches')}%)")
+        print(f"Demographic Matches:      {self.stats['demographic_matches']:4d} ({self._pct('demographic_matches')}%)")
+        print(f"  (Email/Name/Phone)")
+        print(f"No Matches:               {self.stats['no_matches']:4d} ({self._pct('no_matches')}%)")
         print(f"\nIssues:")
-        print(f"County Not Found:       {self.stats['county_not_found']:4d} ({self._pct('county_not_found')}%)")
-        print(f"Collection Not Found:   {self.stats['collection_not_found']:4d} ({self._pct('collection_not_found')}%)")
+        print(f"County Not Found:         {self.stats['county_not_found']:4d} ({self._pct('county_not_found')}%)")
+        print(f"Collection Not Found:     {self.stats['collection_not_found']:4d} ({self._pct('collection_not_found')}%)")
 
-        total_matched = self.stats['exact_matches'] + self.stats['good_matches'] + self.stats['fuzzy_matches']
-        print(f"\nTotal Matched:          {total_matched:4d} ({total_matched/total*100:.1f}%)")
+        total_matched = self.stats['exact_matches'] + self.stats['good_matches'] + self.stats['fuzzy_matches'] + self.stats['demographic_matches']
+        print(f"\nTotal Matched:            {total_matched:4d} ({total_matched/total*100:.1f}%)")
         print("="*80)
 
     def _pct(self, key: str) -> str:

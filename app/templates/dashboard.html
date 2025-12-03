@@ -6,127 +6,342 @@
         <!-- Welcome Header -->
         <div class="row mb-4">
             <div class="col">
-                <h1 class="display-5 fw-bold">Dashboard</h1>
-                <p class="lead text-muted">Welcome back, {{ user.full_name or user.username }}!</p>
-            </div>
-            <div class="col-auto">
-                {% if stats.api_connected %}
-                <span class="badge bg-success">
-                    <i class="bi bi-check-circle"></i> API Connected
-                </span>
-                {% else %}
-                <span class="badge bg-warning text-dark">
-                    <i class="bi bi-exclamation-triangle"></i> API Offline
-                </span>
-                {% endif %}
+                <h1 class="display-4 fw-bold">Multi-Channel Campaign Dashboard</h1>
+                <p class="lead text-muted">Welcome back, {{ user.full_name or user.username }}! Overview of all campaign channels.</p>
             </div>
         </div>
 
-        <!-- Quick Stats -->
+        <!-- Campaign Type Overview Cards -->
         <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <div class="card border-0 shadow-sm bg-primary text-white">
-                            <div class="card-body text-center">
-                                <h3 class="display-4 mb-0">{{ stats.total_campaigns }}</h3>
-                                <p class="mb-0">Total Campaigns</p>
-                                {% if not stats.api_connected %}
-                                <small class="text-white-50">API offline</small>
-                                {% endif %}
+            <div class="col-12">
+                <h3 class="mb-3"><i class="bi bi-grid-3x3-gap-fill"></i> Campaign Channels</h3>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- Email Campaigns Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 hover-card">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-envelope-fill text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="card-title">
+                            <span class="badge bg-primary mb-2">EMAIL</span>
+                        </h5>
+                        <h2 class="display-5 mb-2">{{ all_stats.email.total_campaigns }}</h2>
+                        <p class="text-muted mb-3">Campaigns</p>
+                        <div class="mb-3 text-start small">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Sent:</span>
+                                <strong>{{ "{:,}".format(all_stats.email.total_sent or 0) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Opened:</span>
+                                <strong>{{ "{:,}".format(all_stats.email.total_opened or 0) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Clicked:</span>
+                                <strong>{{ "{:,}".format(all_stats.email.total_clicked or 0) }}</strong>
+                            </div>
+                        </div>
+                        <a href="{{ url_for('main.email_dashboard') }}" class="btn btn-primary w-100">
+                            <i class="bi bi-arrow-right-circle"></i> View Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Text/SMS Campaigns Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 hover-card">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-phone-fill text-success" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="card-title">
+                            <span class="badge bg-success mb-2">TEXT/SMS</span>
+                        </h5>
+                        <h2 class="display-5 mb-2">{{ all_stats.text.total_campaigns }}</h2>
+                        <p class="text-muted mb-3">Campaigns</p>
+                        <div class="mb-3 text-start small">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Sent:</span>
+                                <strong>{{ "{:,}".format(all_stats.text.total_sent or 0) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Delivered:</span>
+                                <strong>{{ "{:,}".format(all_stats.text.total_delivered or 0) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Clicked:</span>
+                                <strong>{{ "{:,}".format(all_stats.text.total_clicked or 0) }}</strong>
+                            </div>
+                        </div>
+                        {% if all_stats.text.total_campaigns > 0 %}
+                        <a href="{{ url_for('main.text_dashboard') }}" class="btn btn-success w-100">
+                            <i class="bi bi-arrow-right-circle"></i> View Dashboard
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('main.text_dashboard') }}" class="btn btn-outline-success w-100">
+                            <i class="bi bi-arrow-right-circle"></i> View Dashboard
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mailer Campaigns Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 hover-card">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-mailbox text-warning" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="card-title">
+                            <span class="badge bg-warning text-dark mb-2">MAILER</span>
+                        </h5>
+                        <h2 class="display-5 mb-2">{{ all_stats.mailer.total_campaigns }}</h2>
+                        <p class="text-muted mb-3">Campaigns</p>
+                        <div class="mb-3 text-start small text-muted">
+                            <div class="text-center fst-italic">
+                                Coming Soon
+                            </div>
+                        </div>
+                        <a href="{{ url_for('main.mailer_dashboard') }}" class="btn btn-outline-warning text-dark w-100">
+                            <i class="bi bi-clock"></i> View Placeholder
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Letter Campaigns Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-0 shadow-sm h-100 hover-card">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-file-text-fill text-info" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="card-title">
+                            <span class="badge bg-info mb-2">LETTER</span>
+                        </h5>
+                        <h2 class="display-5 mb-2">{{ all_stats.letter.total_campaigns }}</h2>
+                        <p class="text-muted mb-3">Campaigns</p>
+                        <div class="mb-3 text-start small text-muted">
+                            <div class="text-center fst-italic">
+                                Coming Soon
+                            </div>
+                        </div>
+                        <a href="{{ url_for('main.letter_dashboard') }}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-clock"></i> View Placeholder
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity Timeline -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-clock-history"></i> Recent Campaign Activity
+                        </h5>
+                        {% if recent_campaigns and recent_campaigns|length > 0 %}
+                        <div class="list-group list-group-flush">
+                            {% for campaign in recent_campaigns %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if campaign.campaign_type == 'email' %}
+                                    <span class="badge bg-primary me-2"><i class="bi bi-envelope-fill"></i> EMAIL</span>
+                                    {% elif campaign.campaign_type == 'text' %}
+                                    <span class="badge bg-success me-2"><i class="bi bi-phone-fill"></i> TEXT</span>
+                                    {% elif campaign.campaign_type == 'mailer' %}
+                                    <span class="badge bg-warning text-dark me-2"><i class="bi bi-mailbox"></i> MAILER</span>
+                                    {% elif campaign.campaign_type == 'letter' %}
+                                    <span class="badge bg-info me-2"><i class="bi bi-file-text-fill"></i> LETTER</span>
+                                    {% endif %}
+                                    <strong>{{ campaign.name }}</strong>
+                                </div>
+                                <span class="text-muted small">
+                                    {% if campaign.sent_at %}
+                                    {{ campaign.sent_at.strftime('%b %d, %Y') if campaign.sent_at is not string else campaign.sent_at }}
+                                    {% else %}
+                                    Date unknown
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center py-3">No recent campaign activity</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cross-Channel Summary -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-bar-chart-fill"></i> Campaign Summary
+                        </h5>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Channel</th>
+                                    <th class="text-end">Campaigns</th>
+                                    <th class="text-end">Sent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-primary">EMAIL</span></td>
+                                    <td class="text-end">{{ all_stats.email.total_campaigns }}</td>
+                                    <td class="text-end">{{ "{:,}".format(all_stats.email.total_sent or 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-success">TEXT</span></td>
+                                    <td class="text-end">{{ all_stats.text.total_campaigns }}</td>
+                                    <td class="text-end">{{ "{:,}".format(all_stats.text.total_sent or 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-warning text-dark">MAILER</span></td>
+                                    <td class="text-end">{{ all_stats.mailer.total_campaigns }}</td>
+                                    <td class="text-end">-</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-info">LETTER</span></td>
+                                    <td class="text-end">{{ all_stats.letter.total_campaigns }}</td>
+                                    <td class="text-end">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-people-fill"></i> Program Conversions
+                        </h5>
+                        <div class="text-center py-3">
+                            <h2 class="display-6 mb-2">{{ "{:,}".format(conversion_stats.applicants.total) }}</h2>
+                            <p class="text-muted mb-3">Total Applicants</p>
+                            <div class="row">
+                                <div class="col-6">
+                                    <p class="mb-0 small text-muted">Participants</p>
+                                    <p class="h5">{{ "{:,}".format(conversion_stats.participants.total) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="mb-0 small text-muted">Conversion Rate</p>
+                                    <p class="h5">{{ conversion_stats.conversion.rate }}%</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card border-0 shadow-sm bg-success text-white">
-                            <div class="card-body text-center">
-                                <h3 class="display-4 mb-0">{{ stats.total_lists }}</h3>
-                                <p class="mb-0">Active Lists</p>
-                                {% if not stats.api_connected %}
-                                <small class="text-white-50">API offline</small>
-                                {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Applicant Details Section -->
+        <div class="row mb-4">
+            <!-- Recent Applicants -->
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-person-plus-fill"></i> Recent Applicants
+                        </h5>
+                        {% if recent_applicants and recent_applicants|length > 0 %}
+                        <div class="list-group list-group-flush">
+                            {% for applicant in recent_applicants %}
+                            <div class="list-group-item d-flex justify-content-between align-items-start px-0">
+                                <div class="ms-2 me-auto">
+                                    <div class="fw-bold">
+                                        {{ applicant.first_name }} {{ applicant.last_name }}
+                                    </div>
+                                    <small class="text-muted">
+                                        {{ applicant.city }}{% if applicant.county %}, {{ applicant.county }}{% endif %}
+                                        {% if applicant.zip_code %} • {{ applicant.zip_code }}{% endif %}
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    {% if applicant.match_info and applicant.match_info.match_quality %}
+                                        {% if applicant.match_info.match_quality == 'exact' %}
+                                        <span class="badge bg-success">Exact Match</span>
+                                        {% elif applicant.match_info.match_quality == 'high' %}
+                                        <span class="badge bg-info">High Match</span>
+                                        {% elif applicant.match_info.match_quality == 'medium' %}
+                                        <span class="badge bg-warning text-dark">Medium Match</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ applicant.match_info.match_quality }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">
+                                        {% if applicant.created_at %}
+                                        {{ applicant.created_at.strftime('%b %d') if applicant.created_at is not string else applicant.created_at }}
+                                        {% endif %}
+                                    </small>
+                                </div>
                             </div>
+                            {% endfor %}
                         </div>
+                        {% else %}
+                        <p class="text-muted text-center py-3">No applicants yet</p>
+                        {% endif %}
                     </div>
-                    <div class="col-md-4">
-                        <div class="card border-0 shadow-sm bg-info text-white">
-                            <div class="card-body text-center">
-                                <h3 class="display-4 mb-0">{{ stats.total_contacts }}</h3>
-                                <p class="mb-0">Total Contacts</p>
-                                {% if not stats.api_connected %}
-                                <small class="text-white-50">API offline</small>
-                                {% endif %}
+                </div>
+            </div>
+
+            <!-- Applicant Analytics -->
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-geo-alt-fill"></i> Applicant Analytics
+                        </h5>
+
+                        <!-- Top Counties -->
+                        <h6 class="text-muted mb-2">Top Counties</h6>
+                        {% if applicant_summary.top_counties and applicant_summary.top_counties|length > 0 %}
+                        <div class="mb-3">
+                            {% for county, count in applicant_summary.top_counties %}
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>{{ county }}</span>
+                                <span class="badge bg-primary">{{ "{:,}".format(count) }}</span>
                             </div>
+                            {% endfor %}
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+                        {% else %}
+                        <p class="text-muted small mb-3">No county data available</p>
+                        {% endif %}
 
-        <!-- Campaign Charts Row 1 -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">
-                            <i class="bi bi-bar-chart-fill"></i> Messages Sent by Campaign
-                        </h5>
-                        <canvas id="sentChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">
-                            <i class="bi bi-bar-chart-fill"></i> Opened vs Clicked by Campaign
-                        </h5>
-                        <canvas id="engagementChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Campaign Charts Row 2 -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">
-                            <i class="bi bi-graph-up"></i> Click-Through Rate by Campaign (%)
-                        </h5>
-                        <canvas id="ctrChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">
-                            <i class="bi bi-geo-alt-fill"></i> Engagement by Zipcode (Top 20)
-                        </h5>
-                        <canvas id="zipcodeChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="row mb-4">
-            <div class="col">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">
-                            <i class="bi bi-lightning-fill"></i> Quick Actions
-                        </h5>
-                        <div class="d-grid gap-2 d-md-flex">
-                            <a href="{{ url_for('campaigns.campaigns_list') }}" class="btn btn-primary">
-                                <i class="bi bi-envelope"></i> View Campaigns
-                            </a>
-                            <a href="{{ url_for('campaigns.api_test_connection') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-plug"></i> Test API Connection
-                            </a>
+                        <!-- Match Quality -->
+                        {% if applicant_summary.match_quality %}
+                        <h6 class="text-muted mb-2 mt-3">Match Quality</h6>
+                        <div>
+                            {% for quality, count in applicant_summary.match_quality.items() %}
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-capitalize">{{ quality.replace('_', ' ') }}</span>
+                                <span class="badge
+                                    {% if quality == 'exact' %}bg-success
+                                    {% elif quality == 'high' %}bg-info
+                                    {% elif quality == 'medium' %}bg-warning text-dark
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ "{:,}".format(count) }}
+                                </span>
+                            </div>
+                            {% endfor %}
                         </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -134,209 +349,14 @@
 
     </div>
 </section>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-    // Campaign data from backend
-    const campaignData = {{ campaign_data | tojson }};
-
-    // Chart 1: Sent Messages by Campaign (sorted by opened count, highest to lowest)
-    const sentCtx = document.getElementById('sentChart');
-    if (sentCtx && campaignData.sent_chart && campaignData.sent_chart.names.length > 0) {
-        new Chart(sentCtx, {
-            type: 'bar',
-            data: {
-                labels: campaignData.sent_chart.names,
-                datasets: [{
-                    label: 'Messages Sent',
-                    data: campaignData.sent_chart.values,
-                    backgroundColor: 'rgba(13, 110, 253, 0.8)',
-                    borderColor: 'rgba(13, 110, 253, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                            font: {
-                                size: 10
-                            }
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // Chart 2: Opened vs Clicked by Campaign (sorted by opened count, highest to lowest)
-    const engagementCtx = document.getElementById('engagementChart');
-    if (engagementCtx && campaignData.engagement_chart && campaignData.engagement_chart.names.length > 0) {
-        new Chart(engagementCtx, {
-            type: 'bar',
-            data: {
-                labels: campaignData.engagement_chart.names,
-                datasets: [
-                    {
-                        label: 'Opened',
-                        data: campaignData.engagement_chart.opened,
-                        backgroundColor: 'rgba(25, 135, 84, 0.8)',
-                        borderColor: 'rgba(25, 135, 84, 1)',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Clicked',
-                        data: campaignData.engagement_chart.clicked,
-                        backgroundColor: 'rgba(13, 202, 240, 0.8)',
-                        borderColor: 'rgba(13, 202, 240, 1)',
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                            font: {
-                                size: 10
-                            }
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // Chart 3: Click-Through Rate by Campaign (sorted by CTR, highest to lowest)
-    const ctrCtx = document.getElementById('ctrChart');
-    if (ctrCtx && campaignData.click_through_rate_chart && campaignData.click_through_rate_chart.names.length > 0) {
-        new Chart(ctrCtx, {
-            type: 'bar',
-            data: {
-                labels: campaignData.click_through_rate_chart.names,
-                datasets: [{
-                    label: 'Click-Through Rate (%)',
-                    data: campaignData.click_through_rate_chart.values,
-                    backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                    borderColor: 'rgba(220, 53, 69, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                            font: {
-                                size: 10
-                            }
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // Chart 4: Engagement by Zipcode (sorted by opened count, highest to lowest)
-    const zipcodeCtx = document.getElementById('zipcodeChart');
-    if (zipcodeCtx && campaignData.zipcode_chart && campaignData.zipcode_chart.zipcodes.length > 0) {
-        new Chart(zipcodeCtx, {
-            type: 'bar',
-            data: {
-                labels: campaignData.zipcode_chart.zipcodes,
-                datasets: [
-                    {
-                        label: 'Opened',
-                        data: campaignData.zipcode_chart.opened,
-                        backgroundColor: 'rgba(25, 135, 84, 0.8)',
-                        borderColor: 'rgba(25, 135, 84, 1)',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Clicked',
-                        data: campaignData.zipcode_chart.clicked,
-                        backgroundColor: 'rgba(13, 202, 240, 0.8)',
-                        borderColor: 'rgba(13, 202, 240, 1)',
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 0,
-                            minRotation: 0,
-                            font: {
-                                size: 10
-                            }
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
-    }
-</script>
+<style>
+.hover-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.hover-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+}
+</style>
 {% endblock %}

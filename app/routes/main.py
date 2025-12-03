@@ -1,11 +1,13 @@
 """Main application routes"""
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 import logging
 from pymongo import MongoClient
+import math
 
 from app.services import EmailOctopusClient
 from app.services.emailoctopus_client import EmailOctopusAPIError
+from app.services.campaign_data_service import CampaignDataService
 from src.utils.envvars import EnvVars
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,67 @@ def index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
+    """
+    Main multi-channel dashboard - shows all campaign types
+    """
+    try:
+        # Initialize campaign data service
+        service = CampaignDataService()
+
+        # Get stats for all campaign types
+        all_stats = service.get_all_campaign_stats()
+
+        # Get recent campaigns across all types
+        recent_campaigns = service.get_recent_campaigns_all_types(limit=10)
+
+        # Get conversion stats
+        conversion_stats = service.get_overall_conversion_stats()
+
+        # Get detailed applicant information
+        recent_applicants = service.get_recent_applicants(limit=10)
+        applicant_summary = service.get_applicant_summary_stats()
+
+        logger.info(f"Main dashboard loaded - {all_stats}")
+
+        return render_template('dashboard.html',
+                              title='Multi-Channel Dashboard',
+                              user=current_user,
+                              all_stats=all_stats,
+                              recent_campaigns=recent_campaigns,
+                              conversion_stats=conversion_stats,
+                              recent_applicants=recent_applicants,
+                              applicant_summary=applicant_summary)
+
+    except Exception as e:
+        logger.error(f"Error loading main dashboard: {str(e)}", exc_info=True)
+        # Return empty stats on error
+        return render_template('dashboard.html',
+                              title='Multi-Channel Dashboard',
+                              user=current_user,
+                              all_stats={
+                                  'email': {'total_campaigns': 0},
+                                  'text': {'total_campaigns': 0},
+                                  'mailer': {'total_campaigns': 0},
+                                  'letter': {'total_campaigns': 0}
+                              },
+                              recent_campaigns=[],
+                              conversion_stats={
+                                  'participants': {'total': 0},
+                                  'applicants': {'total': 0},
+                                  'conversion': {'rate': 0.0}
+                              },
+                              recent_applicants=[],
+                              applicant_summary={
+                                  'total': 0,
+                                  'by_county': {},
+                                  'match_quality': {},
+                                  'top_counties': []
+                              })
+
+
+@main_bp.route('/dashboard/email')
+@login_required
+def email_dashboard():
     """
     Dashboard - requires authentication
 
@@ -111,9 +174,9 @@ def dashboard():
         client = MongoClient(mongo_uri)
         db = client['emailoctopus_db']
 
-        # Get campaigns with statistics, sorted by name, limit to 20 most recent
+        # Get ONLY email campaigns with statistics, sorted by name, limit to 20 most recent
         campaigns = list(db.campaigns.find(
-            {},
+            {'campaign_type': 'email'},  # Filter to only email campaigns
             {'name': 1, 'campaign_id': 1, 'statistics': 1, '_id': 0}
         ).sort('sent_at', -1).limit(20))
 
@@ -192,9 +255,12 @@ def dashboard():
 
         logger.info(f"Fetched chart data for {len(campaigns)} campaigns")
 
-        # Fetch zipcode engagement data
+        # Fetch zipcode engagement data - ONLY for email campaign participants
         zipcode_pipeline = [
-            {'$match': {'fields.ZIP': {'$exists': True, '$ne': None, '$ne': ''}}},
+            {'$match': {
+                'campaign_id': {'$in': list(campaign_id_to_name.keys())},  # Only email campaigns
+                'fields.ZIP': {'$exists': True, '$ne': None, '$ne': ''}
+            }},
             {'$group': {
                 '_id': '$fields.ZIP',
                 'opened_count': {'$sum': {'$cond': ['$engagement.opened', 1, 0]}},
@@ -224,8 +290,89 @@ def dashboard():
         logger.error(f"Error fetching campaign chart data: {str(e)}", exc_info=True)
         # Campaign data remains empty
 
-    return render_template('dashboard.html',
-                          title='Dashboard',
+    return render_template('dashboards/email.html',
+                          title='Email Campaign Dashboard',
                           user=current_user,
                           stats=stats,
                           campaign_data=campaign_data)
+
+
+@main_bp.route('/dashboard/text')
+@login_required
+def text_dashboard():
+    """
+    Text/SMS campaign dashboard with pagination
+    """
+    try:
+        # Initialize campaign data service
+        service = CampaignDataService()
+
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+
+        # Get text campaign stats
+        stats = service.get_text_stats()
+
+        # Get total count for pagination
+        total_campaigns = service.get_text_campaigns_count()
+        total_pages = math.ceil(total_campaigns / per_page) if total_campaigns > 0 else 1
+
+        # Ensure page is within valid range
+        page = max(1, min(page, total_pages))
+
+        # Get text campaigns for current page
+        campaigns = service.get_text_campaigns(page=page, per_page=per_page)
+
+        # Calculate pagination info
+        pagination = {
+            'page': page,
+            'per_page': per_page,
+            'total': total_campaigns,
+            'total_pages': total_pages,
+            'has_prev': page > 1,
+            'has_next': page < total_pages,
+            'prev_num': page - 1 if page > 1 else None,
+            'next_num': page + 1 if page < total_pages else None
+        }
+
+        logger.info(f"Text dashboard loaded - page {page}/{total_pages}, {len(campaigns)} campaigns")
+
+        return render_template('dashboards/text.html',
+                              title='Text Campaign Dashboard',
+                              user=current_user,
+                              stats=stats,
+                              campaigns=campaigns,
+                              pagination=pagination)
+
+    except Exception as e:
+        logger.error(f"Error loading text dashboard: {str(e)}", exc_info=True)
+        # Return empty stats on error
+        return render_template('dashboards/text.html',
+                              title='Text Campaign Dashboard',
+                              user=current_user,
+                              stats={'total_campaigns': 0, 'total_sent': 0, 'total_delivered': 0, 'total_clicked': 0},
+                              campaigns=[],
+                              pagination={'page': 1, 'total_pages': 1, 'has_prev': False, 'has_next': False})
+
+
+@main_bp.route('/dashboard/mailer')
+@login_required
+def mailer_dashboard():
+    """
+    Mailer campaign dashboard (TBD stub)
+    """
+    return render_template('dashboards/mailer_tbd.html',
+                          title='Mailer Campaign Dashboard',
+                          user=current_user)
+
+
+@main_bp.route('/dashboard/letter')
+@login_required
+def letter_dashboard():
+    """
+    Letter campaign dashboard (TBD stub)
+    """
+    return render_template('dashboards/letter_tbd.html',
+                          title='Letter Campaign Dashboard',
+                          user=current_user)

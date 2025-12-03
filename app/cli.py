@@ -33,8 +33,8 @@ For more information, visit: https://github.com/empowersaves/octopus
     run_parser.add_argument(
         '--port',
         type=int,
-        default=5000,
-        help='Port to bind to (default: 5000)'
+        default=5006,
+        help='Port to bind to (default: 5006)'
     )
     run_parser.add_argument(
         '--debug',

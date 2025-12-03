@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dashboard-section py-5">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Mailer Campaigns</li>
+            </ol>
+        </nav>
+
+        <!-- Coming Soon Card -->
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-mailbox text-warning" style="font-size: 6rem;"></i>
+                        <h1 class="mt-4">
+                            <span class="badge bg-warning text-dark mb-3">MAILER</span>
+                        </h1>
+                        <h2 class="mb-3">Mailer Campaign Dashboard</h2>
+                        <p class="lead text-muted mb-4">Coming Soon</p>
+
+                        <div class="text-start mt-4 px-5">
+                            <h5 class="mb-3">This dashboard will display:</h5>
+                            <ul class="list-unstyled">
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Total mailer campaigns</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Print and mail statistics</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Delivery tracking</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Return/undeliverable rates</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Cost per mail piece</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Campaign effectiveness metrics</li>
+                            </ul>
+                        </div>
+
+                        <div class="mt-4">
+                            <span class="badge bg-secondary px-3 py-2">Status: Planning Phase</span>
+                        </div>
+
+                        <div class="mt-4">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-warning text-dark">
+                                <i class="bi bi-arrow-left-circle"></i> Return to Main Dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

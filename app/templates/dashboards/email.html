@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dashboard-section py-5">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Email Campaigns</li>
+            </ol>
+        </nav>
+
+        <!-- Welcome Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-5 fw-bold">
+                    <span class="badge bg-primary me-2"><i class="bi bi-envelope-fill"></i> EMAIL</span>
+                    Email Campaign Dashboard
+                </h1>
+                <p class="lead text-muted">Welcome back, {{ user.full_name or user.username }}!</p>
+            </div>
+            <div class="col-auto">
+                {% if stats.api_connected %}
+                <span class="badge bg-success">
+                    <i class="bi bi-check-circle"></i> API Connected
+                </span>
+                {% else %}
+                <span class="badge bg-warning text-dark">
+                    <i class="bi bi-exclamation-triangle"></i> API Offline
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h3 class="display-4 mb-0">{{ stats.total_campaigns }}</h3>
+                                <p class="mb-0">Total Campaigns</p>
+                                {% if not stats.api_connected %}
+                                <small class="text-white-50">API offline</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm bg-success text-white">
+                            <div class="card-body text-center">
+                                <h3 class="display-4 mb-0">{{ stats.total_lists }}</h3>
+                                <p class="mb-0">Active Lists</p>
+                                {% if not stats.api_connected %}
+                                <small class="text-white-50">API offline</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm bg-info text-white">
+                            <div class="card-body text-center">
+                                <h3 class="display-4 mb-0">{{ stats.total_contacts }}</h3>
+                                <p class="mb-0">Total Contacts</p>
+                                {% if not stats.api_connected %}
+                                <small class="text-white-50">API offline</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaign Charts Row 1 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-bar-chart-fill"></i> Messages Sent by Campaign
+                        </h5>
+                        <canvas id="sentChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-bar-chart-fill"></i> Opened vs Clicked by Campaign
+                        </h5>
+                        <canvas id="engagementChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaign Charts Row 2 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-graph-up"></i> Click-Through Rate by Campaign (%)
+                        </h5>
+                        <canvas id="ctrChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-geo-alt-fill"></i> Engagement by Zipcode (Top 20)
+                        </h5>
+                        <canvas id="zipcodeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-lightning-fill"></i> Quick Actions
+                        </h5>
+                        <div class="d-grid gap-2 d-md-flex">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                                <i class="bi bi-house-fill"></i> All Campaigns
+                            </a>
+                            <a href="{{ url_for('campaigns.campaigns_list') }}" class="btn btn-primary">
+                                <i class="bi bi-envelope"></i> View Email Campaigns
+                            </a>
+                            <a href="{{ url_for('campaigns.api_test_connection') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-plug"></i> Test API Connection
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Campaign data from backend
+    const campaignData = {{ campaign_data | tojson }};
+
+    // Chart 1: Sent Messages by Campaign (sorted by opened count, highest to lowest)
+    const sentCtx = document.getElementById('sentChart');
+    if (sentCtx && campaignData.sent_chart && campaignData.sent_chart.names.length > 0) {
+        new Chart(sentCtx, {
+            type: 'bar',
+            data: {
+                labels: campaignData.sent_chart.names,
+                datasets: [{
+                    label: 'Messages Sent',
+                    data: campaignData.sent_chart.values,
+                    backgroundColor: 'rgba(13, 110, 253, 0.8)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Chart 2: Opened vs Clicked by Campaign (sorted by opened count, highest to lowest)
+    const engagementCtx = document.getElementById('engagementChart');
+    if (engagementCtx && campaignData.engagement_chart && campaignData.engagement_chart.names.length > 0) {
+        new Chart(engagementCtx, {
+            type: 'bar',
+            data: {
+                labels: campaignData.engagement_chart.names,
+                datasets: [
+                    {
+                        label: 'Opened',
+                        data: campaignData.engagement_chart.opened,
+                        backgroundColor: 'rgba(25, 135, 84, 0.8)',
+                        borderColor: 'rgba(25, 135, 84, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Clicked',
+                        data: campaignData.engagement_chart.clicked,
+                        backgroundColor: 'rgba(13, 202, 240, 0.8)',
+                        borderColor: 'rgba(13, 202, 240, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Chart 3: Click-Through Rate by Campaign (sorted by CTR, highest to lowest)
+    const ctrCtx = document.getElementById('ctrChart');
+    if (ctrCtx && campaignData.click_through_rate_chart && campaignData.click_through_rate_chart.names.length > 0) {
+        new Chart(ctrCtx, {
+            type: 'bar',
+            data: {
+                labels: campaignData.click_through_rate_chart.names,
+                datasets: [{
+                    label: 'Click-Through Rate (%)',
+                    data: campaignData.click_through_rate_chart.values,
+                    backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Chart 4: Engagement by Zipcode (sorted by opened count, highest to lowest)
+    const zipcodeCtx = document.getElementById('zipcodeChart');
+    if (zipcodeCtx && campaignData.zipcode_chart && campaignData.zipcode_chart.zipcodes.length > 0) {
+        new Chart(zipcodeCtx, {
+            type: 'bar',
+            data: {
+                labels: campaignData.zipcode_chart.zipcodes,
+                datasets: [
+                    {
+                        label: 'Opened',
+                        data: campaignData.zipcode_chart.opened,
+                        backgroundColor: 'rgba(25, 135, 84, 0.8)',
+                        borderColor: 'rgba(25, 135, 84, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Clicked',
+                        data: campaignData.zipcode_chart.clicked,
+                        backgroundColor: 'rgba(13, 202, 240, 0.8)',
+                        borderColor: 'rgba(13, 202, 240, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 0,
+                            minRotation: 0,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

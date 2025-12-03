@@ -40,6 +40,8 @@ def parse_shortened_name(name: str) -> Tuple[Optional[int], Optional[str], Optio
         'Text1_Prequalified_Impact' → (1, 'Prequalified', 'Impact', None)
         'Text2_Money_OHCAC_Morning' → (2, 'Money', 'OHCAC', 'Morning')
         'Text15_Improvements' → (15, 'Improvements', 'NA', None)
+        'Text35_Energy_Assistance_MVCAP' → (35, 'Energy_Assistance', 'MVCAP', None)
+        'Text63_Time_Running_Out_IMPACT_morning' → (63, 'Time_Running_Out', 'IMPACT', 'morning')
 
     Args:
         name: Campaign shortened name from Excel
@@ -50,7 +52,9 @@ def parse_shortened_name(name: str) -> Tuple[Optional[int], Optional[str], Optio
         Returns (None, None, None, None) if parsing fails completely
     """
     # Pattern: Text{number}_{key}_{agency}[_{time}]
-    pattern = r'Text(\d+)_([^_]+)_([^_]+)(?:_(.+))?'
+    # Use non-greedy (.+?) for message_key to handle multi-word keys with underscores
+    # Explicitly match known agencies: IMPACT, Impact, OHCAC, MVCAP, COAD, NA
+    pattern = r'Text(\d+)_(.+?)_(IMPACT|Impact|OHCAC|MVCAP|COAD|NA)(?:_(.+))?$'
     match = re.match(pattern, name)
 
     if match:

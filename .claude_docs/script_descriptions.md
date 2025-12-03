@@ -75,13 +75,38 @@ python scripts/import_text_conversations_tool.py \
 ### extract_campaign_emails.py
 Extracts email campaign participant data from EmailOctopus campaign exports and processes for analysis.
 
-## Residence Matching
+## Residence Matching & Applicant Import
 
 ### match_csv_to_residence.py
-Matches CSV applicant data to residence records in MongoDB by performing fuzzy address matching and residence lookups.
+**Enhanced with 8-Strategy Comprehensive Matching**: Matches CSV applicant data to residence/demographic records using the reusable ResidenceMatcher tool from `src/tools/residence_matcher.py`. Achieves 93.6% match rate (277/296 applicants) using 8 strategies: email matching (fastest, most reliable), name matching (fuzzy logic), phone matching, exact address, normalized address, state route variations (OH-314, US-40), hyphenated roads, and fuzzy address scoring. Provides detailed match statistics and quality reporting.
 
-### match_csv_to_residence_enhanced.py
-Enhanced version of residence matching with improved matching algorithms, multiple matching strategies (exact, fuzzy, normalized), and detailed match quality scoring.
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/match_csv_to_residence.py
+```
+
+**Output:** Detailed match results showing exact/good/fuzzy/demographic matches with statistics breakdown.
+
+### populate_applicants_db_v3.py
+**Reusable Tool**: Populates the `empower.applicants` MongoDB collection from CSV applicant data using comprehensive 8-strategy matching via ResidenceMatcher. Clears existing applicants collection and imports fresh data with match quality scoring (exact/high/medium/no_match). Creates Applicant models with ResidenceReference and DemographicReference links. Provides detailed import statistics showing match method distribution.
+
+**Features:**
+- Uses same 8-strategy matching as match_csv_to_residence.py
+- 93.6% match rate achievement (277/296 applicants)
+- Email matches: 47.3%, Name matches: 28.4%, Phone: 8.4%
+- Address matches: 8.5% combined (normalized/fuzzy/state route)
+- Only 6.4% unmatched (19 applicants)
+- Bulk insert optimization for performance
+- Comprehensive error handling and statistics
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/populate_applicants_db_v3.py
+```
+
+**Output:** Import statistics with match method breakdown and total matched percentage.
 
 ### debug_residence_match.py
 Debugging tool for investigating residence matching issues. Provides detailed logging of match attempts, scores, and candidate selection.
@@ -118,4 +143,4 @@ Exports matched residence and applicant data to CSV format for external analysis
 
 ---
 
-*Last updated: 2025-11-04*
+*Last updated: 2025-11-05*
