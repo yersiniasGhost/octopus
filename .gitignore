@@ -63,3 +63,7 @@ package-lock.json
 
 .claude-flow/
 .swarm/
+
+# Generated outputs
+data/processed/
+reports/

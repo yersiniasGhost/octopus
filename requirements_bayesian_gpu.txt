@@ -1,0 +1,28 @@
+# Phase 0: GPU-Accelerated Bayesian Modeling Requirements
+# Compatible with Python 3.11, CUDA 12.4, NVIDIA RTX A6000
+
+# Core Bayesian modeling
+pymc>=5.0.0
+pytensor>=2.18.0
+
+# GPU acceleration (JAX with CUDA 12 support)
+# Install separately: pip install --upgrade "jax[cuda12]==0.4.20" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+jax>=0.4.20
+jaxlib>=0.4.20
+
+# JAX-based samplers
+numpyro>=0.15.0
+blackjax>=1.0.0
+
+# Diagnostics and visualization
+arviz>=0.18.0
+matplotlib>=3.7.0
+
+# Data handling
+numpy>=1.24.0
+scipy>=1.11.0
+pandas>=2.0.0
+
+# Utilities
+xarray>=2023.1.0
+netcdf4>=1.6.0

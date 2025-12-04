@@ -1,5 +1,5 @@
 # Flask Core
-Flask==1.0.2
+Flask
 Werkzeug==3.0.1
 
 # Database
