@@ -23,6 +23,10 @@ numpy==1.26.3
 pymongo==4.15.3
 pydantic==2.10.3
 
+pyyaml
+
+pymc==5.25.1
+
 # Future dependencies (commented out for Phase 2)
 # plotly==5.18.0
 # ReportLab==4.0.7

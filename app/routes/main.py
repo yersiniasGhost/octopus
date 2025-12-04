@@ -376,3 +376,34 @@ def letter_dashboard():
     return render_template('dashboards/letter_tbd.html',
                           title='Letter Campaign Dashboard',
                           user=current_user)
+
+
+@main_bp.route('/dashboard/modeling')
+@login_required
+def modeling_dashboard():
+    """
+    Bayesian modeling and inference dashboard
+    """
+    from src.causal_models.model_registry import get_registry
+
+    # Get model registry
+    registry = get_registry()
+
+    # Get all available models
+    models = registry.get_all_models()
+
+    # Get selected model from query params
+    selected_model_id = request.args.get('model', None)
+    selected_model = None
+
+    if selected_model_id:
+        selected_model = registry.get_model_metadata(selected_model_id)
+        if selected_model:
+            selected_model = selected_model.to_dict()
+
+    return render_template('dashboards/modeling.html',
+                          title='Bayesian Model and Inference Dashboard',
+                          user=current_user,
+                          models=models,
+                          selected_model=selected_model,
+                          selected_model_id=selected_model_id)
