@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dashboard-section py-5">
+    <div class="container">
+        <!-- Welcome Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-4 fw-bold">Bayesian Model and Inference Dashboard</h1>
+                <p class="lead text-muted">Welcome back, {{ user.full_name or user.username }}! Select a model to train or run inference.</p>
+            </div>
+        </div>
+
+        <!-- Model Selection Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-funnel-fill"></i> Select Model
+                        </h5>
+
+                        {% if models and models|length > 0 %}
+                        <form method="GET" action="{{ url_for('main.modeling_dashboard') }}" id="modelSelectionForm">
+                            <div class="row align-items-end">
+                                <div class="col-md-8">
+                                    <label for="modelSelect" class="form-label">Choose a Bayesian Model:</label>
+                                    <select class="form-select form-select-lg" id="modelSelect" name="model" onchange="this.form.submit()">
+                                        <option value="">-- Select a Model --</option>
+                                        {% for model in models %}
+                                        <option value="{{ model.model_id }}"
+                                                {% if selected_model_id == model.model_id %}selected{% endif %}
+                                                data-description="{{ model.description }}"
+                                                data-version="{{ model.version }}"
+                                                data-author="{{ model.author }}">
+                                            {{ model.name }} (v{{ model.version }})
+                                            {% if model.status == 'beta' %} [BETA]{% endif %}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="location.reload()">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh Models
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        {% else %}
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle"></i> No models found. Add models to <code>src/bayesian_models/</code> with a <code>config.yaml</code> file.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if selected_model %}
+        <!-- Model Details -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-info-circle-fill text-primary"></i> Model Details
+                        </h5>
+                        <div class="row mt-3">
+                            <div class="col-md-8">
+                                <h4>{{ selected_model.name }}</h4>
+                                <p class="text-muted">{{ selected_model.description }}</p>
+
+                                <div class="row mt-3">
+                                    <div class="col-md-4">
+                                        <small class="text-muted">Version</small>
+                                        <p class="mb-0"><strong>{{ selected_model.version }}</strong></p>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted">Author</small>
+                                        <p class="mb-0"><strong>{{ selected_model.author }}</strong></p>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted">Status</small>
+                                        <p class="mb-0">
+                                            {% if selected_model.status == 'active' %}
+                                            <span class="badge bg-success">Active</span>
+                                            {% elif selected_model.status == 'beta' %}
+                                            <span class="badge bg-warning text-dark">Beta</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">{{ selected_model.status }}</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {% if selected_model.tags %}
+                                <div class="mt-3">
+                                    <small class="text-muted">Tags:</small>
+                                    <div>
+                                        {% for tag in selected_model.tags %}
+                                        <span class="badge bg-light text-dark border me-1">{{ tag }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-diagram-3-fill text-primary" style="font-size: 4rem;"></i>
+                                </div>
+                                <p class="small text-muted">Model ID: <code>{{ selected_model.model_id }}</code></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100 hover-card">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-play-circle-fill text-success mb-3" style="font-size: 4rem;"></i>
+                        <h4 class="card-title">Train Model</h4>
+                        <p class="card-text text-muted mb-4">
+                            Train the Bayesian model using MCMC sampling and posterior inference
+                        </p>
+                        <a href="{{ url_for('main.modeling_dashboard') }}?model={{ selected_model_id }}&action=train"
+                           class="btn btn-success btn-lg w-75">
+                            <i class="bi bi-gear-fill"></i> Start Training
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100 hover-card">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-calculator-fill text-primary mb-3" style="font-size: 4rem;"></i>
+                        <h4 class="card-title">Run Inference</h4>
+                        <p class="card-text text-muted mb-4">
+                            Generate predictions and posterior summaries using the trained model
+                        </p>
+                        <a href="{{ url_for('main.modeling_dashboard') }}?model={{ selected_model_id }}&action=inference"
+                           class="btn btn-primary btn-lg w-75">
+                            <i class="bi bi-graph-up-arrow"></i> Run Inference
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inference Parameters Preview -->
+        {% if selected_model.inference_params %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-sliders"></i> Inference Parameters
+                        </h5>
+                        <p class="text-muted small mb-3">These parameters will be required when running inference:</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Parameter</th>
+                                        <th>Type</th>
+                                        <th>Required</th>
+                                        <th>Default</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for param in selected_model.inference_params %}
+                                    <tr>
+                                        <td><code>{{ param.label }}</code></td>
+                                        <td><span class="badge bg-secondary">{{ param.type }}</span></td>
+                                        <td>
+                                            {% if param.required %}
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                            {% else %}
+                                            <i class="bi bi-dash-circle text-muted"></i>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ param.default if param.default is not none else '-' }}</td>
+                                        <td class="small text-muted">{{ param.help_text or param.label }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- No Model Selected - Show Overview -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <div class="mb-4">
+                            <i class="bi bi-graph-up text-primary" style="font-size: 5rem;"></i>
+                        </div>
+                        <h3 class="mb-3">Statistical Modeling & Inference</h3>
+                        <p class="text-muted mb-4">
+                            Select a model from the dropdown above to get started with:
+                        </p>
+                        <div class="row justify-content-center">
+                            <div class="col-md-8">
+                                <div class="list-group list-group-flush text-start">
+                                    <div class="list-group-item border-0">
+                                        <i class="bi bi-bar-chart-line text-primary me-2"></i>
+                                        <strong>Model Training:</strong> Fit Bayesian models using MCMC sampling
+                                    </div>
+                                    <div class="list-group-item border-0">
+                                        <i class="bi bi-graph-up-arrow text-success me-2"></i>
+                                        <strong>Inference:</strong> Generate predictions and posterior summaries
+                                    </div>
+                                    <div class="list-group-item border-0">
+                                        <i class="bi bi-table text-info me-2"></i>
+                                        <strong>Diagnostics:</strong> Trace plots, convergence checks, and model comparison
+                                    </div>
+                                    <div class="list-group-item border-0">
+                                        <i class="bi bi-download text-warning me-2"></i>
+                                        <strong>Export:</strong> Save results and generate reports
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Back to Main Dashboard -->
+        <div class="row">
+            <div class="col-12 text-center">
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-link">
+                    <i class="bi bi-arrow-left"></i> Back to Main Dashboard
+                </a>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<style>
+.hover-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.hover-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+}
+</style>
+{% endblock %}
