@@ -7,7 +7,9 @@ import logging
 import importlib.util
 import sys
 
-from src.causal_models.base_model import BaseBayesianModel, ModelMetadata
+from src.bayesian_models.base_model import (
+    BaseBayesianModel, ModelMetadata, MODELS_OUTPUT_DIR
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +162,57 @@ class ModelRegistry:
         """Refresh the model registry (re-discover models)"""
         self.models.clear()
         self._discover_models()
+
+    def get_model_output_dir(self, model_id: str) -> Optional[Path]:
+        """Get the output directory for a model"""
+        if model_id not in self.models:
+            return None
+        return MODELS_OUTPUT_DIR / model_id
+
+    def get_model_status(self, model_id: str) -> dict:
+        """
+        Get comprehensive status of a model including training state.
+
+        Returns:
+            dict with keys: model_id, name, version, status, is_trained,
+                           has_trace, last_trained, output_dir
+        """
+        metadata = self.get_model_metadata(model_id)
+        if not metadata:
+            return None
+
+        output_dir = MODELS_OUTPUT_DIR / model_id
+        traces_dir = output_dir / 'traces'
+        checkpoints_dir = output_dir / 'checkpoints'
+
+        # Check for trained model artifacts
+        has_trace = traces_dir.exists() and any(traces_dir.glob('*.nc'))
+        has_checkpoint = checkpoints_dir.exists() and any(checkpoints_dir.iterdir())
+
+        # Get last training time from most recent trace
+        last_trained = None
+        if has_trace:
+            traces = sorted(traces_dir.glob('*.nc'), key=lambda p: p.stat().st_mtime)
+            if traces:
+                last_trained = traces[-1].stat().st_mtime
+
+        return {
+            'model_id': model_id,
+            'name': metadata.name,
+            'version': metadata.version,
+            'status': metadata.status,
+            'is_trained': has_trace or has_checkpoint,
+            'has_trace': has_trace,
+            'last_trained': last_trained,
+            'output_dir': str(output_dir)
+        }
+
+    def get_all_models_with_status(self) -> List[dict]:
+        """Get all models with their training status"""
+        return [
+            self.get_model_status(model_id)
+            for model_id in self.models.keys()
+        ]
 
 
 # Global registry instance

@@ -1,11 +1,34 @@
 # Bayesian Model System - Architecture and Usage
 
-**Created:** 2025-12-03
+**Updated:** 2025-12-05
 **Purpose:** Document the Bayesian model metadata system and model management architecture
 
 ## Overview
 
-The Bayesian model system provides a standardized way to define, manage, and present statistical models in the UI. Models are auto-discovered from the `src/bayesian_models/` directory and presented in a dropdown for training and inference.
+The Bayesian model system provides a standardized way to define, manage, and present statistical models in the UI. Models are auto-discovered from `src/bayesian_models/` and training outputs are stored in `models/{model_id}/`.
+
+## Directory Structure
+
+```
+src/bayesian_models/              # Model definitions (auto-discovered)
+├── base_model.py                 # Base classes and metadata handling
+├── model_registry.py             # Auto-discovery and management
+├── {model_id}/                   # Each model in its own directory
+│   ├── config.yaml               # Model metadata and inference params
+│   ├── {model_id}.py             # Model implementation
+│   └── {model_id}_data.py        # Data loading (optional)
+
+src/bayesian_scripts/             # Training scripts (run manually)
+├── _template_train.py            # Template for new training scripts
+└── {model_id}_train.py           # One script per model
+
+models/                           # Training outputs (gitignored)
+└── {model_id}/
+    ├── traces/                   # MCMC traces (.nc NetCDF files)
+    ├── reports/                  # Summary stats, metrics (.csv, .json)
+    ├── diagrams/                 # Visualizations, DAGs (.png, .svg)
+    └── checkpoints/              # Model state for inference
+```
 
 ## Architecture Components
 
@@ -23,6 +46,10 @@ Provides the foundation for all Bayesian models:
 - `predict()`: Run inference with trained model
 - `get_inference_form_fields()`: Get form field definitions for UI
 - `validate_inference_params()`: Validate user-provided parameters
+- `ensure_output_dirs()`: Create output directories for training
+- `get_output_paths()`: Get dictionary of output directory paths
+- `has_trained_model()`: Check if a trained checkpoint exists
+- `get_latest_trace()`: Get path to most recent trace file
 
 ### 2. Model Registry (`src/bayesian_models/model_registry.py`)
 
@@ -36,6 +63,8 @@ Auto-discovery and management system:
 - `get_model_metadata(model_id)`: Get specific model metadata
 - `load_model_instance(model_id)`: Dynamically load and instantiate model class
 - `get_model_for_dropdown()`: Get (id, name) tuples for HTML dropdowns
+- `get_model_status(model_id)`: Get model status including training state
+- `get_all_models_with_status()`: Get all models with training status
 
 ### 3. Configuration Files (`config.yaml`)
 
@@ -61,9 +90,34 @@ inference_params:
     min_value: 1
     max_value: 1000
     help_text: "Parameter description"
+
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
 ```
 
-### 4. UI Integration
+### 4. Training Scripts (`src/bayesian_scripts/`)
+
+Each model has a corresponding training script:
+
+```bash
+# Train a model
+python src/bayesian_scripts/{model_id}_train.py
+
+# With options
+python src/bayesian_scripts/{model_id}_train.py --draws 2000 --chains 4 --gpu
+```
+
+Training scripts:
+1. Load and prepare data
+2. Build the PyMC model
+3. Run MCMC sampling (GPU if available)
+4. Check convergence diagnostics
+5. Save outputs to `models/{model_id}/`
+
+### 5. UI Integration
 
 **Route:** `app/routes/main.py:modeling_dashboard()`
 - Loads model registry
@@ -73,24 +127,9 @@ inference_params:
 **Template:** `app/templates/dashboards/modeling.html`
 - Dropdown for model selection
 - Model details display (name, description, version, author, tags)
+- Training status indicator
 - Action buttons: "Train Model" and "Run Inference"
 - Inference parameters table preview
-
-## Directory Structure
-
-```
-src/bayesian_models/
-├── base_model.py           # Base classes and metadata handling
-├── model_registry.py       # Auto-discovery and management
-├── click_model/            # Example model
-│   ├── config.yaml         # Model metadata
-│   ├── click_model.py      # Model implementation
-│   ├── click_model_data.py # Data loading
-│   └── ...
-└── model02/                # Add more models here
-    ├── config.yaml
-    └── model.py
-```
 
 ## How to Add a New Model
 
@@ -129,70 +168,81 @@ inference_params:
     default: 1000
     min_value: 100
     max_value: 10000
+
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
 ```
 
 ### Step 3: Create Model Implementation
 
-Create `my_new_model/model.py`:
+Create `my_new_model/my_new_model.py`:
 
 ```python
 from pathlib import Path
 from typing import Any, Dict
-from src.causal_models.base_model import BaseBayesianModel
+from src.bayesian_models.base_model import BaseBayesianModel
 
 
 class MyNewModel(BaseBayesianModel):
-    """
-    My new Bayesian model implementation
-    """
-
-
+    """My new Bayesian model implementation"""
 
     def __init__(self, model_dir: Path):
         super().__init__(model_dir)
         # Additional initialization
-
-
 
     def load_data(self, **kwargs) -> Any:
         """Load and prepare data"""
         # Implementation
         pass
 
-
-
     def train(self, data: Any, **kwargs) -> Dict[str, Any]:
         """Train the model"""
+        self.ensure_output_dirs()  # Create output directories
         # Implementation
         return {
             'status': 'success',
             'metrics': {...}
         }
 
-
-
     def predict(self, inference_params: Dict[str, Any]) -> Dict[str, Any]:
         """Run inference"""
-        # Validate parameters
         is_valid, error = self.validate_inference_params(inference_params)
         if not is_valid:
             return {'error': error}
 
+        # Load trace from self.get_latest_trace()
         # Run inference
-        # Implementation
         return {
             'predictions': [...],
             'credible_intervals': {...}
         }
 ```
 
-### Step 4: Verify Registration
+### Step 4: Create Training Script
 
-The model will be auto-discovered on next dashboard load. To verify:
+```bash
+cp src/bayesian_scripts/_template_train.py src/bayesian_scripts/my_new_model_train.py
+```
 
-1. Navigate to `/dashboard/modeling`
-2. Your model should appear in the dropdown
-3. Select it to see details and action buttons
+Edit the script:
+1. Set `MODEL_ID = 'my_new_model'`
+2. Customize `load_training_data()` for your data
+3. Customize `build_model()` for your model structure
+
+### Step 5: Train and Verify
+
+```bash
+# Train the model
+python src/bayesian_scripts/my_new_model_train.py
+
+# Check outputs
+ls models/my_new_model/
+```
+
+The model will be auto-discovered on next dashboard load.
 
 ## Parameter Types
 
@@ -218,20 +268,72 @@ The model will be auto-discovered on next dashboard load. To verify:
   help_text: "Description"    # Help text for users
 ```
 
-## UI Workflow
-
-1. **Select Model**: User chooses model from dropdown
-2. **View Details**: Model name, description, version, author, tags displayed
-3. **Choose Action**:
-   - **Train Model**: Navigate to training interface
-   - **Run Inference**: Navigate to inference form
-4. **Inference Parameters**: Preview of required/optional parameters
-
 ## Model Status Flags
 
 - **`active`**: Production-ready models (shown in dropdown)
 - **`beta`**: Testing/development models (shown with [BETA] tag)
 - **`deprecated`**: Old models (hidden from dropdown)
+
+## Registry Functions
+
+### In Python Code
+
+```python
+from src.bayesian_models.model_registry import get_registry
+
+# Get registry
+registry = get_registry()
+
+# List all models
+models = registry.get_all_models()
+
+# Get model with training status
+status = registry.get_model_status('click_model')
+# Returns: {model_id, name, version, status, is_trained, has_trace, last_trained, output_dir}
+
+# Get all models with status
+all_status = registry.get_all_models_with_status()
+
+# Load model instance
+model = registry.load_model_instance('click_model')
+
+# Access output paths
+paths = model.get_output_paths()
+# Returns: {output, traces, reports, diagrams, checkpoints}
+
+# Check if trained
+if model.has_trained_model():
+    trace_path = model.get_latest_trace()
+```
+
+### In Flask Routes
+
+```python
+from src.bayesian_models.model_registry import get_registry
+
+@app.route('/modeling')
+def modeling_page():
+    registry = get_registry()
+    models = registry.get_all_models_with_status()
+    return render_template('modeling.html', models=models)
+```
+
+## GPU Acceleration
+
+The system supports GPU acceleration via JAX/NumPyro:
+
+```bash
+# Force GPU sampling
+python src/bayesian_scripts/click_model_train.py --gpu
+
+# Force CPU sampling
+python src/bayesian_scripts/click_model_train.py --cpu
+```
+
+Requirements for GPU:
+- CUDA toolkit (12.4 recommended)
+- JAX with CUDA support: `jax[cuda12_pip]`
+- NumPyro: `numpyro`
 
 ## Best Practices
 
@@ -243,82 +345,19 @@ The model will be auto-discovered on next dashboard load. To verify:
 
 ### Implementation
 - Always validate inference parameters before use
+- Call `ensure_output_dirs()` before saving training outputs
+- Use `get_latest_trace()` to load trained models
 - Return consistent result structures
 - Include error handling and clear error messages
-- Document expected data formats
+
+### Training Scripts
+- Copy from `_template_train.py` for consistency
+- Include convergence diagnostics
+- Save trace, summary, and diagnostic plots
+- Use timestamp-based filenames for versioning
 
 ### Organization
-- One model per directory
+- One model per directory in `src/bayesian_models/`
+- One training script per model in `src/bayesian_scripts/`
+- All outputs go to `models/{model_id}/`
 - Keep related files together (data, model, utils)
-- Use descriptive file names
-- Include README in complex models
-
-## Example: Click Model
-
-Location: `src/bayesian_models/click_model/`
-
-**Features:**
-- Hierarchical Bayesian model for click-through rates
-- County-level random effects
-- Multiple inference parameters (county, sample size, confidence level)
-- Demographic covariates support
-
-**Files:**
-- `config.yaml`: Model metadata and inference parameters
-- `click_model.py`: Main model implementation
-- `click_model_data.py`: Data loading and preprocessing
-- `click_mode_data_preprocessor.py`: Additional preprocessing utilities
-
-## Registry Functions
-
-### In Python Code
-
-```python
-from src.causal_models.model_registry import get_registry
-
-# Get registry
-registry = get_registry()
-
-# List all models
-models = registry.get_all_models()
-
-# Get specific model metadata
-metadata = registry.get_model_metadata('click_model')
-
-# Load model instance
-model_instance = registry.load_model_instance('click_model')
-
-# Use model
-data = model_instance.load_data()
-results = model_instance.train(data)
-predictions = model_instance.predict({'county': 'Cuyahoga', 'sample_size': 1000})
-```
-
-### In Flask Routes
-
-```python
-from src.causal_models.model_registry import get_registry
-
-
-@app.route('/modeling')
-def modeling_page():
-    registry = get_registry()
-    models = registry.get_all_models()
-    return render_template('modeling.html', models=models)
-```
-
-## Next Steps
-
-### Immediate Priorities
-1. Implement training route (`/dashboard/modeling/train`)
-2. Implement inference route (`/dashboard/modeling/inference`)
-3. Create dynamic form generation from `inference_params`
-4. Add result visualization templates
-
-### Future Enhancements
-- Model comparison tools
-- Training history and logs
-- Model versioning and checkpoints
-- Export/import trained models
-- Automated model diagnostics
-- Real-time training progress

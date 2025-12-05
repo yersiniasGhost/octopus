@@ -1,5 +1,17 @@
 """
 Base class for all Bayesian models with metadata support
+
+Directory Structure:
+    src/bayesian_models/{model_id}/     # Model definition
+        config.yaml                      # Metadata and inference params
+        {model_id}.py                    # Model implementation
+        {model_id}_data.py               # Data loading (optional)
+
+    models/{model_id}/                   # Model outputs (created by training)
+        traces/                          # MCMC traces (.nc files)
+        reports/                         # Summary stats, metrics (.csv, .json)
+        diagrams/                        # Visualizations (.png, .svg)
+        checkpoints/                     # Model checkpoints for inference
 """
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
@@ -8,6 +20,10 @@ import yaml
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Project root directory (where models/ output folder lives)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+MODELS_OUTPUT_DIR = PROJECT_ROOT / 'models'
 
 
 class InferenceParameter:
@@ -114,6 +130,12 @@ class BaseBayesianModel(ABC):
     1. Have a config.yaml in its directory
     2. Implement train(), predict(), and load_data() methods
     3. Store results in a consistent format
+
+    Output Directory Structure (models/{model_id}/):
+        traces/      - MCMC trace files (.nc NetCDF format)
+        reports/     - Summary statistics, metrics (.csv, .json)
+        diagrams/    - Visualizations, DAGs, trace plots (.png, .svg)
+        checkpoints/ - Trained model state for inference
     """
 
     def __init__(self, model_dir: Path):
@@ -129,7 +151,43 @@ class BaseBayesianModel(ABC):
             )
 
         self.metadata = ModelMetadata(config_path)
+
+        # Setup output directories
+        self.output_dir = MODELS_OUTPUT_DIR / self.model_id
+        self.traces_dir = self.output_dir / 'traces'
+        self.reports_dir = self.output_dir / 'reports'
+        self.diagrams_dir = self.output_dir / 'diagrams'
+        self.checkpoints_dir = self.output_dir / 'checkpoints'
+
         logger.info(f"Loaded model: {self.metadata.name} (v{self.metadata.version})")
+
+    def ensure_output_dirs(self) -> None:
+        """Create output directories if they don't exist"""
+        for dir_path in [self.traces_dir, self.reports_dir,
+                         self.diagrams_dir, self.checkpoints_dir]:
+            dir_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output directories ready: {self.output_dir}")
+
+    def get_output_paths(self) -> Dict[str, Path]:
+        """Get dictionary of output directory paths"""
+        return {
+            'output': self.output_dir,
+            'traces': self.traces_dir,
+            'reports': self.reports_dir,
+            'diagrams': self.diagrams_dir,
+            'checkpoints': self.checkpoints_dir
+        }
+
+    def has_trained_model(self) -> bool:
+        """Check if a trained model checkpoint exists"""
+        return self.checkpoints_dir.exists() and any(self.checkpoints_dir.iterdir())
+
+    def get_latest_trace(self) -> Optional[Path]:
+        """Get path to the most recent trace file"""
+        if not self.traces_dir.exists():
+            return None
+        traces = sorted(self.traces_dir.glob('*.nc'), key=lambda p: p.stat().st_mtime)
+        return traces[-1] if traces else None
 
     @abstractmethod
     def load_data(self, **kwargs) -> Any:
