@@ -133,6 +133,79 @@ Lists all available MongoDB databases and collections for database exploration a
 ### find_demographic_collections.py
 Searches for demographic data collections across MongoDB databases and reports their structure and availability.
 
+## Database Migration
+
+### migrate_to_campaign_data_tool.py
+**Reusable Tool**: Comprehensive migration tool that creates and populates the new `campaign_data` database from CSV exports and county data. Replaces the poorly-structured `emailoctopus_db` with a well-designed schema featuring normalized participants, denormalized demographics/residence data, and unified engagement status (no_engagement/received/engaged).
+
+**Features:**
+- Phase 1 (setup): Creates database, collections, and indexes
+- Phase 2 (import): Imports CSV files, deduplicates participants, creates campaign exposures
+- Phase 3 (match): Matches participants to county demographic/residential data using 8-strategy ResidenceMatcher
+- Phase 4 (summarize): Computes pre-aggregated engagement summaries per participant
+- Phase 5 (stats): Updates campaign-level aggregate statistics
+- Supports multi-channel campaigns (email, text_morning, text_evening, mailer, letter)
+- Creates `analysis_ready` flag for clustering-ready data export
+
+**Usage:**
+```bash
+# Dry run - analyze what would be migrated
+python scripts/migrate_to_campaign_data_tool.py --dry-run
+
+# Full live migration
+python scripts/migrate_to_campaign_data_tool.py --live
+
+# Run specific phase only
+python scripts/migrate_to_campaign_data_tool.py --live --phase setup
+python scripts/migrate_to_campaign_data_tool.py --live --phase import
+python scripts/migrate_to_campaign_data_tool.py --live --phase match
+python scripts/migrate_to_campaign_data_tool.py --live --phase summarize
+
+# Limit records for testing
+python scripts/migrate_to_campaign_data_tool.py --live --limit 1000
+```
+
+**Output:** Migration statistics including CSV processing counts, participant deduplication, match rates by method, and engagement distribution.
+
+### rematch_participants_tool.py
+**Reusable Tool**: Re-runs residence/demographic matching for participants lacking references using the corrected zipcode-to-county cache and 8-strategy ResidenceMatcher.
+
+**Usage:**
+```bash
+# Dry run
+python scripts/rematch_participants_tool.py --dry-run
+
+# Live update
+python scripts/rematch_participants_tool.py --live
+
+# Limit for testing
+python scripts/rematch_participants_tool.py --dry-run --limit 100 --verbose
+```
+
+### rematch_campaign_data_tool.py
+**Reusable Tool**: Re-runs residence/demographic matching for unmatched participants in the `campaign_data` database. Key features:
+- Pulls phone/address data from `campaign_exposures.contact_snapshot` (data stored at campaign send time)
+- Builds ZIP-to-counties map supporting multi-county ZIP codes (e.g., ZIP 44813 spans RichlandCounty and HuronCounty)
+- Tries matching across ALL counties for a given ZIP, ordered by data volume
+- Uses 8-strategy ResidenceMatcher (email, name, phone, address variations)
+
+**Usage:**
+```bash
+# Dry run - see what would change
+python scripts/rematch_campaign_data_tool.py --dry-run
+
+# Live update
+python scripts/rematch_campaign_data_tool.py --live
+
+# With verbose output
+python scripts/rematch_campaign_data_tool.py --live --verbose
+
+# Limit for testing
+python scripts/rematch_campaign_data_tool.py --dry-run --limit 100
+```
+
+**Output:** Statistics showing newly matched participants, match methods used, and by-county breakdown.
+
 ## Data Enrichment
 
 ### enrich_participants.py
@@ -143,4 +216,4 @@ Exports matched residence and applicant data to CSV format for external analysis
 
 ---
 
-*Last updated: 2025-11-05*
+*Last updated: 2025-12-07*

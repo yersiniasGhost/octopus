@@ -173,4 +173,46 @@ python scripts/import_text_conversations_tool.py \
 
 ---
 
-*Last updated: 2025-11-05*
+## db_schema_explorer.py
+
+**Purpose**: Diagnostic tool for exploring MongoDB collections to understand schema, data quality, and linkage integrity. Useful for pre-analysis data discovery.
+
+**Location**: `src/tools/db_schema_explorer.py`
+
+### Usage
+
+```bash
+python src/tools/db_schema_explorer.py
+```
+
+### Output Sections
+
+1. **DATABASE COLLECTIONS** - Lists all collections categorized by type (demographic, residential, core, other) with document counts
+
+2. **PARTICIPANTS COLLECTION** - Analyzes:
+   - Total records vs unique contact_ids
+   - Reference linkage rates (residence_ref, demographic_ref)
+   - Engagement statistics (total, avg, max per participant)
+   - Sample document structure
+
+3. **CAMPAIGNS COLLECTION** - Shows campaign type distribution and sample fields
+
+4. **DEMOGRAPHIC COLLECTION FIELDS** - Lists all fields with types and sample values from first demographic collection, highlights age-related fields
+
+5. **RESIDENTIAL COLLECTION FIELDS** - Lists all fields from first residential collection
+
+### Use Cases
+
+- Pre-clustering data quality assessment
+- Understanding linkage gaps between collections
+- Discovering available demographic/residential fields
+- Verifying engagement data structure
+
+### Related
+
+- Created during clustering project data exploration (2025-12-07)
+- See: `.claude_docs/20251207_data_issues_and_schema_proposal.md`
+
+---
+
+*Last updated: 2025-12-07*
