@@ -318,3 +318,14 @@ python -m src.analysis.cluster_validation
 ---
 
 *Last updated: 2025-12-07*
+
+## scripts/dryrun_text_participant_matching.py
+**Purpose**: Dry-run script to analyze participant matching for text campaign ingestion.
+
+Analyzes unique contacts from text campaign data against existing participants in campaign_data database. Reports match rates by method (email, phone, address), identifies new participants that need creation, and analyzes county distribution for residential/demographic data lookup.
+
+Key outputs:
+- Match statistics by method (email/phone/address)
+- List of unmatched contacts needing new participant records
+- County distribution for demographic lookup planning
+- Exports unmatched contacts to `data/campaign_texting/compact/unmatched_contacts.csv`

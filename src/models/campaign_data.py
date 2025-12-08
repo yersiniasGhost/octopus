@@ -18,8 +18,9 @@ from src.utils.pyobject_id import PyObjectId
 class Channel(str, Enum):
     """Campaign delivery channels"""
     EMAIL = "email"
-    TEXT_MORNING = "text_morning"
-    TEXT_EVENING = "text_evening"
+    TEXT = "text"
+    TEXT_MORNING = "text_morning"  # Deprecated: use TEXT
+    TEXT_EVENING = "text_evening"  # Deprecated: use TEXT
     MAILER = "mailer"
     LETTER = "letter"
 
@@ -235,8 +236,7 @@ class EngagementSummary(BaseModel):
     total_exposures: int = 0
     by_channel: Dict[str, ChannelEngagement] = Field(default_factory=lambda: {
         "email": ChannelEngagement(),
-        "text_morning": ChannelEngagement(),
-        "text_evening": ChannelEngagement(),
+        "text": ChannelEngagement(),
         "mailer": ChannelEngagement(),
         "letter": ChannelEngagement()
     })
@@ -425,7 +425,7 @@ class CampaignExposure(BaseModel):
             else:
                 return UnifiedEngagement.NO_ENGAGEMENT.value
 
-        elif self.channel in (Channel.TEXT_MORNING.value, Channel.TEXT_EVENING.value):
+        elif self.channel in (Channel.TEXT.value, Channel.TEXT_MORNING.value, Channel.TEXT_EVENING.value):
             if self.text_replied:
                 return UnifiedEngagement.ENGAGED.value
             elif self.text_read or self.text_delivered:
