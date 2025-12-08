@@ -1,0 +1,17 @@
+{
+  "campaign_id": "58618cd0-9d5e-11f0-93a9-ddcea29a51f3",
+  "name": "COAD_FinalDays_20250929",
+  "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+  "status": "SENT",
+  "sent_at": "2025-09-29T18:07:58+00:00",
+  "created_at": "2025-09-29T18:01:38+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "58618cd0-9d5e-11f0-93a9-ddcea29a51f3_COAD_FinalDays_20250929.html",
+  "txt_file": "58618cd0-9d5e-11f0-93a9-ddcea29a51f3_COAD_FinalDays_20250929.txt"
+}

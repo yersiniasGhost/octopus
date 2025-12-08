@@ -1,0 +1,17 @@
+{
+  "campaign_id": "f2d149a0-4240-11f0-92ea-9d68c01ce8bd",
+  "name": "MVCAP_Your Home Selected_20250605",
+  "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+  "status": "SENT",
+  "sent_at": "2025-06-18T20:01:02+00:00",
+  "created_at": "2025-06-05T19:11:56+00:00",
+  "from": {
+    "name": "Miami Valley CAP & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "f2d149a0-4240-11f0-92ea-9d68c01ce8bd_MVCAP_Your Home Selected_20250605.html",
+  "txt_file": "f2d149a0-4240-11f0-92ea-9d68c01ce8bd_MVCAP_Your Home Selected_20250605.txt"
+}

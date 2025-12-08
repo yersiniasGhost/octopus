@@ -1,0 +1,84 @@
+# Bayesian Click Model Configuration
+name: "Campaign Click Probability Model"
+description: "Bayesian hierarchical model for predicting email campaign click-through rates across different counties and demographics"
+version: "1.0"
+author: "EmpowerSaves Analytics Team"
+status: "active"  # active, beta, deprecated
+
+tags:
+  - "email"
+  - "click-through"
+  - "hierarchical"
+  - "county-level"
+
+# Parameters for inference/prediction
+inference_params:
+  - name: "county"
+    type: "select"
+    label: "County"
+    required: true
+    help_text: "Select the county for prediction"
+    options:
+      - "Cuyahoga"
+      - "Franklin"
+      - "Hamilton"
+      - "Summit"
+      - "Lucas"
+      - "Montgomery"
+      - "Stark"
+      - "Butler"
+      - "Lorain"
+      - "Mahoning"
+
+  - name: "sample_size"
+    type: "integer"
+    label: "Sample Size"
+    default: 1000
+    required: true
+    min_value: 100
+    max_value: 10000
+    help_text: "Number of posterior samples to draw"
+
+  - name: "confidence_level"
+    type: "float"
+    label: "Confidence Level"
+    default: 0.95
+    required: true
+    min_value: 0.5
+    max_value: 0.99
+    help_text: "Confidence level for credible intervals (e.g., 0.95 for 95% CI)"
+
+  - name: "email_volume"
+    type: "integer"
+    label: "Expected Email Volume"
+    default: 5000
+    required: false
+    min_value: 100
+    max_value: 100000
+    help_text: "Expected number of emails to send"
+
+  - name: "include_demographics"
+    type: "boolean"
+    label: "Include Demographic Factors"
+    default: true
+    required: false
+    help_text: "Whether to include demographic covariates in prediction"
+
+# Training configuration (optional)
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
+  max_treedepth: 10
+
+# Model outputs
+outputs:
+  - name: "posterior_mean"
+    description: "Mean of posterior distribution"
+  - name: "credible_interval"
+    description: "Credible interval bounds"
+  - name: "prediction_interval"
+    description: "Prediction interval for new observations"
+  - name: "county_effects"
+    description: "Estimated county-level random effects"

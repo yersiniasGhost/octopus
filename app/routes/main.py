@@ -384,7 +384,7 @@ def modeling_dashboard():
     """
     Bayesian modeling and inference dashboard
     """
-    from src.causal_models.model_registry import get_registry
+    from src.bayesian_models.model_registry import get_registry
 
     # Get model registry
     registry = get_registry()

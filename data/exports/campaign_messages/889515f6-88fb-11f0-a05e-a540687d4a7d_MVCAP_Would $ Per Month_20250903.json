@@ -1,0 +1,17 @@
+{
+  "campaign_id": "889515f6-88fb-11f0-a05e-a540687d4a7d",
+  "name": "MVCAP_Would $ Per Month_20250903",
+  "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+  "status": "SENT",
+  "sent_at": "2025-09-03T19:33:19+00:00",
+  "created_at": "2025-09-03T19:23:55+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "889515f6-88fb-11f0-a05e-a540687d4a7d_MVCAP_Would $ Per Month_20250903.html",
+  "txt_file": "889515f6-88fb-11f0-a05e-a540687d4a7d_MVCAP_Would $ Per Month_20250903.txt"
+}

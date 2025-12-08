@@ -1,0 +1,17 @@
+{
+  "campaign_id": "cf115430-61a1-11f0-89cc-1be24f0429c5",
+  "name": "IMPACT_SummerCrisis_20250715",
+  "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+  "status": "SENT",
+  "sent_at": "2025-07-15T17:39:50+00:00",
+  "created_at": "2025-07-15T17:33:24+00:00",
+  "from": {
+    "name": "IMPACT Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "cf115430-61a1-11f0-89cc-1be24f0429c5_IMPACT_SummerCrisis_20250715.html",
+  "txt_file": "cf115430-61a1-11f0-89cc-1be24f0429c5_IMPACT_SummerCrisis_20250715.txt"
+}

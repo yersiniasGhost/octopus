@@ -1,0 +1,17 @@
+{
+  "campaign_id": "69384c64-3b21-11f0-a640-373c3b1830b0",
+  "name": "IMPACT_Your Home Selected_20250527",
+  "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+  "status": "SENT",
+  "sent_at": "2025-05-27T17:39:37+00:00",
+  "created_at": "2025-05-27T17:38:33+00:00",
+  "from": {
+    "name": "IMPACT Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "69384c64-3b21-11f0-a640-373c3b1830b0_IMPACT_Your Home Selected_20250527.html",
+  "txt_file": "69384c64-3b21-11f0-a640-373c3b1830b0_IMPACT_Your Home Selected_20250527.txt"
+}

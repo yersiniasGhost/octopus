@@ -1,0 +1,17 @@
+{
+  "campaign_id": "05447e96-7a03-11f0-8797-9f713080f85c",
+  "name": "COAD_Improve_20250815",
+  "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+  "status": "SENT",
+  "sent_at": "2025-08-15T19:25:02+00:00",
+  "created_at": "2025-08-15T18:09:44+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "05447e96-7a03-11f0-8797-9f713080f85c_COAD_Improve_20250815.html",
+  "txt_file": "05447e96-7a03-11f0-8797-9f713080f85c_COAD_Improve_20250815.txt"
+}

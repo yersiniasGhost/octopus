@@ -1,0 +1,17 @@
+{
+  "campaign_id": "0f20d4bc-51fb-11f0-b0a7-7561b93db160",
+  "name": "IMPACT_Claude Content_20250625",
+  "subject": "{{FirstName|default(\"Hello\")}} , your electric bill could force you into financial hardship",
+  "status": "SENT",
+  "sent_at": "2025-06-25T19:35:51+00:00",
+  "created_at": "2025-06-25T19:31:58+00:00",
+  "from": {
+    "name": "IMPACT Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "0f20d4bc-51fb-11f0-b0a7-7561b93db160_IMPACT_Claude Content_20250625.html",
+  "txt_file": "0f20d4bc-51fb-11f0-b0a7-7561b93db160_IMPACT_Claude Content_20250625.txt"
+}

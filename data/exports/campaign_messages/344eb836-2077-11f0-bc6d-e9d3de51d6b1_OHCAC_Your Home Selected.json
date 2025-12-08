@@ -1,0 +1,17 @@
+{
+  "campaign_id": "344eb836-2077-11f0-bc6d-e9d3de51d6b1",
+  "name": "OHCAC_Your Home Selected",
+  "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+  "status": "SENT",
+  "sent_at": "2025-04-23T19:15:25+00:00",
+  "created_at": "2025-04-23T19:14:39+00:00",
+  "from": {
+    "name": "Ohio Heartland & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "344eb836-2077-11f0-bc6d-e9d3de51d6b1_OHCAC_Your Home Selected.html",
+  "txt_file": "344eb836-2077-11f0-bc6d-e9d3de51d6b1_OHCAC_Your Home Selected.txt"
+}

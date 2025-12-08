@@ -1,0 +1,17 @@
+{
+  "campaign_id": "37ffef48-7d30-11f0-991a-0f9ecebb753c",
+  "name": "IMPACT_Would $ Per Month_20250819",
+  "subject": "Would\u00a0{{MonthlySaving}} extra per month improve your day-to-day life?",
+  "status": "SENT",
+  "sent_at": "2025-08-19T19:14:10+00:00",
+  "created_at": "2025-08-19T19:10:49+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "37ffef48-7d30-11f0-991a-0f9ecebb753c_IMPACT_Would $ Per Month_20250819.html",
+  "txt_file": "37ffef48-7d30-11f0-991a-0f9ecebb753c_IMPACT_Would $ Per Month_20250819.txt"
+}

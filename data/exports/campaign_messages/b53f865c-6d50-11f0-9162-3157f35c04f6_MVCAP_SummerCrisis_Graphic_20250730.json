@@ -1,0 +1,17 @@
+{
+  "campaign_id": "b53f865c-6d50-11f0-9162-3157f35c04f6",
+  "name": "MVCAP_SummerCrisis_Graphic_20250730",
+  "subject": "Extreme heat = extreme bills. You're pre-qualified for relief\u2014apply now",
+  "status": "SENT",
+  "sent_at": "2025-07-30T14:25:05+00:00",
+  "created_at": "2025-07-30T14:23:05+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "b53f865c-6d50-11f0-9162-3157f35c04f6_MVCAP_SummerCrisis_Graphic_20250730.html",
+  "txt_file": "b53f865c-6d50-11f0-9162-3157f35c04f6_MVCAP_SummerCrisis_Graphic_20250730.txt"
+}

@@ -133,6 +133,79 @@ Lists all available MongoDB databases and collections for database exploration a
 ### find_demographic_collections.py
 Searches for demographic data collections across MongoDB databases and reports their structure and availability.
 
+## Database Migration
+
+### migrate_to_campaign_data_tool.py
+**Reusable Tool**: Comprehensive migration tool that creates and populates the new `campaign_data` database from CSV exports and county data. Replaces the poorly-structured `emailoctopus_db` with a well-designed schema featuring normalized participants, denormalized demographics/residence data, and unified engagement status (no_engagement/received/engaged).
+
+**Features:**
+- Phase 1 (setup): Creates database, collections, and indexes
+- Phase 2 (import): Imports CSV files, deduplicates participants, creates campaign exposures
+- Phase 3 (match): Matches participants to county demographic/residential data using 8-strategy ResidenceMatcher
+- Phase 4 (summarize): Computes pre-aggregated engagement summaries per participant
+- Phase 5 (stats): Updates campaign-level aggregate statistics
+- Supports multi-channel campaigns (email, text_morning, text_evening, mailer, letter)
+- Creates `analysis_ready` flag for clustering-ready data export
+
+**Usage:**
+```bash
+# Dry run - analyze what would be migrated
+python scripts/migrate_to_campaign_data_tool.py --dry-run
+
+# Full live migration
+python scripts/migrate_to_campaign_data_tool.py --live
+
+# Run specific phase only
+python scripts/migrate_to_campaign_data_tool.py --live --phase setup
+python scripts/migrate_to_campaign_data_tool.py --live --phase import
+python scripts/migrate_to_campaign_data_tool.py --live --phase match
+python scripts/migrate_to_campaign_data_tool.py --live --phase summarize
+
+# Limit records for testing
+python scripts/migrate_to_campaign_data_tool.py --live --limit 1000
+```
+
+**Output:** Migration statistics including CSV processing counts, participant deduplication, match rates by method, and engagement distribution.
+
+### rematch_participants_tool.py
+**Reusable Tool**: Re-runs residence/demographic matching for participants lacking references using the corrected zipcode-to-county cache and 8-strategy ResidenceMatcher.
+
+**Usage:**
+```bash
+# Dry run
+python scripts/rematch_participants_tool.py --dry-run
+
+# Live update
+python scripts/rematch_participants_tool.py --live
+
+# Limit for testing
+python scripts/rematch_participants_tool.py --dry-run --limit 100 --verbose
+```
+
+### rematch_campaign_data_tool.py
+**Reusable Tool**: Re-runs residence/demographic matching for unmatched participants in the `campaign_data` database. Key features:
+- Pulls phone/address data from `campaign_exposures.contact_snapshot` (data stored at campaign send time)
+- Builds ZIP-to-counties map supporting multi-county ZIP codes (e.g., ZIP 44813 spans RichlandCounty and HuronCounty)
+- Tries matching across ALL counties for a given ZIP, ordered by data volume
+- Uses 8-strategy ResidenceMatcher (email, name, phone, address variations)
+
+**Usage:**
+```bash
+# Dry run - see what would change
+python scripts/rematch_campaign_data_tool.py --dry-run
+
+# Live update
+python scripts/rematch_campaign_data_tool.py --live
+
+# With verbose output
+python scripts/rematch_campaign_data_tool.py --live --verbose
+
+# Limit for testing
+python scripts/rematch_campaign_data_tool.py --dry-run --limit 100
+```
+
+**Output:** Statistics showing newly matched participants, match methods used, and by-county breakdown.
+
 ## Data Enrichment
 
 ### enrich_participants.py
@@ -141,6 +214,107 @@ Enriches campaign participant records with additional demographic and engagement
 ### export_matched_data.py
 Exports matched residence and applicant data to CSV format for external analysis and reporting.
 
+## Clustering Analysis (src/analysis/)
+
+Analysis scripts implementing the progressive clustering strategy from CLUSTERING_PROJECT.md.
+
+### extract_participant_features.py
+Extracts and aggregates participant-level features from `campaign_data` database for clustering analysis. Aggregates from observation level (129K exposures) to participant level (7K participants), separates pre-treatment features from behavioral outcomes, and handles missing values appropriately.
+
+**Output:**
+- `data/participant_features.parquet` - Full dataset
+- `data/participant_features_analysis.parquet` - Filtered for analysis
+
+**Usage:**
+```bash
+python -m src.analysis.extract_participant_features
+```
+
+### phase1_demographics_clustering.py
+Phase 1 of progressive clustering: Demographics-only analysis using FAMD for dimensionality reduction and K-prototypes for mixed-data clustering. Clusters on pre-treatment features only, then validates clusters by analyzing engagement rates.
+
+**Key Finding:** Demographics alone don't predict engagement (chi-square p=0.85).
+
+**Output:**
+- `data/clustering_results/phase1_cluster_analysis.png`
+- `data/clustering_results/phase1_clustered_participants.parquet`
+
+**Usage:**
+```bash
+python -m src.analysis.phase1_demographics_clustering
+```
+
+### phase1_hdbscan_exploration.py
+Exploratory density-based clustering with HDBSCAN. Automatically determines cluster count and identifies outliers/noise points. Complements K-prototypes by discovering structure without assumptions.
+
+**Output:**
+- `data/clustering_results/hdbscan_clustered_participants.parquet`
+- `data/clustering_results/hdbscan_*.png`
+
+**Usage:**
+```bash
+python -m src.analysis.phase1_hdbscan_exploration
+```
+
+### phase2_campaign_exposure_clustering.py
+Phase 2: Adds campaign exposure patterns to demographics. Tests whether campaign-level factors (number of campaigns, channel distribution, exposure duration) predict engagement better than demographics alone.
+
+**Key Finding:** Adding exposure improves prediction slightly (p=0.18) but not significantly.
+
+**Output:**
+- `data/clustering_results/phase2_cluster_analysis.png`
+- `data/clustering_results/phase2_clustered_participants.parquet`
+
+**Usage:**
+```bash
+python -m src.analysis.phase2_campaign_exposure_clustering
+```
+
+### phase3_stepmix_probabilistic.py
+Phase 3: BayesianGaussianMixture clustering for Bayesian model integration. Provides soft cluster assignments (posterior probabilities) that can be used as covariates in PyMC causal models. Auto-determines effective cluster count using Dirichlet process prior.
+
+**Key Finding:** SIGNIFICANT (p=0.0007)! Engagement rates range 0.4% to 7.7% across clusters.
+
+**Output:**
+- `data/clustering_results/phase3_bayesian_integration.parquet` - For PyMC
+- `data/clustering_results/cluster_probabilities.npy` - Probability matrix
+
+**Usage:**
+```bash
+python -m src.analysis.phase3_stepmix_probabilistic
+```
+
+### umap_visualization.py
+UMAP 2D visualizations with rare outcome emphasis. Plots non-engaged participants as small transparent points, engaged as large opaque - revealing patterns in sparse engagement data.
+
+**Output:**
+- `data/clustering_results/umap_comprehensive_dashboard.png`
+- `data/clustering_results/umap_parameter_comparison.png`
+- `data/clustering_results/umap_coordinates.parquet`
+
+**Usage:**
+```bash
+python -m src.analysis.umap_visualization
+```
+
+### cluster_validation.py
+Comprehensive validation including silhouette analysis, bootstrap stability testing, and predictive power comparison across all phases.
+
+**Key Findings:**
+- Silhouette: 0.161 (weak structure)
+- Stability ARI: 0.80 (stable)
+- Phase 3 best predictor (p=0.0007)
+- Key differentiators: campaign_count (+103%), income (+38%), energy_burden (-17%)
+
+**Output:**
+- `data/clustering_results/cluster_validation_report.png`
+- `data/clustering_results/validation_summary.csv`
+
+**Usage:**
+```bash
+python -m src.analysis.cluster_validation
+```
+
 ---
 
-*Last updated: 2025-11-05*
+*Last updated: 2025-12-07*

@@ -1,0 +1,17 @@
+{
+  "campaign_id": "17f03d0c-51f7-11f0-a423-7561b93db160",
+  "name": "MVCAP_Claude Content_20250625",
+  "subject": "{{FirstName}}, your electric bill could force you into financial hardship",
+  "status": "SENT",
+  "sent_at": "2025-06-25T19:32:01+00:00",
+  "created_at": "2025-06-25T19:03:34+00:00",
+  "from": {
+    "name": "Miami Valley CAP & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "17f03d0c-51f7-11f0-a423-7561b93db160_MVCAP_Claude Content_20250625.html",
+  "txt_file": "17f03d0c-51f7-11f0-a423-7561b93db160_MVCAP_Claude Content_20250625.txt"
+}

@@ -1,0 +1,17 @@
+{
+  "campaign_id": "6e81ed56-462f-11f0-9f40-c9d36e46f23c",
+  "name": "MVCAP_Summer Surge_20250610",
+  "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+  "status": "SENT",
+  "sent_at": "2025-06-10T19:48:14+00:00",
+  "created_at": "2025-06-10T19:16:37+00:00",
+  "from": {
+    "name": "Miami Valley CAP & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "6e81ed56-462f-11f0-9f40-c9d36e46f23c_MVCAP_Summer Surge_20250610.html",
+  "txt_file": "6e81ed56-462f-11f0-9f40-c9d36e46f23c_MVCAP_Summer Surge_20250610.txt"
+}

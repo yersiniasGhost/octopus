@@ -1,0 +1,17 @@
+{
+  "campaign_id": "e7012cb8-61a2-11f0-9279-1b4400ab0e4c",
+  "name": "MVCAP_Crisis_20250715",
+  "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+  "status": "SENT",
+  "sent_at": "2025-07-15T17:41:50+00:00",
+  "created_at": "2025-07-15T17:41:13+00:00",
+  "from": {
+    "name": "Miami Valley CAP & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "e7012cb8-61a2-11f0-9279-1b4400ab0e4c_MVCAP_Crisis_20250715.html",
+  "txt_file": "e7012cb8-61a2-11f0-9279-1b4400ab0e4c_MVCAP_Crisis_20250715.txt"
+}

@@ -1,0 +1,17 @@
+{
+  "campaign_id": "9b60ca06-88f9-11f0-b8a4-a540687d4a7d",
+  "name": "IMPACT_Would $ Per Month_20250903",
+  "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+  "status": "SENT",
+  "sent_at": "2025-09-03T19:14:01+00:00",
+  "created_at": "2025-09-03T19:10:08+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "9b60ca06-88f9-11f0-b8a4-a540687d4a7d_IMPACT_Would $ Per Month_20250903.html",
+  "txt_file": "9b60ca06-88f9-11f0-b8a4-a540687d4a7d_IMPACT_Would $ Per Month_20250903.txt"
+}

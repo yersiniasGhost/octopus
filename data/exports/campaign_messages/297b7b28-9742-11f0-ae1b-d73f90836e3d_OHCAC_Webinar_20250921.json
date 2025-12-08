@@ -1,0 +1,17 @@
+{
+  "campaign_id": "297b7b28-9742-11f0-ae1b-d73f90836e3d",
+  "name": "OHCAC_Webinar_20250921",
+  "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+  "status": "SENT",
+  "sent_at": "2025-09-21T23:31:30+00:00",
+  "created_at": "2025-09-21T23:24:46+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "297b7b28-9742-11f0-ae1b-d73f90836e3d_OHCAC_Webinar_20250921.html",
+  "txt_file": "297b7b28-9742-11f0-ae1b-d73f90836e3d_OHCAC_Webinar_20250921.txt"
+}

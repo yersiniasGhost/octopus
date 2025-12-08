@@ -1,4 +1,4 @@
-campaign_name,campaign_sent_at,email,first_name,last_name,customer_name,city,zip,kwh,cell,address,annual_savings,monthly_cost,monthly_saving,daily_cost,opened,clicked,bounced,complained,unsubscribed
+`campaign_name,campaign_sent_at,email,first_name,last_name,customer_name,city,zip,kwh,cell,address,annual_savings,monthly_cost,monthly_saving,daily_cost,opened,clicked,bounced,complained,unsubscribed
 IMPACT_Claude Content_20250625,2025-06-25,weathervein@sbcglobal.net,,,"HOFFMAN, JOSHUA J",COLUMBUS,43201,,6148321251,426 E 17TH AVE,"$1,298.34",$360.65,$108.20,$11.86,1,0,0,0,0
 IMPACT_Claude Content_20250625,2025-06-25,just.me.1218@hotmail.com,,,"DEAL, LINDA",COLUMBUS,43207,,6147026122,3573 S CHAMPION AVE,"$1,085.54",$301.54,$90.46,$9.91,1,0,0,0,0
 IMPACT_Claude Content_20250625,2025-06-25,suecraug6257@icloud.com,,,"CRAIG, ANTHONY",COLUMBUS,43222,,6147836123,83 MEEK AVE,$911.88,$253.30,$75.99,$8.33,1,0,0,0,0

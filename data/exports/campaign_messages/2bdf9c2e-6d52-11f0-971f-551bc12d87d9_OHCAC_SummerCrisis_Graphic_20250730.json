@@ -1,0 +1,17 @@
+{
+  "campaign_id": "2bdf9c2e-6d52-11f0-971f-551bc12d87d9",
+  "name": "OHCAC_SummerCrisis_Graphic_20250730",
+  "subject": "Extreme heat. Rising bills. You\u2019re pre-qualified for help\u2014act now.",
+  "status": "SENT",
+  "sent_at": "2025-07-30T14:35:55+00:00",
+  "created_at": "2025-07-30T14:33:33+00:00",
+  "from": {
+    "name": "Ohio Energy Relief",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "2bdf9c2e-6d52-11f0-971f-551bc12d87d9_OHCAC_SummerCrisis_Graphic_20250730.html",
+  "txt_file": "2bdf9c2e-6d52-11f0-971f-551bc12d87d9_OHCAC_SummerCrisis_Graphic_20250730.txt"
+}
