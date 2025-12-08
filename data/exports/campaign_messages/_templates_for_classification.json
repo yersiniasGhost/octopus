@@ -1,0 +1,279 @@
+{
+  "total_campaigns": 69,
+  "unique_templates": 16,
+  "templates": [
+    {
+      "template_name": "Annual Cost",
+      "campaign_count": 1,
+      "organizations": [
+        "OHCAC"
+      ],
+      "subject": "Wow! We estimate you spend about {{annualcost}} per year on your energy bills. Pretty high!",
+      "text_preview": "Hello, If you're like most people, your energy bill costs are a source of stress on your financial budget. By our calculations, we estimate you are spending {{annualcost}} per year on your energy bills. That's a lot. That probably has a huge impact on how you manage your household finances. But we can help by putting you on Ohio's energy assistance programs at no cost to you. Through these programs, we project we can save you {{AnnualSavings}} per year...that's {{MonthlySaving}} per month. All you have to do is get assigned to a case manager at your county community action agency. The button below connects you right away! So, what are you waiting for? Real financial relief is simply a click away. START HERE By filling out our form, you will be assigned a representative in your community to help you through the application process. Here is what we can do in your home to improve your financial situation: START HERE By filling out our form, you will be assigned a representative in your co",
+      "campaign_ids": [
+        "f57512ba-3b27-11f0-9290-5508290eca41"
+      ]
+    },
+    {
+      "template_name": "Claude Content",
+      "campaign_count": 3,
+      "organizations": [
+        "IMPACT",
+        "OHCAC",
+        "MVCAP"
+      ],
+      "subject": "{{FirstName|default(\"Hello\")}} , your electric bill could push you into financial distress",
+      "text_preview": "{{FirstName|default(\"Hello\")}}, Your electricity costs have skyrocketed this year, and summer isn't even half over. Without immediate action, your family could face disconnection, debt, or having to choose between electricity and groceries. The Math is Brutal – and Getting Worse Every Day Ohio utilities didn't just raise rates – they hit families like a sledgehammer: We estimate you spend about {{annualcost}} per year on your energy bills. Imagine the increase this year. We project we can save you about {{AnnualSavings}} per year, but you need to take action now! Here's what this really means: If you were already stretching to pay your bills before, you're now going to be deeper in the hole every month. That can add up to financial disaster fast. GET STARTED Three Programs Can Stop This Crisis – But Only If You Act NOW This isn't \"maybe\" help – this is guaranteed money if you qualify: Home Energy Assistance Program (HEAP/LIHEAP) Cash assistance that pays your electric bill directly Ava",
+      "campaign_ids": [
+        "ee798fcc-5201-11f0-bfe8-b379f1b2773b",
+        "0f20d4bc-51fb-11f0-b0a7-7561b93db160",
+        "17f03d0c-51f7-11f0-a423-7561b93db160"
+      ]
+    },
+    {
+      "template_name": "Crisis",
+      "campaign_count": 3,
+      "organizations": [
+        "MVCAP",
+        "OHCA"
+      ],
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "text_preview": "Now Accepting Applications for Ohio's Summer Crisis Program As temperatures rise across Ohio, we want to ensure that no family has to choose between staying cool and paying other essential bills. The Ohio Summer Crisis Program is now accepting applications, and we encourage eligible households to enroll as soon as possible. What is the Summer Crisis Program? The Summer Crisis Program provides financial assistance to help eligible Ohio households pay their electric bills during the hot summer months. This vital program helps families maintain air conditioning and other essential cooling services when they need them most. START HERE You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}}",
+      "campaign_ids": [
+        "03ac0b12-61a3-11f0-b241-1be24f0429c5",
+        "e7012cb8-61a2-11f0-9279-1b4400ab0e4c",
+        "c01b932c-61a2-11f0-9483-bd122145b53e"
+      ]
+    },
+    {
+      "template_name": "Daily Cost",
+      "campaign_count": 4,
+      "organizations": [
+        "IMPACT",
+        "MVCAP",
+        "OHCAC",
+        "COAD"
+      ],
+      "subject": "We estimate you're spending {{dailycost}} per day on your energy bills. That's a lot!",
+      "text_preview": "Hi {{FirstName}} - We want to help you with your finances. We think we can save you a lot of money on your energy bills freeing up your budget so you can take better care of yourself and the ones you love. So, it's hard to believe, but based on our calculations, you are spending {{dailycost}} per day on your energy bills. That's {{monthlycost}} per month. But we can help, just as we've done for thousands of other Ohioans like you. There are energy assistance programs that you are pre-qualified for that can dramatically reduce your energy bills, helping you manage your budget better. We think we can save you about {{monthlysavings}} per month . That's real financial relief! All you need to do is start the application process. START HERE By filling out our form, you will be assigned a representative in your community to help you through the application process. Here is what we can do in your home to improve your financial situation: START HERE By filling out our form, you will be assigne",
+      "campaign_ids": [
+        "2d659630-3b10-11f0-a0b0-655be825e839",
+        "72761ff0-367f-11f0-a1ee-2b221289ee2a",
+        "02b5a71e-31be-11f0-b6ca-052d9a1dc34e",
+        "1fe849ee-30fc-11f0-8452-3d1d8d28dac9"
+      ]
+    },
+    {
+      "template_name": "DailyCost",
+      "campaign_count": 3,
+      "organizations": [
+        "IMPACT",
+        "OHCAC"
+      ],
+      "subject": "You're likely spending about {{DailyCost|default(\"a lot of money\")}} per day on your energy bills.",
+      "text_preview": "Hello, If you’re like most Ohioans, your energy bills are eating into your budget. Right now, we calculate that your home at {{Address}} is costing you {{DailyCost|default(\"a lot of money\")}} every single day in electricity— that’s {{MonthlyCost}} a month . That's assuming the Ohio average cost of 15-cents per kilowatt hour. The good news? You likely qualify for free programs that cut those costs dramatically . We think we can save you about {{MonthlySaving}} every month —money you can use for the other important things in your life. These programs are no cost to you , funded by you through your taxes, and are offered through the state, federal and utility company programs. We believe you already qualify for this assistance. But too many families miss out simply because they didn’t know they qualified. START HERE By filling out our form, you will be assigned a representative in your community to help you through the application process. You received this email because you subscribed to",
+      "campaign_ids": [
+        "fea4d0ce-277b-11f0-9630-91ec83e42b48",
+        "51c3c310-26c2-11f0-b168-07af847c58c4",
+        "b96f77e8-25eb-11f0-9f74-8dcfd8c66afc"
+      ]
+    },
+    {
+      "template_name": "FinalDays",
+      "campaign_count": 4,
+      "organizations": [
+        "IMPACT",
+        "OHCAC",
+        "COAD",
+        "MVCAP"
+      ],
+      "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+      "text_preview": "Hi {{FirstName}} , THIS IS IT! The Summer Crisis Program closes tomorrow! This is your final chance to apply for meaningful financial relief from high energy bills. Here's what we know about your energy costs: {{Address}} Estimated Annual Energy Costs: {{annualcost}} Estimated Annual Savings: {{annualsavings}} PLEASE ACT NOW! START HERE You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}}",
+      "campaign_ids": [
+        "d1ebd096-9d5f-11f0-8c43-839344cab414",
+        "8b46c3bc-9d5f-11f0-977f-29b8757e941d",
+        "393f63b2-9d5f-11f0-b5e2-ddcea29a51f3",
+        "58618cd0-9d5e-11f0-93a9-ddcea29a51f3"
+      ]
+    },
+    {
+      "template_name": "Improve",
+      "campaign_count": 8,
+      "organizations": [
+        "IMPACT",
+        "MVCAP",
+        "OHCAC",
+        "COAD"
+      ],
+      "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+      "text_preview": "{{FirstName|default(\"Hello\")}}, It’s sweltering in Ohio, and electric bills have jumped by as much as 30% this summer. But we think we can save you {{monthlysavings}} per month. And you're likely qualify for Ohio’s Summer Crisis Program —help with electric bills, AC repairs, or even a new cooling unit. That’s saving {{monthlysavings}} every month you can put toward groceries, gas, or just having a little breathing room financially. Funds are limited and going fast, so start now! START HERE You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}} Powered by EmailOctopus",
+      "campaign_ids": [
+        "e4a70d46-7a0e-11f0-b8be-434f69d2f065",
+        "53928ac4-7a0e-11f0-96a6-434f69d2f065",
+        "39cdc446-7a0e-11f0-9dd2-07a991d7b423",
+        "2cb85a82-7a0e-11f0-926a-07a991d7b423",
+        "00f9aa9a-7a0e-11f0-9ff1-434f69d2f065",
+        "cc365bf0-7a0d-11f0-ba36-434f69d2f065",
+        "8d11c374-7a0d-11f0-928e-dbc29808557f",
+        "05447e96-7a03-11f0-8797-9f713080f85c"
+      ]
+    },
+    {
+      "template_name": "Monthly Savings Change",
+      "campaign_count": 4,
+      "organizations": [
+        "IMPACT",
+        "OHCAC"
+      ],
+      "subject": "Would an extra {{MonthlySaving}} per month improve your life?",
+      "text_preview": "Hello, We've done the math, and believe we can save you about {{MonthlySaving|default}} per month. These are real savings providing you and your family with real financial relief. How do we know you can save about {{MonthlySaving}} per month? We've done the math. Your home at {{Address}} is using too much energy per year. That's costing you about {{MonthlyCost}} per month. And that's a lot more than people living in homes of similar style and size in your neighborhood. Let's Get This Fixed It's easy to save {{MonthlySaving}} per month, and it won't cost you a dime. We believe you are pre-qualified for state and federally funded energy assistance programs. These programs offer real financial relief for people, and allows you meet your financial responsibilities more easily. START HERE By filling out our form, you will be assigned a representative in your community to help you through the application process. Here is what we can do in your home to improve your financial situation: START ",
+      "campaign_ids": [
+        "6c5d3d1e-2c3f-11f0-bf65-977c65ea0389",
+        "32e3e8d0-2c3f-11f0-bba1-b32f09241d4d",
+        "72740484-2aba-11f0-b5a7-a5c211cbbab5",
+        "df167d3e-2aaa-11f0-9bb4-9fb3a259804a"
+      ]
+    },
+    {
+      "template_name": "Prequalified",
+      "campaign_count": 1,
+      "organizations": [
+        "COAD"
+      ],
+      "subject": "You're pre-qualified for financial assistance",
+      "text_preview": "You’re pre-qualified for Ohio’s energy assistance programs! Hi, {{FirstName}} - Did you know that every time you pay your taxes - a utility bill, income tax, sales tax, etc. - you’re helping fund energy assistance programs available to those who need a little help making ends meet? So, if you could use a little help, why not tap into the very programs you’ve helped fund? We believe you would benefit from state and federally sponsored energy assistance programs like home weatherization, installation of energy efficient appliances or simply bill payment assistance. All you have to do is start the process ! ENROLL NOW You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}} Powered by EmailOctopus",
+      "campaign_ids": [
+        "cec370cc-09ad-11f0-932e-b5b48a08655e"
+      ]
+    },
+    {
+      "template_name": "Summer Crisis",
+      "campaign_count": 1,
+      "organizations": [
+        "OHCAC"
+      ],
+      "subject": "Ohio's Summer Crisis Program is accepting applications now!",
+      "text_preview": "{{FirstName|default(\"Hello\")}}, As temperatures rise across Ohio, we want to ensure that no family has to choose between staying cool and paying other essential bills. The Ohio Summer Crisis Program is now accepting applications, and we encourage eligible households to enroll as soon as possible. What is the Summer Crisis Program? The Summer Crisis Program provides financial assistance to help eligible Ohio households pay their electric bills during the hot summer months. This vital program helps families maintain air conditioning and other essential cooling services when they need them most. Program Benefits: Financial assistance with electric bills to maintain cooling Help preventing service disconnections Support for reconnection of previously disconnected service Peace of mind during Ohio's hottest months Don't Wait - Apply Today Summer temperatures can be dangerous, especially for vulnerable populations including young children, elderly residents, and those with health conditions.",
+      "campaign_ids": [
+        "46f8e242-5c34-11f0-92a8-ebb41342a720"
+      ]
+    },
+    {
+      "template_name": "Summer Surge",
+      "campaign_count": 5,
+      "organizations": [
+        "IMPACT",
+        "OHCAC",
+        "COAD",
+        "MVCAP"
+      ],
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "text_preview": "Summertime is meant for later days, warm nights and an occasional splash at the local pool. But this year, it also means a surge to your energy bills. According to news outlets, every Ohio electric utility in Ohio is expected to raise rates this summer, some as much as 36%. We project you are already paying about {{monthlycost}} per month in energy bills. Imagine adding 20-30-35% to that! With all the stresses of managing a family budget, this summertime surge is sure to hit your pocketbook hard. Ohio's Energy Assistance Programs Can Help We're here to help keep money in your pocket for the things that matter. Through Ohio's energy assistance programs, we think we can save you about {{monthlysavings}} per month. That's real financial relief, allowing you to better care for yourself and your family. All you have to do is start the process by clicking below! GET STARTED We will assign you a case manager when you submit the form. These are the potential improvements we will make in your h",
+      "campaign_ids": [
+        "057abe5c-4867-11f0-8c46-2ff8e0545634",
+        "3f94475c-4867-11f0-95b8-5b950e85775d",
+        "fe46b684-463d-11f0-bcc3-372440f4031c",
+        "d8bfdfd0-4633-11f0-b9f8-dd61b6d2fd43",
+        "6e81ed56-462f-11f0-9f40-c9d36e46f23c"
+      ]
+    },
+    {
+      "template_name": "SummerCrisis",
+      "campaign_count": 1,
+      "organizations": [
+        "IMPACT"
+      ],
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "text_preview": "Now Accepting Applications for Ohio's Summer Crisis Program As temperatures rise across Ohio, we want to ensure that no family has to choose between staying cool and paying other essential bills. The Ohio Summer Crisis Program is now accepting applications, and we encourage eligible households to enroll as soon as possible. What is the Summer Crisis Program? The Summer Crisis Program provides financial assistance to help eligible Ohio households pay their electric bills during the hot summer months. This vital program helps families maintain air conditioning and other essential cooling services when they need them most. START HERE You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}}",
+      "campaign_ids": [
+        "cf115430-61a1-11f0-89cc-1be24f0429c5"
+      ]
+    },
+    {
+      "template_name": "SummerCrisis_Graphic",
+      "campaign_count": 9,
+      "organizations": [
+        "IMPACT",
+        "MVCAP",
+        "OHCAC",
+        "COAD"
+      ],
+      "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+      "text_preview": "You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}} Powered by EmailOctopus",
+      "campaign_ids": [
+        "539a4926-720c-11f0-b968-ffd680b1df16",
+        "354dca38-720c-11f0-bb49-1bcadd46c118",
+        "1c6b7cf4-720c-11f0-817d-c514d83308d5",
+        "f7a1831e-720b-11f0-a413-377849109d88",
+        "2bdf9c2e-6d52-11f0-971f-551bc12d87d9",
+        "b53f865c-6d50-11f0-9162-3157f35c04f6",
+        "c04093e4-6a2a-11f0-bdbf-d598f5252188",
+        "a5c37cfc-6a2a-11f0-a5eb-e709b1bd5b6f",
+        "2c8dc522-6a2a-11f0-9ba0-7f3b78ddbd53"
+      ]
+    },
+    {
+      "template_name": "Webinar",
+      "campaign_count": 4,
+      "organizations": [
+        "IMPACT",
+        "MVCAP",
+        "OHCAC",
+        "COAD"
+      ],
+      "subject": "Join us for an informational webinar about Ohio's Summer Crisis Program",
+      "text_preview": "Hi {{FirstName}} , Worried about high electric bills? Learn about Ohio's Summer Crisis Program at an informational webinar. Join our free online webinar to learn how to apply and get relief. 📅 Tomorrow, September 22, 2025 at noon 💻 Online (easy to join from your phone) Your attendance will be completely anonymous to other participants. Stay cool. Save money. Get the help you deserve. REGISTER NOW Don't need a webinar because you're ready to start? START NOW You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}}",
+      "campaign_ids": [
+        "7c675248-9743-11f0-bf2c-ebd379e746de",
+        "5fe90d32-9743-11f0-be00-d73f90836e3d",
+        "17711aae-9743-11f0-b981-ebd379e746de",
+        "297b7b28-9742-11f0-ae1b-d73f90836e3d"
+      ]
+    },
+    {
+      "template_name": "Would $ Per Month",
+      "campaign_count": 12,
+      "organizations": [
+        "IMPACT",
+        "OHCAC",
+        "COAD",
+        "MVCAP"
+      ],
+      "subject": "Lower the one bill you actually can control. Save about {{MonthlySaving}} per month today!",
+      "text_preview": "Hi {{FirstName}}, Every month feels like a stretch—groceries, rent, gas. Those costs keep going up, and there’s not much any of us can do about it. But there’s one bill you can bring down: your energy bill. Right now, you’re spending about {{MonthlyCost}} each month on your energy bills—that’s nearly {{annualcost}} a year just to keep the lights on and your home comfortable. By applying for Ohio’s Summer Crisis Energy Program , you could save around {{MonthlySaving}} every month —that’s about {{AnnualSavings}} each year back in your pocket. This money can help you breathe easier, keep food on the table, and make your day-to-day budget more manageable. It only takes a few minutes to apply. Don’t miss out on the savings you deserve. Take control of the one bill you can change. START NOW You received this email because you subscribed to our list. You can unsubscribe at any time. {{SenderInfo}}",
+      "campaign_ids": [
+        "d1ca70a2-93e8-11f0-8ec2-b1c275626e35",
+        "ad8a2d9a-93e8-11f0-b0cc-cd08cbae26fe",
+        "9b8566a0-93e8-11f0-8d9b-b1c275626e35",
+        "8b49207e-93e8-11f0-9c74-5bc89b2f1c74",
+        "889515f6-88fb-11f0-a05e-a540687d4a7d",
+        "5a49ac4e-88fa-11f0-b652-3d9d1c25e2cf",
+        "9b60ca06-88f9-11f0-b8a4-a540687d4a7d",
+        "77ff6a70-88dd-11f0-b4ab-3d9d1c25e2cf",
+        "ad52a330-7d30-11f0-b979-97dfbce19d8b",
+        "37ffef48-7d30-11f0-991a-0f9ecebb753c",
+        "c29535ec-7d2f-11f0-9b1b-a1c12d1df026",
+        "2934f01a-7d2d-11f0-be91-0f9ecebb753c"
+      ]
+    },
+    {
+      "template_name": "Your Home Selected",
+      "campaign_count": 6,
+      "organizations": [
+        "IMPACT",
+        "MVCAP",
+        "OHCAC"
+      ],
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades ",
+      "text_preview": "Hello, Your home at {{address}} has been selected for energy efficiency improvements at no cost to you. Why has {{address}} been selected? Through our analysis, {{address}} is using {{kWhs}} kilowatt hours per year. That's significantly higher than homes of similar size and style in your neighborhood. And that means you are overpaying to keep your home comfortable all year. How are these improvements NO COST? There are government and utility programs available for homeowners that meet a certain income threshold. These programs have been funded by you - with your tax dollars! So why not cash in on your \"investment\" to improve the quality of your home. GET STARTED These are the potential improvements we will make in your home once you appl GET STARTED GET STARTED {{SenderInfo}} Unsubscribe from this list",
+      "campaign_ids": [
+        "f2d149a0-4240-11f0-92ea-9d68c01ce8bd",
+        "4de6a598-4240-11f0-8463-9d68c01ce8bd",
+        "69384c64-3b21-11f0-a640-373c3b1830b0",
+        "8a49c464-2082-11f0-a6f6-e9d3de51d6b1",
+        "344eb836-2077-11f0-bc6d-e9d3de51d6b1",
+        "e129f4ac-206e-11f0-942a-e9d3de51d6b1"
+      ]
+    }
+  ]
+}

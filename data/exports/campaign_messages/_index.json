@@ -1,0 +1,558 @@
+{
+  "downloaded_at": "2025-12-07T14:25:28.156933",
+  "total_campaigns": 69,
+  "campaigns": [
+    {
+      "campaign_id": "d1ebd096-9d5f-11f0-8c43-839344cab414",
+      "name": "OHCAC_FinalDays_20250929",
+      "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-29T18:13:27+00:00",
+      "filename_base": "d1ebd096-9d5f-11f0-8c43-839344cab414_OHCAC_FinalDays_20250929"
+    },
+    {
+      "campaign_id": "8b46c3bc-9d5f-11f0-977f-29b8757e941d",
+      "name": "IMPACT_FinalDays_20250929",
+      "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-29T18:12:16+00:00",
+      "filename_base": "8b46c3bc-9d5f-11f0-977f-29b8757e941d_IMPACT_FinalDays_20250929"
+    },
+    {
+      "campaign_id": "393f63b2-9d5f-11f0-b5e2-ddcea29a51f3",
+      "name": "MVCAP_FinalDays_20250929",
+      "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-29T18:10:17+00:00",
+      "filename_base": "393f63b2-9d5f-11f0-b5e2-ddcea29a51f3_MVCAP_FinalDays_20250929"
+    },
+    {
+      "campaign_id": "58618cd0-9d5e-11f0-93a9-ddcea29a51f3",
+      "name": "COAD_FinalDays_20250929",
+      "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-29T18:07:58+00:00",
+      "filename_base": "58618cd0-9d5e-11f0-93a9-ddcea29a51f3_COAD_FinalDays_20250929"
+    },
+    {
+      "campaign_id": "7c675248-9743-11f0-bf2c-ebd379e746de",
+      "name": "COAD_Webinar_20250921",
+      "subject": "Join us for an informational webinar about Ohio's Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-21T23:34:59+00:00",
+      "filename_base": "7c675248-9743-11f0-bf2c-ebd379e746de_COAD_Webinar_20250921"
+    },
+    {
+      "campaign_id": "5fe90d32-9743-11f0-be00-d73f90836e3d",
+      "name": "IMPACT_Webinar_20250921",
+      "subject": "Join us for an informational webinar about Ohio's Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-21T23:34:18+00:00",
+      "filename_base": "5fe90d32-9743-11f0-be00-d73f90836e3d_IMPACT_Webinar_20250921"
+    },
+    {
+      "campaign_id": "17711aae-9743-11f0-b981-ebd379e746de",
+      "name": "MVCAP_Webinar_20250921",
+      "subject": "Join us for an informational webinar about Ohio's Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-09-21T23:33:31+00:00",
+      "filename_base": "17711aae-9743-11f0-b981-ebd379e746de_MVCAP_Webinar_20250921"
+    },
+    {
+      "campaign_id": "297b7b28-9742-11f0-ae1b-d73f90836e3d",
+      "name": "OHCAC_Webinar_20250921",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-21T23:31:30+00:00",
+      "filename_base": "297b7b28-9742-11f0-ae1b-d73f90836e3d_OHCAC_Webinar_20250921"
+    },
+    {
+      "campaign_id": "d1ca70a2-93e8-11f0-8ec2-b1c275626e35",
+      "name": "OHCAC_Would $ Per Month_20250916",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-17T17:09:08+00:00",
+      "filename_base": "d1ca70a2-93e8-11f0-8ec2-b1c275626e35_OHCAC_Would $ Per Month_20250916"
+    },
+    {
+      "campaign_id": "ad8a2d9a-93e8-11f0-b0cc-cd08cbae26fe",
+      "name": "IMPACT_Would $ Per Month_20250916",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-17T17:07:07+00:00",
+      "filename_base": "ad8a2d9a-93e8-11f0-b0cc-cd08cbae26fe_IMPACT_Would $ Per Month_20250916"
+    },
+    {
+      "campaign_id": "9b8566a0-93e8-11f0-8d9b-b1c275626e35",
+      "name": "COAD_Would $ Per Month_20250916",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-17T17:06:36+00:00",
+      "filename_base": "9b8566a0-93e8-11f0-8d9b-b1c275626e35_COAD_Would $ Per Month_20250916"
+    },
+    {
+      "campaign_id": "8b49207e-93e8-11f0-9c74-5bc89b2f1c74",
+      "name": "MVCAP_Would $ Per Month_20250916",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-17T17:06:12+00:00",
+      "filename_base": "8b49207e-93e8-11f0-9c74-5bc89b2f1c74_MVCAP_Would $ Per Month_20250916"
+    },
+    {
+      "campaign_id": "889515f6-88fb-11f0-a05e-a540687d4a7d",
+      "name": "MVCAP_Would $ Per Month_20250903",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-03T19:33:19+00:00",
+      "filename_base": "889515f6-88fb-11f0-a05e-a540687d4a7d_MVCAP_Would $ Per Month_20250903"
+    },
+    {
+      "campaign_id": "5a49ac4e-88fa-11f0-b652-3d9d1c25e2cf",
+      "name": "COAD_Would $ Per Month_20250903",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-03T19:22:23+00:00",
+      "filename_base": "5a49ac4e-88fa-11f0-b652-3d9d1c25e2cf_COAD_Would $ Per Month_20250903"
+    },
+    {
+      "campaign_id": "9b60ca06-88f9-11f0-b8a4-a540687d4a7d",
+      "name": "IMPACT_Would $ Per Month_20250903",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-03T19:14:01+00:00",
+      "filename_base": "9b60ca06-88f9-11f0-b8a4-a540687d4a7d_IMPACT_Would $ Per Month_20250903"
+    },
+    {
+      "campaign_id": "77ff6a70-88dd-11f0-b4ab-3d9d1c25e2cf",
+      "name": "OHCAC_Would $ Per Month_20250819 (copy)",
+      "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+      "status": "SENT",
+      "sent_at": "2025-09-03T15:54:24+00:00",
+      "filename_base": "77ff6a70-88dd-11f0-b4ab-3d9d1c25e2cf_OHCAC_Would $ Per Month_20250819 (copy)"
+    },
+    {
+      "campaign_id": "ad52a330-7d30-11f0-b979-97dfbce19d8b",
+      "name": "OHCAC_Would $ Per Month_20250819",
+      "subject": "Would\u00a0{{MonthlySaving}} extra per month improve your day-to-day life?",
+      "status": "SENT",
+      "sent_at": "2025-08-19T19:17:11+00:00",
+      "filename_base": "ad52a330-7d30-11f0-b979-97dfbce19d8b_OHCAC_Would $ Per Month_20250819"
+    },
+    {
+      "campaign_id": "37ffef48-7d30-11f0-991a-0f9ecebb753c",
+      "name": "IMPACT_Would $ Per Month_20250819",
+      "subject": "Would\u00a0{{MonthlySaving}} extra per month improve your day-to-day life?",
+      "status": "SENT",
+      "sent_at": "2025-08-19T19:14:10+00:00",
+      "filename_base": "37ffef48-7d30-11f0-991a-0f9ecebb753c_IMPACT_Would $ Per Month_20250819"
+    },
+    {
+      "campaign_id": "c29535ec-7d2f-11f0-9b1b-a1c12d1df026",
+      "name": "MVCAP_Would $ Per Month_20250819",
+      "subject": "Would\u00a0{{monthlysavings}} extra per month improve your day-to-day life?",
+      "status": "SENT",
+      "sent_at": "2025-08-19T19:10:52+00:00",
+      "filename_base": "c29535ec-7d2f-11f0-9b1b-a1c12d1df026_MVCAP_Would $ Per Month_20250819"
+    },
+    {
+      "campaign_id": "2934f01a-7d2d-11f0-be91-0f9ecebb753c",
+      "name": "COAD_Would $ Per Month_20250819",
+      "subject": "Would\u00a0{{monthlysavings}} extra per month improve your day-to-day life?",
+      "status": "SENT",
+      "sent_at": "2025-08-19T19:07:35+00:00",
+      "filename_base": "2934f01a-7d2d-11f0-be91-0f9ecebb753c_COAD_Would $ Per Month_20250819"
+    },
+    {
+      "campaign_id": "e4a70d46-7a0e-11f0-b8be-434f69d2f065",
+      "name": "MVCAP_Improve_20250815 (copy)",
+      "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:43:38+00:00",
+      "filename_base": "e4a70d46-7a0e-11f0-b8be-434f69d2f065_MVCAP_Improve_20250815 (copy)"
+    },
+    {
+      "campaign_id": "53928ac4-7a0e-11f0-96a6-434f69d2f065",
+      "name": "COAD_Improve_20250815 (copy)",
+      "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:30:57+00:00",
+      "filename_base": "53928ac4-7a0e-11f0-96a6-434f69d2f065_COAD_Improve_20250815 (copy)"
+    },
+    {
+      "campaign_id": "39cdc446-7a0e-11f0-9dd2-07a991d7b423",
+      "name": "IMPACT_Improve_20250815 (copy)",
+      "subject": "Save {{MonthlySaving}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:30:12+00:00",
+      "filename_base": "39cdc446-7a0e-11f0-9dd2-07a991d7b423_IMPACT_Improve_20250815 (copy)"
+    },
+    {
+      "campaign_id": "2cb85a82-7a0e-11f0-926a-07a991d7b423",
+      "name": "OHCAC_Improve_20250815 (copy)",
+      "subject": "Save {{MonthlySaving}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:29:52+00:00",
+      "filename_base": "2cb85a82-7a0e-11f0-926a-07a991d7b423_OHCAC_Improve_20250815 (copy)"
+    },
+    {
+      "campaign_id": "00f9aa9a-7a0e-11f0-9ff1-434f69d2f065",
+      "name": "MVCAP_Improve_20250815",
+      "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:29:31+00:00",
+      "filename_base": "00f9aa9a-7a0e-11f0-9ff1-434f69d2f065_MVCAP_Improve_20250815"
+    },
+    {
+      "campaign_id": "cc365bf0-7a0d-11f0-ba36-434f69d2f065",
+      "name": "OHCAC_Improve_20250815",
+      "subject": "Save {{MonthlySaving}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:28:19+00:00",
+      "filename_base": "cc365bf0-7a0d-11f0-ba36-434f69d2f065_OHCAC_Improve_20250815"
+    },
+    {
+      "campaign_id": "8d11c374-7a0d-11f0-928e-dbc29808557f",
+      "name": "IMPACT_Improve_20250815",
+      "subject": "Save {{MonthlySaving}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:26:48+00:00",
+      "filename_base": "8d11c374-7a0d-11f0-928e-dbc29808557f_IMPACT_Improve_20250815"
+    },
+    {
+      "campaign_id": "05447e96-7a03-11f0-8797-9f713080f85c",
+      "name": "COAD_Improve_20250815",
+      "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+      "status": "SENT",
+      "sent_at": "2025-08-15T19:25:02+00:00",
+      "filename_base": "05447e96-7a03-11f0-8797-9f713080f85c_COAD_Improve_20250815"
+    },
+    {
+      "campaign_id": "539a4926-720c-11f0-b968-ffd680b1df16",
+      "name": "COAD_SummerCrisis_Graphic_20250805",
+      "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+      "status": "SENT",
+      "sent_at": "2025-08-05T14:56:52+00:00",
+      "filename_base": "539a4926-720c-11f0-b968-ffd680b1df16_COAD_SummerCrisis_Graphic_20250805"
+    },
+    {
+      "campaign_id": "354dca38-720c-11f0-bb49-1bcadd46c118",
+      "name": "MVCAP_SummerCrisis_Graphic_20250805",
+      "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+      "status": "SENT",
+      "sent_at": "2025-08-05T14:55:49+00:00",
+      "filename_base": "354dca38-720c-11f0-bb49-1bcadd46c118_MVCAP_SummerCrisis_Graphic_20250805"
+    },
+    {
+      "campaign_id": "1c6b7cf4-720c-11f0-817d-c514d83308d5",
+      "name": "MVCAP_SummerCrisis_Graphic_20250805",
+      "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+      "status": "SENT",
+      "sent_at": "2025-08-05T14:55:10+00:00",
+      "filename_base": "1c6b7cf4-720c-11f0-817d-c514d83308d5_MVCAP_SummerCrisis_Graphic_20250805"
+    },
+    {
+      "campaign_id": "f7a1831e-720b-11f0-a413-377849109d88",
+      "name": "OHCAC_SummerCrisis_Graphic_20250805",
+      "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+      "status": "SENT",
+      "sent_at": "2025-08-05T14:54:41+00:00",
+      "filename_base": "f7a1831e-720b-11f0-a413-377849109d88_OHCAC_SummerCrisis_Graphic_20250805"
+    },
+    {
+      "campaign_id": "2bdf9c2e-6d52-11f0-971f-551bc12d87d9",
+      "name": "OHCAC_SummerCrisis_Graphic_20250730",
+      "subject": "Extreme heat. Rising bills. You\u2019re pre-qualified for help\u2014act now.",
+      "status": "SENT",
+      "sent_at": "2025-07-30T14:35:55+00:00",
+      "filename_base": "2bdf9c2e-6d52-11f0-971f-551bc12d87d9_OHCAC_SummerCrisis_Graphic_20250730"
+    },
+    {
+      "campaign_id": "b53f865c-6d50-11f0-9162-3157f35c04f6",
+      "name": "MVCAP_SummerCrisis_Graphic_20250730",
+      "subject": "Extreme heat = extreme bills. You're pre-qualified for relief\u2014apply now",
+      "status": "SENT",
+      "sent_at": "2025-07-30T14:25:05+00:00",
+      "filename_base": "b53f865c-6d50-11f0-9162-3157f35c04f6_MVCAP_SummerCrisis_Graphic_20250730"
+    },
+    {
+      "campaign_id": "c04093e4-6a2a-11f0-bdbf-d598f5252188",
+      "name": "MVCAP_SummerCrisis_Graphic_20250726",
+      "subject": "Now accepting applications for Ohio's Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-26T14:14:26+00:00",
+      "filename_base": "c04093e4-6a2a-11f0-bdbf-d598f5252188_MVCAP_SummerCrisis_Graphic_20250726"
+    },
+    {
+      "campaign_id": "a5c37cfc-6a2a-11f0-a5eb-e709b1bd5b6f",
+      "name": "OHCAC_SummerCrisis_Graphic_20250726",
+      "subject": "Now accepting applications for Ohio's Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-26T14:13:47+00:00",
+      "filename_base": "a5c37cfc-6a2a-11f0-a5eb-e709b1bd5b6f_OHCAC_SummerCrisis_Graphic_20250726"
+    },
+    {
+      "campaign_id": "2c8dc522-6a2a-11f0-9ba0-7f3b78ddbd53",
+      "name": "IMPACT_SummerCrisis_Graphic_20250726",
+      "subject": "Now accepting applications for Ohio's Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-26T14:12:43+00:00",
+      "filename_base": "2c8dc522-6a2a-11f0-9ba0-7f3b78ddbd53_IMPACT_SummerCrisis_Graphic_20250726"
+    },
+    {
+      "campaign_id": "03ac0b12-61a3-11f0-b241-1be24f0429c5",
+      "name": "MVCAP_Crisis_20250715 (copy)",
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-15T17:42:42+00:00",
+      "filename_base": "03ac0b12-61a3-11f0-b241-1be24f0429c5_MVCAP_Crisis_20250715 (copy)"
+    },
+    {
+      "campaign_id": "e7012cb8-61a2-11f0-9279-1b4400ab0e4c",
+      "name": "MVCAP_Crisis_20250715",
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-15T17:41:50+00:00",
+      "filename_base": "e7012cb8-61a2-11f0-9279-1b4400ab0e4c_MVCAP_Crisis_20250715"
+    },
+    {
+      "campaign_id": "c01b932c-61a2-11f0-9483-bd122145b53e",
+      "name": "OHCA_Crisis_20250715",
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-15T17:41:03+00:00",
+      "filename_base": "c01b932c-61a2-11f0-9483-bd122145b53e_OHCA_Crisis_20250715"
+    },
+    {
+      "campaign_id": "cf115430-61a1-11f0-89cc-1be24f0429c5",
+      "name": "IMPACT_SummerCrisis_20250715",
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "status": "SENT",
+      "sent_at": "2025-07-15T17:39:50+00:00",
+      "filename_base": "cf115430-61a1-11f0-89cc-1be24f0429c5_IMPACT_SummerCrisis_20250715"
+    },
+    {
+      "campaign_id": "46f8e242-5c34-11f0-92a8-ebb41342a720",
+      "name": "OHCAC_Summer Crisis_20250708",
+      "subject": "Ohio's Summer Crisis Program is accepting applications now!",
+      "status": "SENT",
+      "sent_at": "2025-07-08T19:50:40+00:00",
+      "filename_base": "46f8e242-5c34-11f0-92a8-ebb41342a720_OHCAC_Summer Crisis_20250708"
+    },
+    {
+      "campaign_id": "ee798fcc-5201-11f0-bfe8-b379f1b2773b",
+      "name": "OHCAC_Claude Content_20250625",
+      "subject": "{{FirstName|default(\"Hello\")}} , your electric bill could push you into financial distress",
+      "status": "SENT",
+      "sent_at": "2025-06-25T20:23:20+00:00",
+      "filename_base": "ee798fcc-5201-11f0-bfe8-b379f1b2773b_OHCAC_Claude Content_20250625"
+    },
+    {
+      "campaign_id": "0f20d4bc-51fb-11f0-b0a7-7561b93db160",
+      "name": "IMPACT_Claude Content_20250625",
+      "subject": "{{FirstName|default(\"Hello\")}} , your electric bill could force you into financial hardship",
+      "status": "SENT",
+      "sent_at": "2025-06-25T19:35:51+00:00",
+      "filename_base": "0f20d4bc-51fb-11f0-b0a7-7561b93db160_IMPACT_Claude Content_20250625"
+    },
+    {
+      "campaign_id": "17f03d0c-51f7-11f0-a423-7561b93db160",
+      "name": "MVCAP_Claude Content_20250625",
+      "subject": "{{FirstName}}, your electric bill could force you into financial hardship",
+      "status": "SENT",
+      "sent_at": "2025-06-25T19:32:01+00:00",
+      "filename_base": "17f03d0c-51f7-11f0-a423-7561b93db160_MVCAP_Claude Content_20250625"
+    },
+    {
+      "campaign_id": "f2d149a0-4240-11f0-92ea-9d68c01ce8bd",
+      "name": "MVCAP_Your Home Selected_20250605",
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+      "status": "SENT",
+      "sent_at": "2025-06-18T20:01:02+00:00",
+      "filename_base": "f2d149a0-4240-11f0-92ea-9d68c01ce8bd_MVCAP_Your Home Selected_20250605"
+    },
+    {
+      "campaign_id": "057abe5c-4867-11f0-8c46-2ff8e0545634",
+      "name": "COAD_Summer Surge_20250613",
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "status": "SENT",
+      "sent_at": "2025-06-13T15:01:37+00:00",
+      "filename_base": "057abe5c-4867-11f0-8c46-2ff8e0545634_COAD_Summer Surge_20250613"
+    },
+    {
+      "campaign_id": "3f94475c-4867-11f0-95b8-5b950e85775d",
+      "name": "IMPACT_Summer Surge_20250613",
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "status": "SENT",
+      "sent_at": "2025-06-13T15:01:40+00:00",
+      "filename_base": "3f94475c-4867-11f0-95b8-5b950e85775d_IMPACT_Summer Surge_20250613"
+    },
+    {
+      "campaign_id": "fe46b684-463d-11f0-bcc3-372440f4031c",
+      "name": "OHCAC_Summer Surge_20250610",
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "status": "SENT",
+      "sent_at": "2025-06-10T21:02:28+00:00",
+      "filename_base": "fe46b684-463d-11f0-bcc3-372440f4031c_OHCAC_Summer Surge_20250610"
+    },
+    {
+      "campaign_id": "d8bfdfd0-4633-11f0-b9f8-dd61b6d2fd43",
+      "name": "IMPACT_Summer Surge_20250610",
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "status": "SENT",
+      "sent_at": "2025-06-10T19:51:47+00:00",
+      "filename_base": "d8bfdfd0-4633-11f0-b9f8-dd61b6d2fd43_IMPACT_Summer Surge_20250610"
+    },
+    {
+      "campaign_id": "6e81ed56-462f-11f0-9f40-c9d36e46f23c",
+      "name": "MVCAP_Summer Surge_20250610",
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "status": "SENT",
+      "sent_at": "2025-06-10T19:48:14+00:00",
+      "filename_base": "6e81ed56-462f-11f0-9f40-c9d36e46f23c_MVCAP_Summer Surge_20250610"
+    },
+    {
+      "campaign_id": "4de6a598-4240-11f0-8463-9d68c01ce8bd",
+      "name": "IMPACT_Your Home Selected_20250605",
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+      "status": "SENT",
+      "sent_at": "2025-06-05T19:08:15+00:00",
+      "filename_base": "4de6a598-4240-11f0-8463-9d68c01ce8bd_IMPACT_Your Home Selected_20250605"
+    },
+    {
+      "campaign_id": "f57512ba-3b27-11f0-9290-5508290eca41",
+      "name": "OHCAC_Annual Cost_20250527",
+      "subject": "Wow! We estimate you spend about {{annualcost}} per year on your energy bills. Pretty high!",
+      "status": "SENT",
+      "sent_at": "2025-05-27T18:46:11+00:00",
+      "filename_base": "f57512ba-3b27-11f0-9290-5508290eca41_OHCAC_Annual Cost_20250527"
+    },
+    {
+      "campaign_id": "69384c64-3b21-11f0-a640-373c3b1830b0",
+      "name": "IMPACT_Your Home Selected_20250527",
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+      "status": "SENT",
+      "sent_at": "2025-05-27T17:39:37+00:00",
+      "filename_base": "69384c64-3b21-11f0-a640-373c3b1830b0_IMPACT_Your Home Selected_20250527"
+    },
+    {
+      "campaign_id": "2d659630-3b10-11f0-a0b0-655be825e839",
+      "name": "MVCAP_Daily Cost_20250527",
+      "subject": "We estimate you're spending\u00a0{{dailycost}} per day on your energy bills. That's a lot!",
+      "status": "SENT",
+      "sent_at": "2025-05-27T15:39:19+00:00",
+      "filename_base": "2d659630-3b10-11f0-a0b0-655be825e839_MVCAP_Daily Cost_20250527"
+    },
+    {
+      "campaign_id": "72761ff0-367f-11f0-a1ee-2b221289ee2a",
+      "name": "COAD_Daily Cost_20250521",
+      "subject": "We estimate you're spending\u00a0{{dailycost}} per day on your energy bills. That's a lot!",
+      "status": "SENT",
+      "sent_at": "2025-05-21T20:12:24+00:00",
+      "filename_base": "72761ff0-367f-11f0-a1ee-2b221289ee2a_COAD_Daily Cost_20250521"
+    },
+    {
+      "campaign_id": "02b5a71e-31be-11f0-b6ca-052d9a1dc34e",
+      "name": "OHCAC_Daily Cost_20250514",
+      "subject": "We estimate you're spending\u00a0{{DailyCost}} per day on your energy bills. That's a lot!",
+      "status": "SENT",
+      "sent_at": "2025-05-15T18:55:51+00:00",
+      "filename_base": "02b5a71e-31be-11f0-b6ca-052d9a1dc34e_OHCAC_Daily Cost_20250514"
+    },
+    {
+      "campaign_id": "1fe849ee-30fc-11f0-8452-3d1d8d28dac9",
+      "name": "IMPACT_Daily Cost_20250514",
+      "subject": "We estimate you're spending\u00a0{{DailyCost}} per day on your energy bills. That's a lot!",
+      "status": "SENT",
+      "sent_at": "2025-05-14T19:51:36+00:00",
+      "filename_base": "1fe849ee-30fc-11f0-8452-3d1d8d28dac9_IMPACT_Daily Cost_20250514"
+    },
+    {
+      "campaign_id": "6c5d3d1e-2c3f-11f0-bf65-977c65ea0389",
+      "name": "IMPACT_Monthly Savings Change_20250508",
+      "subject": "Would an extra {{MonthlySaving}} per month improve your life?",
+      "status": "SENT",
+      "sent_at": "2025-05-08T19:06:57+00:00",
+      "filename_base": "6c5d3d1e-2c3f-11f0-bf65-977c65ea0389_IMPACT_Monthly Savings Change_20250508"
+    },
+    {
+      "campaign_id": "32e3e8d0-2c3f-11f0-bba1-b32f09241d4d",
+      "name": "OHCAC_Monthly Savings Change_20250508",
+      "subject": "Would an extra {{MonthlySaving}} per month improve your life?",
+      "status": "SENT",
+      "sent_at": "2025-05-08T19:05:36+00:00",
+      "filename_base": "32e3e8d0-2c3f-11f0-bba1-b32f09241d4d_OHCAC_Monthly Savings Change_20250508"
+    },
+    {
+      "campaign_id": "72740484-2aba-11f0-b5a7-a5c211cbbab5",
+      "name": "IMPACT_Monthly Savings Change_20250506",
+      "subject": "How could\u00a0{{MonthlySaving}} per month improve your life?",
+      "status": "SENT",
+      "sent_at": "2025-05-06T20:44:07+00:00",
+      "filename_base": "72740484-2aba-11f0-b5a7-a5c211cbbab5_IMPACT_Monthly Savings Change_20250506"
+    },
+    {
+      "campaign_id": "df167d3e-2aaa-11f0-9bb4-9fb3a259804a",
+      "name": "OHCAC_Monthly Savings Change_20250506",
+      "subject": "How could\u00a0{{MonthlySaving}} improve your life?",
+      "status": "SENT",
+      "sent_at": "2025-05-06T19:40:26+00:00",
+      "filename_base": "df167d3e-2aaa-11f0-9bb4-9fb3a259804a_OHCAC_Monthly Savings Change_20250506"
+    },
+    {
+      "campaign_id": "fea4d0ce-277b-11f0-9630-91ec83e42b48",
+      "name": "OHCAC_DailyCost",
+      "subject": "You're likely spending about\u00a0{{DailyCost|default(\"a lot of money\")}} per day on your energy bills.",
+      "status": "SENT",
+      "sent_at": "2025-05-02T17:42:11+00:00",
+      "filename_base": "fea4d0ce-277b-11f0-9630-91ec83e42b48_OHCAC_DailyCost"
+    },
+    {
+      "campaign_id": "51c3c310-26c2-11f0-b168-07af847c58c4",
+      "name": "IMPACT_DailyCost (copy)",
+      "subject": "You're likely spending about\u00a0{{DailyCost|default(\"a lot of money\")}} per day on your energy bills.",
+      "status": "SENT",
+      "sent_at": "2025-05-01T19:30:05+00:00",
+      "filename_base": "51c3c310-26c2-11f0-b168-07af847c58c4_IMPACT_DailyCost (copy)"
+    },
+    {
+      "campaign_id": "b96f77e8-25eb-11f0-9f74-8dcfd8c66afc",
+      "name": "IMPACT_DailyCost",
+      "subject": "You're likely spending about\u00a0{{DailyCost|default(\"a lot of money\")}} per day on your energy bills.",
+      "status": "SENT",
+      "sent_at": "2025-04-30T18:10:58+00:00",
+      "filename_base": "b96f77e8-25eb-11f0-9f74-8dcfd8c66afc_IMPACT_DailyCost"
+    },
+    {
+      "campaign_id": "8a49c464-2082-11f0-a6f6-e9d3de51d6b1",
+      "name": "OHCAC_Your Home Selected (copy)",
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+      "status": "SENT",
+      "sent_at": "2025-04-23T20:36:25+00:00",
+      "filename_base": "8a49c464-2082-11f0-a6f6-e9d3de51d6b1_OHCAC_Your Home Selected (copy)"
+    },
+    {
+      "campaign_id": "344eb836-2077-11f0-bc6d-e9d3de51d6b1",
+      "name": "OHCAC_Your Home Selected",
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+      "status": "SENT",
+      "sent_at": "2025-04-23T19:15:25+00:00",
+      "filename_base": "344eb836-2077-11f0-bc6d-e9d3de51d6b1_OHCAC_Your Home Selected"
+    },
+    {
+      "campaign_id": "e129f4ac-206e-11f0-942a-e9d3de51d6b1",
+      "name": "IMPACT_Your Home Selected",
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+      "status": "SENT",
+      "sent_at": "2025-04-23T19:05:16+00:00",
+      "filename_base": "e129f4ac-206e-11f0-942a-e9d3de51d6b1_IMPACT_Your Home Selected"
+    },
+    {
+      "campaign_id": "cec370cc-09ad-11f0-932e-b5b48a08655e",
+      "name": "COAD_Prequalified",
+      "subject": "You're pre-qualified for financial assistance",
+      "status": "SENT",
+      "sent_at": "2025-03-25T19:33:01+00:00",
+      "filename_base": "cec370cc-09ad-11f0-932e-b5b48a08655e_COAD_Prequalified"
+    }
+  ]
+}

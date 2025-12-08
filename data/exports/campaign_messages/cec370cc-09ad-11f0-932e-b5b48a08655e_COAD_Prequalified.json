@@ -1,0 +1,17 @@
+{
+  "campaign_id": "cec370cc-09ad-11f0-932e-b5b48a08655e",
+  "name": "COAD_Prequalified",
+  "subject": "You're pre-qualified for financial assistance",
+  "status": "SENT",
+  "sent_at": "2025-03-25T19:33:01+00:00",
+  "created_at": "2025-03-25T19:17:35+00:00",
+  "from": {
+    "name": "COAD & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "f3140ffc-09aa-11f0-a3ac-4d8b5f41fa55"
+  ],
+  "html_file": "cec370cc-09ad-11f0-932e-b5b48a08655e_COAD_Prequalified.html",
+  "txt_file": "cec370cc-09ad-11f0-932e-b5b48a08655e_COAD_Prequalified.txt"
+}

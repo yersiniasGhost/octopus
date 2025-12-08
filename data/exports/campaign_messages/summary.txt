@@ -1,0 +1,45 @@
+● Here's my classification of all 69 campaigns (grouped into 16 unique templates):
+
+  Campaign Classification Summary
+
+  | Classification                       | Count | Templates                                                            |
+  |--------------------------------------|-------|----------------------------------------------------------------------|
+  | Savings & Financial Empowerment      | 24    | Improve, Monthly Savings Change, Would $ Per Month                   |
+  | Personalized and Qualified Outreach  | 15    | Annual Cost, Daily Cost, DailyCost, Prequalified, Your Home Selected |
+  | Urgency and Deadline Framing         | 13    | FinalDays, SummerCrisis_Graphic                                      |
+  | Informational and Contextual         | 9     | Crisis, Summer Crisis, SummerCrisis, Webinar                         |
+  | Motivational / Struggle-Based Appeal | 8     | Claude Content, Summer Surge                                         |
+  | Relief and Reassurance               | 0     | (none)                                                               |
+
+  ---
+  Detailed Classifications:
+
+  Urgency and Deadline Framing:
+  - FinalDays (4 campaigns): "Final Days to Apply..." - "THIS IS IT!", "closes tomorrow"
+  - SummerCrisis_Graphic (9 campaigns): "Limited Time. Limited Dollars..."
+
+  Savings & Financial Empowerment:
+  - Improve (8 campaigns): "Save {{monthlysavings}} per month right now..."
+  - Monthly Savings Change (4 campaigns): "Would an extra {{MonthlySaving}} improve your life?"
+  - Would $ Per Month (12 campaigns): "Lower the one bill you actually can control..."
+
+  Informational and Contextual:
+  - Crisis (3 campaigns): "Now Accepting Applications for Ohio Summer Crisis Program"
+  - Summer Crisis (1 campaign): "Ohio's Summer Crisis Program is accepting applications now!"
+  - SummerCrisis (1 campaign): "Now Accepting Applications..."
+  - Webinar (4 campaigns): "Join us for an informational webinar..."
+
+  Personalized and Qualified Outreach:
+  - Annual Cost (1 campaign): "We estimate you spend about {{annualcost}} per year..."
+  - Daily Cost (4 campaigns): "We estimate you're spending {{dailycost}} per day..."
+  - DailyCost (3 campaigns): "You're likely spending about {{DailyCost}} per day..."
+  - Prequalified (1 campaign): "You're pre-qualified for financial assistance"
+  - Your Home Selected (6 campaigns): "your home has been selected for no cost energy upgrades"
+
+  Motivational / Struggle-Based Appeal:
+  - Claude Content (3 campaigns): "your electric bill could push you into financial distress"
+  - Summer Surge (5 campaigns): "Summertime surge in energy prices will hit your pocketbook hard!"
+
+  ---
+  Note: No campaigns fell into "Relief and Reassurance" - the messaging tends toward either empowerment (savings) or struggle acknowledgment rather than pure comfort/reassurance messaging.
+

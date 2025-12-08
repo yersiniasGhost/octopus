@@ -1,0 +1,17 @@
+{
+  "campaign_id": "ee798fcc-5201-11f0-bfe8-b379f1b2773b",
+  "name": "OHCAC_Claude Content_20250625",
+  "subject": "{{FirstName|default(\"Hello\")}} , your electric bill could push you into financial distress",
+  "status": "SENT",
+  "sent_at": "2025-06-25T20:23:20+00:00",
+  "created_at": "2025-06-25T20:21:09+00:00",
+  "from": {
+    "name": "Ohio Heartland & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "ee798fcc-5201-11f0-bfe8-b379f1b2773b_OHCAC_Claude Content_20250625.html",
+  "txt_file": "ee798fcc-5201-11f0-bfe8-b379f1b2773b_OHCAC_Claude Content_20250625.txt"
+}

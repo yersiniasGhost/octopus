@@ -1,0 +1,17 @@
+{
+  "campaign_id": "8a49c464-2082-11f0-a6f6-e9d3de51d6b1",
+  "name": "OHCAC_Your Home Selected (copy)",
+  "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades\u00a0",
+  "status": "SENT",
+  "sent_at": "2025-04-23T20:36:25+00:00",
+  "created_at": "2025-04-23T20:35:48+00:00",
+  "from": {
+    "name": "COAD & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "8a49c464-2082-11f0-a6f6-e9d3de51d6b1_OHCAC_Your Home Selected (copy).html",
+  "txt_file": "8a49c464-2082-11f0-a6f6-e9d3de51d6b1_OHCAC_Your Home Selected (copy).txt"
+}

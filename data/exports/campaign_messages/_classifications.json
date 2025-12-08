@@ -1,0 +1,149 @@
+{
+  "classification_schema": {
+    "urgency_deadline": {
+      "code": "urgency_deadline",
+      "label": "Urgency and Deadline Framing",
+      "description": "Time-sensitive messaging emphasizing deadlines"
+    },
+    "savings_financial": {
+      "code": "savings_financial",
+      "label": "Savings & Financial Empowerment",
+      "description": "Focus on cost reduction and financial benefits"
+    },
+    "relief_reassurance": {
+      "code": "relief_reassurance",
+      "label": "Relief and Reassurance",
+      "description": "Emotional comfort and assistance messaging"
+    },
+    "informational": {
+      "code": "informational",
+      "label": "Informational and Contextual",
+      "description": "Educational content about programs"
+    },
+    "personalized_qualified": {
+      "code": "personalized_qualified",
+      "label": "Personalized and Qualified Outreach",
+      "description": "Individual qualification-based messaging"
+    },
+    "motivational_struggle": {
+      "code": "motivational_struggle",
+      "label": "Motivational / Struggle-Based Appeal",
+      "description": "Empathy for energy burden challenges"
+    }
+  },
+  "template_classifications": [
+    {
+      "template_name": "FinalDays",
+      "campaign_count": 4,
+      "subject": "Final Days to Apply for Ohio's Summer Energy Crisis Program",
+      "message_types": ["urgency_deadline", "personalized_qualified"],
+      "rationale": "Strong urgency ('THIS IS IT!', 'closes tomorrow') + shows personalized cost/savings estimates"
+    },
+    {
+      "template_name": "SummerCrisis_Graphic",
+      "campaign_count": 9,
+      "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+      "message_types": ["urgency_deadline", "motivational_struggle", "personalized_qualified"],
+      "rationale": "Urgency framing ('Limited Time') + some variants use 'Extreme heat. Rising bills' + 'pre-qualified'"
+    },
+    {
+      "template_name": "Improve",
+      "campaign_count": 8,
+      "subject": "Save {{monthlysavings}} per month right now with Ohio's Energy Assistance Programs",
+      "message_types": ["savings_financial", "motivational_struggle"],
+      "rationale": "Leads with specific savings + mentions 'sweltering', 'bills jumped 30%'"
+    },
+    {
+      "template_name": "Monthly Savings Change",
+      "campaign_count": 4,
+      "subject": "Would an extra {{MonthlySaving}} per month improve your life?",
+      "message_types": ["savings_financial", "personalized_qualified"],
+      "rationale": "Centers on savings amount + uses personalized address and cost data"
+    },
+    {
+      "template_name": "Would $ Per Month",
+      "campaign_count": 12,
+      "subject": "Lower the one bill you actually can control. Save about {{MonthlySaving}} per month today!",
+      "message_types": ["savings_financial", "motivational_struggle"],
+      "rationale": "Emphasizes controllable savings + 'Every month feels like a stretch—groceries, rent, gas'"
+    },
+    {
+      "template_name": "Crisis",
+      "campaign_count": 3,
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "message_types": ["informational"],
+      "rationale": "Educational content explaining program details, eligibility, and how to apply"
+    },
+    {
+      "template_name": "Summer Crisis",
+      "campaign_count": 1,
+      "subject": "Ohio's Summer Crisis Program is accepting applications now!",
+      "message_types": ["informational"],
+      "rationale": "Program announcement with educational details about what the program provides"
+    },
+    {
+      "template_name": "SummerCrisis",
+      "campaign_count": 1,
+      "subject": "Now Accepting Applications for Ohio Summer Crisis Program",
+      "message_types": ["informational"],
+      "rationale": "Same as Crisis - informational program description"
+    },
+    {
+      "template_name": "Webinar",
+      "campaign_count": 4,
+      "subject": "Join us for an informational webinar about Ohio's Summer Crisis Program",
+      "message_types": ["informational", "relief_reassurance"],
+      "rationale": "Educational webinar invitation + 'Get the help you deserve' comfort language"
+    },
+    {
+      "template_name": "Annual Cost",
+      "campaign_count": 1,
+      "subject": "Wow! We estimate you spend about {{annualcost}} per year on your energy bills. Pretty high!",
+      "message_types": ["personalized_qualified", "savings_financial"],
+      "rationale": "Uses personalized annual cost estimate + emphasizes projected savings"
+    },
+    {
+      "template_name": "Daily Cost",
+      "campaign_count": 4,
+      "subject": "We estimate you're spending {{dailycost}} per day on your energy bills. That's a lot!",
+      "message_types": ["personalized_qualified", "savings_financial"],
+      "rationale": "Personalized daily cost + emphasizes potential savings"
+    },
+    {
+      "template_name": "DailyCost",
+      "campaign_count": 3,
+      "subject": "You're likely spending about {{DailyCost|default(\"a lot of money\")}} per day on your energy bills.",
+      "message_types": ["personalized_qualified", "savings_financial"],
+      "rationale": "Personalized daily cost with address reference + savings messaging"
+    },
+    {
+      "template_name": "Prequalified",
+      "campaign_count": 1,
+      "subject": "You're pre-qualified for financial assistance",
+      "message_types": ["personalized_qualified", "relief_reassurance"],
+      "rationale": "Leads with pre-qualification status + reassuring 'help fund programs you've already paid for'"
+    },
+    {
+      "template_name": "Your Home Selected",
+      "campaign_count": 6,
+      "subject": "{{FirstName|default(\"Hello\")}}, your home has been selected for no cost energy upgrades",
+      "message_types": ["personalized_qualified", "savings_financial"],
+      "rationale": "Personalized selection with address + 'no cost' = savings benefit"
+    },
+    {
+      "template_name": "Claude Content",
+      "campaign_count": 3,
+      "subject": "{{FirstName}}, your electric bill could push you into financial distress",
+      "message_types": ["motivational_struggle", "urgency_deadline", "personalized_qualified"],
+      "rationale": "Struggle emphasis ('financial distress', 'disconnection') + urgency ('immediate action') + personalized costs"
+    },
+    {
+      "template_name": "Summer Surge",
+      "campaign_count": 5,
+      "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+      "message_types": ["motivational_struggle", "savings_financial"],
+      "rationale": "Focuses on burden of rising costs + emphasizes assistance programs can help save"
+    }
+  ],
+  "campaign_id_to_types": {}
+}

@@ -1,0 +1,17 @@
+{
+  "campaign_id": "46f8e242-5c34-11f0-92a8-ebb41342a720",
+  "name": "OHCAC_Summer Crisis_20250708",
+  "subject": "Ohio's Summer Crisis Program is accepting applications now!",
+  "status": "SENT",
+  "sent_at": "2025-07-08T19:50:40+00:00",
+  "created_at": "2025-07-08T19:46:44+00:00",
+  "from": {
+    "name": "Ohio Heartland & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "46f8e242-5c34-11f0-92a8-ebb41342a720_OHCAC_Summer Crisis_20250708.html",
+  "txt_file": "46f8e242-5c34-11f0-92a8-ebb41342a720_OHCAC_Summer Crisis_20250708.txt"
+}

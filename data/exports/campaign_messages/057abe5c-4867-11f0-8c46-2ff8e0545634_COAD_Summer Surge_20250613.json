@@ -1,0 +1,17 @@
+{
+  "campaign_id": "057abe5c-4867-11f0-8c46-2ff8e0545634",
+  "name": "COAD_Summer Surge_20250613",
+  "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+  "status": "SENT",
+  "sent_at": "2025-06-13T15:01:37+00:00",
+  "created_at": "2025-06-13T14:59:35+00:00",
+  "from": {
+    "name": "COAD & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "057abe5c-4867-11f0-8c46-2ff8e0545634_COAD_Summer Surge_20250613.html",
+  "txt_file": "057abe5c-4867-11f0-8c46-2ff8e0545634_COAD_Summer Surge_20250613.txt"
+}

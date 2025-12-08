@@ -99,6 +99,12 @@ class Campaign(BaseModel):
     cost_per_send: Optional[float] = Field(None, description="Cost per contact")
     total_cost: Optional[float] = Field(None, description="Total campaign cost")
 
+    # Message classification (multi-tag)
+    message_types: Optional[List[str]] = Field(
+        default=None,
+        description="Message classification tags: urgency_deadline, savings_financial, relief_reassurance, informational, personalized_qualified, motivational_struggle"
+    )
+
     # Statistics (type-aware)
     statistics: Union[EmailStatistics, TextStatistics, MailerStatistics, LetterStatistics] = Field(
         default_factory=EmailStatistics,

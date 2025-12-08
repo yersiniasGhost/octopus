@@ -1,0 +1,17 @@
+{
+  "campaign_id": "5a49ac4e-88fa-11f0-b652-3d9d1c25e2cf",
+  "name": "COAD_Would $ Per Month_20250903",
+  "subject": "Lower the one bill you actually can control. Save about\u00a0{{MonthlySaving}} per month today!",
+  "status": "SENT",
+  "sent_at": "2025-09-03T19:22:23+00:00",
+  "created_at": "2025-09-03T19:15:28+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "5a49ac4e-88fa-11f0-b652-3d9d1c25e2cf_COAD_Would $ Per Month_20250903.html",
+  "txt_file": "5a49ac4e-88fa-11f0-b652-3d9d1c25e2cf_COAD_Would $ Per Month_20250903.txt"
+}

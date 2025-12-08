@@ -214,6 +214,107 @@ Enriches campaign participant records with additional demographic and engagement
 ### export_matched_data.py
 Exports matched residence and applicant data to CSV format for external analysis and reporting.
 
+## Clustering Analysis (src/analysis/)
+
+Analysis scripts implementing the progressive clustering strategy from CLUSTERING_PROJECT.md.
+
+### extract_participant_features.py
+Extracts and aggregates participant-level features from `campaign_data` database for clustering analysis. Aggregates from observation level (129K exposures) to participant level (7K participants), separates pre-treatment features from behavioral outcomes, and handles missing values appropriately.
+
+**Output:**
+- `data/participant_features.parquet` - Full dataset
+- `data/participant_features_analysis.parquet` - Filtered for analysis
+
+**Usage:**
+```bash
+python -m src.analysis.extract_participant_features
+```
+
+### phase1_demographics_clustering.py
+Phase 1 of progressive clustering: Demographics-only analysis using FAMD for dimensionality reduction and K-prototypes for mixed-data clustering. Clusters on pre-treatment features only, then validates clusters by analyzing engagement rates.
+
+**Key Finding:** Demographics alone don't predict engagement (chi-square p=0.85).
+
+**Output:**
+- `data/clustering_results/phase1_cluster_analysis.png`
+- `data/clustering_results/phase1_clustered_participants.parquet`
+
+**Usage:**
+```bash
+python -m src.analysis.phase1_demographics_clustering
+```
+
+### phase1_hdbscan_exploration.py
+Exploratory density-based clustering with HDBSCAN. Automatically determines cluster count and identifies outliers/noise points. Complements K-prototypes by discovering structure without assumptions.
+
+**Output:**
+- `data/clustering_results/hdbscan_clustered_participants.parquet`
+- `data/clustering_results/hdbscan_*.png`
+
+**Usage:**
+```bash
+python -m src.analysis.phase1_hdbscan_exploration
+```
+
+### phase2_campaign_exposure_clustering.py
+Phase 2: Adds campaign exposure patterns to demographics. Tests whether campaign-level factors (number of campaigns, channel distribution, exposure duration) predict engagement better than demographics alone.
+
+**Key Finding:** Adding exposure improves prediction slightly (p=0.18) but not significantly.
+
+**Output:**
+- `data/clustering_results/phase2_cluster_analysis.png`
+- `data/clustering_results/phase2_clustered_participants.parquet`
+
+**Usage:**
+```bash
+python -m src.analysis.phase2_campaign_exposure_clustering
+```
+
+### phase3_stepmix_probabilistic.py
+Phase 3: BayesianGaussianMixture clustering for Bayesian model integration. Provides soft cluster assignments (posterior probabilities) that can be used as covariates in PyMC causal models. Auto-determines effective cluster count using Dirichlet process prior.
+
+**Key Finding:** SIGNIFICANT (p=0.0007)! Engagement rates range 0.4% to 7.7% across clusters.
+
+**Output:**
+- `data/clustering_results/phase3_bayesian_integration.parquet` - For PyMC
+- `data/clustering_results/cluster_probabilities.npy` - Probability matrix
+
+**Usage:**
+```bash
+python -m src.analysis.phase3_stepmix_probabilistic
+```
+
+### umap_visualization.py
+UMAP 2D visualizations with rare outcome emphasis. Plots non-engaged participants as small transparent points, engaged as large opaque - revealing patterns in sparse engagement data.
+
+**Output:**
+- `data/clustering_results/umap_comprehensive_dashboard.png`
+- `data/clustering_results/umap_parameter_comparison.png`
+- `data/clustering_results/umap_coordinates.parquet`
+
+**Usage:**
+```bash
+python -m src.analysis.umap_visualization
+```
+
+### cluster_validation.py
+Comprehensive validation including silhouette analysis, bootstrap stability testing, and predictive power comparison across all phases.
+
+**Key Findings:**
+- Silhouette: 0.161 (weak structure)
+- Stability ARI: 0.80 (stable)
+- Phase 3 best predictor (p=0.0007)
+- Key differentiators: campaign_count (+103%), income (+38%), energy_burden (-17%)
+
+**Output:**
+- `data/clustering_results/cluster_validation_report.png`
+- `data/clustering_results/validation_summary.csv`
+
+**Usage:**
+```bash
+python -m src.analysis.cluster_validation
+```
+
 ---
 
 *Last updated: 2025-12-07*

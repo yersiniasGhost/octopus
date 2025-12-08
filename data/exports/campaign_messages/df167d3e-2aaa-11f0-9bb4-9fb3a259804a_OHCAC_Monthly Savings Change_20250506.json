@@ -1,0 +1,17 @@
+{
+  "campaign_id": "df167d3e-2aaa-11f0-9bb4-9fb3a259804a",
+  "name": "OHCAC_Monthly Savings Change_20250506",
+  "subject": "How could\u00a0{{MonthlySaving}} improve your life?",
+  "status": "SENT",
+  "sent_at": "2025-05-06T19:40:26+00:00",
+  "created_at": "2025-05-06T18:49:42+00:00",
+  "from": {
+    "name": "Ohio Heartland Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "df167d3e-2aaa-11f0-9bb4-9fb3a259804a_OHCAC_Monthly Savings Change_20250506.html",
+  "txt_file": "df167d3e-2aaa-11f0-9bb4-9fb3a259804a_OHCAC_Monthly Savings Change_20250506.txt"
+}

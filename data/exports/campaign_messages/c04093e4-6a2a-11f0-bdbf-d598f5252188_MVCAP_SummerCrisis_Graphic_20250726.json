@@ -1,0 +1,17 @@
+{
+  "campaign_id": "c04093e4-6a2a-11f0-bdbf-d598f5252188",
+  "name": "MVCAP_SummerCrisis_Graphic_20250726",
+  "subject": "Now accepting applications for Ohio's Summer Crisis Program",
+  "status": "SENT",
+  "sent_at": "2025-07-26T14:14:26+00:00",
+  "created_at": "2025-07-26T14:13:49+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b22d912e-2f6c-11f0-847c-8bd534e267d5"
+  ],
+  "html_file": "c04093e4-6a2a-11f0-bdbf-d598f5252188_MVCAP_SummerCrisis_Graphic_20250726.html",
+  "txt_file": "c04093e4-6a2a-11f0-bdbf-d598f5252188_MVCAP_SummerCrisis_Graphic_20250726.txt"
+}

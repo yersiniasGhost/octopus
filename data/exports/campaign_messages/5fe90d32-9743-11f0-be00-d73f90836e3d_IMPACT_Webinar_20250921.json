@@ -1,0 +1,17 @@
+{
+  "campaign_id": "5fe90d32-9743-11f0-be00-d73f90836e3d",
+  "name": "IMPACT_Webinar_20250921",
+  "subject": "Join us for an informational webinar about Ohio's Summer Crisis Program",
+  "status": "SENT",
+  "sent_at": "2025-09-21T23:34:18+00:00",
+  "created_at": "2025-09-21T23:33:27+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "5fe90d32-9743-11f0-be00-d73f90836e3d_IMPACT_Webinar_20250921.html",
+  "txt_file": "5fe90d32-9743-11f0-be00-d73f90836e3d_IMPACT_Webinar_20250921.txt"
+}

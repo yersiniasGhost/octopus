@@ -1,0 +1,17 @@
+{
+  "campaign_id": "02b5a71e-31be-11f0-b6ca-052d9a1dc34e",
+  "name": "OHCAC_Daily Cost_20250514",
+  "subject": "We estimate you're spending\u00a0{{DailyCost}} per day on your energy bills. That's a lot!",
+  "status": "SENT",
+  "sent_at": "2025-05-15T18:55:51+00:00",
+  "created_at": "2025-05-15T18:54:20+00:00",
+  "from": {
+    "name": "Ohio Heartland Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "02b5a71e-31be-11f0-b6ca-052d9a1dc34e_OHCAC_Daily Cost_20250514.html",
+  "txt_file": "02b5a71e-31be-11f0-b6ca-052d9a1dc34e_OHCAC_Daily Cost_20250514.txt"
+}

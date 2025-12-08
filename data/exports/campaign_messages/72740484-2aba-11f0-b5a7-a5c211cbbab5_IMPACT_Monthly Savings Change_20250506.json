@@ -1,0 +1,17 @@
+{
+  "campaign_id": "72740484-2aba-11f0-b5a7-a5c211cbbab5",
+  "name": "IMPACT_Monthly Savings Change_20250506",
+  "subject": "How could\u00a0{{MonthlySaving}} per month improve your life?",
+  "status": "SENT",
+  "sent_at": "2025-05-06T20:44:07+00:00",
+  "created_at": "2025-05-06T20:41:12+00:00",
+  "from": {
+    "name": "IMPACT Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "72740484-2aba-11f0-b5a7-a5c211cbbab5_IMPACT_Monthly Savings Change_20250506.html",
+  "txt_file": "72740484-2aba-11f0-b5a7-a5c211cbbab5_IMPACT_Monthly Savings Change_20250506.txt"
+}

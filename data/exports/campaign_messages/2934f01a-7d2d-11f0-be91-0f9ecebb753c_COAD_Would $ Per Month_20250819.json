@@ -1,0 +1,17 @@
+{
+  "campaign_id": "2934f01a-7d2d-11f0-be91-0f9ecebb753c",
+  "name": "COAD_Would $ Per Month_20250819",
+  "subject": "Would\u00a0{{monthlysavings}} extra per month improve your day-to-day life?",
+  "status": "SENT",
+  "sent_at": "2025-08-19T19:07:35+00:00",
+  "created_at": "2025-08-19T18:48:56+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "2934f01a-7d2d-11f0-be91-0f9ecebb753c_COAD_Would $ Per Month_20250819.html",
+  "txt_file": "2934f01a-7d2d-11f0-be91-0f9ecebb753c_COAD_Would $ Per Month_20250819.txt"
+}

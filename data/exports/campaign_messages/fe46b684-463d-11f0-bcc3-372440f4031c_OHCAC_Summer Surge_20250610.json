@@ -1,0 +1,17 @@
+{
+  "campaign_id": "fe46b684-463d-11f0-bcc3-372440f4031c",
+  "name": "OHCAC_Summer Surge_20250610",
+  "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+  "status": "SENT",
+  "sent_at": "2025-06-10T21:02:28+00:00",
+  "created_at": "2025-06-10T21:00:52+00:00",
+  "from": {
+    "name": "Ohio Heartland CAP & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "fe46b684-463d-11f0-bcc3-372440f4031c_OHCAC_Summer Surge_20250610.html",
+  "txt_file": "fe46b684-463d-11f0-bcc3-372440f4031c_OHCAC_Summer Surge_20250610.txt"
+}

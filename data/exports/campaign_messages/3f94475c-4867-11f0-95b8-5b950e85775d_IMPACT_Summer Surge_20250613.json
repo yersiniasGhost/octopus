@@ -1,0 +1,17 @@
+{
+  "campaign_id": "3f94475c-4867-11f0-95b8-5b950e85775d",
+  "name": "IMPACT_Summer Surge_20250613",
+  "subject": "Summertime surge in energy prices will hit your pocketbook hard!",
+  "status": "SENT",
+  "sent_at": "2025-06-13T15:01:40+00:00",
+  "created_at": "2025-06-13T15:01:13+00:00",
+  "from": {
+    "name": "IMPACT Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "eeb63ac8-156e-11f0-99b1-39da69aca9fa"
+  ],
+  "html_file": "3f94475c-4867-11f0-95b8-5b950e85775d_IMPACT_Summer Surge_20250613.html",
+  "txt_file": "3f94475c-4867-11f0-95b8-5b950e85775d_IMPACT_Summer Surge_20250613.txt"
+}

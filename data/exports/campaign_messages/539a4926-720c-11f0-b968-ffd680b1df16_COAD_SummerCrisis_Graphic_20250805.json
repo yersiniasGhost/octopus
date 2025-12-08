@@ -1,0 +1,17 @@
+{
+  "campaign_id": "539a4926-720c-11f0-b968-ffd680b1df16",
+  "name": "COAD_SummerCrisis_Graphic_20250805",
+  "subject": "Limited Time. Limited Dollars. Now Accepting Applications for Ohio's Summer Crisis Program.",
+  "status": "SENT",
+  "sent_at": "2025-08-05T14:56:52+00:00",
+  "created_at": "2025-08-05T14:56:11+00:00",
+  "from": {
+    "name": "Ohio Summer Crisis Program",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "b68a71d6-0ffc-11f0-8ce3-a52a1d56fffd"
+  ],
+  "html_file": "539a4926-720c-11f0-b968-ffd680b1df16_COAD_SummerCrisis_Graphic_20250805.html",
+  "txt_file": "539a4926-720c-11f0-b968-ffd680b1df16_COAD_SummerCrisis_Graphic_20250805.txt"
+}

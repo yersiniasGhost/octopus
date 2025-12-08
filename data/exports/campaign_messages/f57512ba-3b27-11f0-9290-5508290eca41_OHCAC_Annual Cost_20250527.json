@@ -1,0 +1,17 @@
+{
+  "campaign_id": "f57512ba-3b27-11f0-9290-5508290eca41",
+  "name": "OHCAC_Annual Cost_20250527",
+  "subject": "Wow! We estimate you spend about {{annualcost}} per year on your energy bills. Pretty high!",
+  "status": "SENT",
+  "sent_at": "2025-05-27T18:46:11+00:00",
+  "created_at": "2025-05-27T18:25:25+00:00",
+  "from": {
+    "name": "Ohio Heartland Community Action & OPAE",
+    "email_address": "jmilenthal@opae.org"
+  },
+  "to_lists": [
+    "5ac66116-156f-11f0-a0d1-597f2ced0812"
+  ],
+  "html_file": "f57512ba-3b27-11f0-9290-5508290eca41_OHCAC_Annual Cost_20250527.html",
+  "txt_file": "f57512ba-3b27-11f0-9290-5508290eca41_OHCAC_Annual Cost_20250527.txt"
+}
