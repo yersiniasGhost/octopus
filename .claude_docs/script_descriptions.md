@@ -329,3 +329,37 @@ Key outputs:
 - List of unmatched contacts needing new participant records
 - County distribution for demographic lookup planning
 - Exports unmatched contacts to `data/campaign_texting/compact/unmatched_contacts.csv`
+
+## scripts/ingest_text_campaigns.py
+**Purpose**: Ingest text campaigns from RumbleUp/texting platform into campaign_data database.
+
+Reads `data/campaign_texting/compact/campaigns.csv` and creates Campaign documents in the `campaigns` collection with:
+- `campaign_id`: `text_{action}` format
+- `channel`: "text"
+- `source_system`: "rumbleup"
+- Statistics: sent, delivered, replies, etc.
+
+Usage:
+```bash
+python scripts/ingest_text_campaigns.py [--dry-run]
+```
+
+## scripts/ingest_text_exposures.py
+**Purpose**: Ingest text campaign exposures and participants into campaign_data database.
+
+Handles:
+1. Matching contacts to existing participants (by email → phone → address)
+2. Creating new participants for unmatched contacts (using phone as participant_id)
+3. Creating CampaignExposure records for each outbound message
+4. Updating participant engagement summaries
+
+Key features:
+- Zip code to county inference for new participants
+- Reply detection from inbound messages
+- Batch processing with configurable batch size
+- Engagement summary updates (by_channel.text)
+
+Usage:
+```bash
+python scripts/ingest_text_exposures.py [--dry-run] [--batch-size N]
+```
