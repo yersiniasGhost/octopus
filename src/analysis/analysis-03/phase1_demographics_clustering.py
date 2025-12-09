@@ -27,11 +27,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Output directory
-OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
+OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-03')
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_data(path: str = '/home/yersinia/devel/octopus/data/clustering_results-02/participant_features.parquet') -> pd.DataFrame:
+def load_data(path: str = '/home/yersinia/devel/octopus/data/clustering_results-03/participant_features.parquet') -> pd.DataFrame:
     """Load participant features dataset."""
     df = pd.read_parquet(path)
     logger.info(f"Loaded {len(df)} participants")

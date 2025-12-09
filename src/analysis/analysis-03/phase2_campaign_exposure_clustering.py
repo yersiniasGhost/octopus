@@ -25,12 +25,12 @@ from sklearn.cluster import KMeans
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
+OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-03')
 
 
 def load_data() -> pd.DataFrame:
     """Load participant features with campaign exposure data."""
-    df = pd.read_parquet('/home/yersinia/devel/octopus/data/clustering_results-02/participant_features.parquet')
+    df = pd.read_parquet('/home/yersinia/devel/octopus/data/clustering_results-03/participant_features.parquet')
     logger.info(f"Loaded {len(df)} participants")
     return df
 
@@ -38,6 +38,7 @@ def load_data() -> pd.DataFrame:
 def prepare_phase2_features(df: pd.DataFrame) -> tuple:
     """
     Prepare Phase 2 features: Demographics + Campaign Exposure + Message Types.
+    Updated for analysis-03: includes text campaign metrics.
     """
     # Demographics (same as Phase 1)
     demo_cols = [
@@ -45,17 +46,17 @@ def prepare_phase2_features(df: pd.DataFrame) -> tuple:
         'living_area_sqft', 'house_age'
     ]
 
-    # Campaign exposure features
+    # Campaign exposure features (updated for analysis-03: total_text_count instead of text_count)
     exposure_cols = [
-        'campaign_count', 'email_count', 'text_count', 'postal_count',
+        'campaign_count', 'email_count', 'total_text_count', 'postal_count',
         'channel_diversity', 'exposure_days'
     ]
 
-    # Message type exposure features (NEW)
+    # Message type exposure features
     msgtype_cols = [c for c in df.columns if c.startswith('msgtype_') and c.endswith('_count')]
 
-    # Outcome columns (NOT for clustering)
-    outcome_cols = ['ever_engaged', 'ever_clicked', 'engage_rate', 'email_click_rate']
+    # Outcome columns (NOT for clustering) - updated for analysis-03
+    outcome_cols = ['ever_engaged', 'ever_clicked', 'ever_replied_text', 'engage_rate', 'email_click_rate', 'text_reply_rate']
 
     # Select available columns
     available_demo = [c for c in demo_cols if c in df.columns]

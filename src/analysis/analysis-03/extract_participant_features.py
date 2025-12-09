@@ -1,10 +1,18 @@
 """
 Extract and aggregate participant-level features for clustering analysis.
+ANALYSIS-03: Email + Text Campaign Integration
 
 This script prepares data following the CLUSTERING_PROJECT.md strategy:
-1. Aggregate from observation level (129K exposures) to participant level (7K)
-2. Separate pre-treatment features from behavioral outcomes
-3. Handle missing values appropriately for clustering algorithms
+1. Aggregate from observation level (~175K exposures) to participant level (~7.4K)
+2. Include BOTH email and text campaign channels
+3. Separate pre-treatment features from behavioral outcomes
+4. Handle missing values appropriately for clustering algorithms
+
+Key differences from analysis-02:
+- Includes text campaign exposures (46K additional exposures)
+- Adds text-specific engagement metrics (text_delivered, text_replied)
+- Captures 373 new text-only participants
+- Overall engagement rate: 8.54% (vs 2.18% email-only)
 
 Output: DataFrame with participant-level features ready for FAMD and clustering.
 """
@@ -101,12 +109,13 @@ class ParticipantFeatureExtractor:
 
         # Build campaign_id -> message_types lookup
         campaigns = list(self.db.campaigns.find({}, {'campaign_id': 1, 'message_types': 1}))
-        campaign_types = {c['campaign_id']: c.get('message_types', []) for c in campaigns}
+        campaign_types = {c['campaign_id']: c.get('message_types') or [] for c in campaigns}
 
-        # Get all unique message types
+        # Get all unique message types (handle None values)
         all_message_types = set()
         for types in campaign_types.values():
-            all_message_types.update(types)
+            if types:  # Only update if not None/empty
+                all_message_types.update(types)
         self.message_types = sorted(all_message_types)
         logger.info(f"Found {len(self.message_types)} message types: {self.message_types}")
 
@@ -116,10 +125,14 @@ class ParticipantFeatureExtractor:
                     '_id': '$participant_id',
                     # Campaign counts
                     'campaign_count': {'$sum': 1},
-                    # Channel distribution
+                    # Channel distribution - email
                     'email_count': {'$sum': {'$cond': [{'$eq': ['$channel', 'email']}, 1, 0]}},
+                    # Channel distribution - text (single 'text' channel in data)
+                    'text_count': {'$sum': {'$cond': [{'$eq': ['$channel', 'text']}, 1, 0]}},
+                    # Legacy text channels (for backwards compatibility)
                     'text_morning_count': {'$sum': {'$cond': [{'$eq': ['$channel', 'text_morning']}, 1, 0]}},
                     'text_evening_count': {'$sum': {'$cond': [{'$eq': ['$channel', 'text_evening']}, 1, 0]}},
+                    # Postal channels
                     'mailer_count': {'$sum': {'$cond': [{'$eq': ['$channel', 'mailer']}, 1, 0]}},
                     'letter_count': {'$sum': {'$cond': [{'$eq': ['$channel', 'letter']}, 1, 0]}},
                     # Email engagement
@@ -127,6 +140,9 @@ class ParticipantFeatureExtractor:
                     'email_clicks': {'$sum': {'$cond': ['$email_clicked', 1, 0]}},
                     'email_bounces': {'$sum': {'$cond': ['$email_bounced', 1, 0]}},
                     'email_complaints': {'$sum': {'$cond': ['$email_complained', 1, 0]}},
+                    # Text engagement (NEW for analysis-03)
+                    'text_delivered': {'$sum': {'$cond': ['$text_delivered', 1, 0]}},
+                    'text_replied': {'$sum': {'$cond': ['$text_replied', 1, 0]}},
                     # Unified engagement
                     'engaged_count': {'$sum': {'$cond': [{'$eq': ['$unified_status', 'engaged']}, 1, 0]}},
                     'received_count': {'$sum': {'$cond': [{'$eq': ['$unified_status', 'received']}, 1, 0]}},
@@ -142,6 +158,7 @@ class ParticipantFeatureExtractor:
                     'participant_id': '$_id',
                     'campaign_count': 1,
                     'email_count': 1,
+                    'text_count': 1,
                     'text_morning_count': 1,
                     'text_evening_count': 1,
                     'mailer_count': 1,
@@ -150,6 +167,8 @@ class ParticipantFeatureExtractor:
                     'email_clicks': 1,
                     'email_bounces': 1,
                     'email_complaints': 1,
+                    'text_delivered': 1,
+                    'text_replied': 1,
                     'engaged_count': 1,
                     'received_count': 1,
                     'first_sent': 1,
@@ -176,7 +195,10 @@ class ParticipantFeatureExtractor:
 
         if len(df) > 0:
             # Compute derived metrics
-            df['text_count'] = df['text_morning_count'] + df['text_evening_count']
+            # Combine text channels (text + legacy text_morning + text_evening)
+            df['total_text_count'] = (df['text_count'] +
+                                       df['text_morning_count'] +
+                                       df['text_evening_count'])
             df['postal_count'] = df['mailer_count'] + df['letter_count']
 
             # Email engagement rates (with exposure)
@@ -185,16 +207,23 @@ class ParticipantFeatureExtractor:
             df['email_click_rate'] = np.where(df['email_count'] > 0,
                                                df['email_clicks'] / df['email_count'], 0)
 
+            # Text engagement rates (NEW for analysis-03)
+            df['text_delivery_rate'] = np.where(df['total_text_count'] > 0,
+                                                 df['text_delivered'] / df['total_text_count'], 0)
+            df['text_reply_rate'] = np.where(df['total_text_count'] > 0,
+                                              df['text_replied'] / df['total_text_count'], 0)
+
             # Overall engagement rate
             df['engage_rate'] = np.where(df['campaign_count'] > 0,
                                           df['engaged_count'] / df['campaign_count'], 0)
             df['receive_rate'] = np.where(df['campaign_count'] > 0,
                                            df['received_count'] / df['campaign_count'], 0)
 
-            # Binary outcome: ever engaged
+            # Binary outcomes
             df['ever_engaged'] = df['engaged_count'] > 0
             df['ever_received'] = df['received_count'] > 0
             df['ever_clicked'] = df['email_clicks'] > 0
+            df['ever_replied_text'] = df['text_replied'] > 0  # NEW for analysis-03
 
             # Campaign exposure duration
             df['exposure_days'] = (df['last_sent'] - df['first_sent']).dt.days.fillna(0)
@@ -202,9 +231,14 @@ class ParticipantFeatureExtractor:
             # Channel diversity (number of distinct channels used)
             df['channel_diversity'] = (
                 (df['email_count'] > 0).astype(int) +
-                (df['text_count'] > 0).astype(int) +
+                (df['total_text_count'] > 0).astype(int) +
                 (df['postal_count'] > 0).astype(int)
             )
+
+            # Channel flags for analysis (NEW for analysis-03)
+            df['has_email'] = df['email_count'] > 0
+            df['has_text'] = df['total_text_count'] > 0
+            df['has_postal'] = df['postal_count'] > 0
 
         logger.info(f"Aggregated exposures for {len(df)} participants")
         return df
@@ -246,8 +280,9 @@ class ParticipantFeatureExtractor:
             logger.info(f"After completeness filter: {len(df)} participants")
 
         # Fill missing exposure values for participants without exposures
-        exposure_cols = ['campaign_count', 'email_count', 'text_count', 'postal_count',
-                        'engaged_count', 'received_count', 'email_opens', 'email_clicks']
+        exposure_cols = ['campaign_count', 'email_count', 'text_count', 'total_text_count', 'postal_count',
+                        'engaged_count', 'received_count', 'email_opens', 'email_clicks',
+                        'text_delivered', 'text_replied']
         for col in exposure_cols:
             if col in df.columns:
                 df[col] = df[col].fillna(0)
@@ -278,12 +313,12 @@ class ParticipantFeatureExtractor:
             'phase1_categorical': [
                 'home_owner', 'dwelling_type', 'presence_of_children'
             ],
-            # Phase 2: Add campaign exposure + message types
+            # Phase 2: Add campaign exposure + message types (updated for analysis-03)
             'phase2_continuous': [
                 'estimated_income', 'income_level', 'household_size',
                 'total_energy_burden', 'number_of_adults',
                 'living_area_sqft', 'house_age', 'bedrooms', 'bathrooms',
-                'campaign_count', 'email_count', 'text_count', 'postal_count',
+                'campaign_count', 'email_count', 'total_text_count', 'postal_count',
                 'exposure_days', 'channel_diversity'
             ] + msgtype_cols,
             'phase2_categorical': [
@@ -291,17 +326,24 @@ class ParticipantFeatureExtractor:
             ],
             # Message type features separately for Phase 2b analysis
             'message_type_features': msgtype_cols,
-            # Outcomes for validation (NOT clustering input)
+            # Channel-specific features (NEW for analysis-03)
+            'channel_features': [
+                'email_count', 'total_text_count', 'postal_count',
+                'email_open_rate', 'email_click_rate',
+                'text_delivery_rate', 'text_reply_rate',
+                'channel_diversity'
+            ],
+            # Outcomes for validation (NOT clustering input) - updated for analysis-03
             'outcome_features': [
-                'ever_engaged', 'ever_clicked', 'ever_received',
-                'engage_rate', 'email_click_rate', 'engaged_count'
+                'ever_engaged', 'ever_clicked', 'ever_received', 'ever_replied_text',
+                'engage_rate', 'email_click_rate', 'text_reply_rate', 'engaged_count'
             ]
         }
 
     def print_data_summary(self, df: pd.DataFrame):
         """Print summary statistics for the analysis dataset."""
         print("\n" + "="*60)
-        print("PARTICIPANT ANALYSIS DATASET SUMMARY")
+        print("ANALYSIS-03: EMAIL + TEXT CAMPAIGN DATASET SUMMARY")
         print("="*60)
 
         print(f"\nTotal participants: {len(df):,}")
@@ -312,15 +354,29 @@ class ParticipantFeatureExtractor:
         print(f"  With residence: {df['has_residence'].sum():,} ({100*df['has_residence'].mean():.1f}%)")
         print(f"  Analysis ready: {df['analysis_ready'].sum():,} ({100*df['analysis_ready'].mean():.1f}%)")
 
+        # Channel coverage (NEW for analysis-03)
+        if 'has_email' in df.columns:
+            print(f"\nChannel Coverage:")
+            email_only = ((df['has_email']) & (~df['has_text'])).sum()
+            text_only = ((~df['has_email']) & (df['has_text'])).sum()
+            both = ((df['has_email']) & (df['has_text'])).sum()
+            print(f"  Email only: {email_only:,} ({100*email_only/len(df):.1f}%)")
+            print(f"  Text only: {text_only:,} ({100*text_only/len(df):.1f}%)")
+            print(f"  Both channels: {both:,} ({100*both/len(df):.1f}%)")
+
         # Engagement outcomes (for rare outcome analysis)
         if 'ever_engaged' in df.columns:
             engaged = df['ever_engaged'].sum() if df['ever_engaged'].dtype == bool else (df['ever_engaged'] == True).sum()
             print(f"\nEngagement Outcomes:")
-            print(f"  Ever engaged: {engaged:,} ({100*engaged/len(df):.2f}%)")
+            print(f"  Ever engaged (any channel): {engaged:,} ({100*engaged/len(df):.2f}%)")
 
         if 'ever_clicked' in df.columns:
             clicked = df['ever_clicked'].sum() if df['ever_clicked'].dtype == bool else (df['ever_clicked'] == True).sum()
-            print(f"  Ever clicked: {clicked:,} ({100*clicked/len(df):.2f}%)")
+            print(f"  Ever clicked (email): {clicked:,} ({100*clicked/len(df):.2f}%)")
+
+        if 'ever_replied_text' in df.columns:
+            replied = df['ever_replied_text'].sum() if df['ever_replied_text'].dtype == bool else (df['ever_replied_text'] == True).sum()
+            print(f"  Ever replied (text): {replied:,} ({100*replied/len(df):.2f}%)")
 
         # Message type exposure summary
         msgtype_cols = [c for c in df.columns if c.startswith('msgtype_') and c.endswith('_count')]
@@ -343,8 +399,8 @@ class ParticipantFeatureExtractor:
         print("\n" + "="*60)
 
 
-def main(output_dir: str = '/home/yersinia/devel/octopus/data/clustering_results-02'):
-    """Extract and save participant features for clustering analysis."""
+def main(output_dir: str = '/home/yersinia/devel/octopus/data/clustering_results-03'):
+    """Extract and save participant features for clustering analysis (analysis-03: email + text)."""
     from pathlib import Path
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 

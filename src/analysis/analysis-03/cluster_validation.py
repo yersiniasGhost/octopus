@@ -23,7 +23,7 @@ from scipy.stats import chi2_contingency, ttest_ind
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
+OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-03')
 
 
 def load_results() -> pd.DataFrame:

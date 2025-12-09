@@ -20,7 +20,7 @@ from umap import UMAP
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
+OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-03')
 
 
 def load_all_results() -> dict:

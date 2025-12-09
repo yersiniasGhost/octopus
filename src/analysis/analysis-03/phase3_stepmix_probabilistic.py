@@ -23,31 +23,33 @@ from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
+OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-03')
 
 
 def load_data() -> pd.DataFrame:
     """Load participant features."""
-    df = pd.read_parquet('/home/yersinia/devel/octopus/data/clustering_results-02/participant_features.parquet')
+    df = pd.read_parquet('/home/yersinia/devel/octopus/data/clustering_results-03/participant_features.parquet')
     logger.info(f"Loaded {len(df)} participants")
     return df
 
 
 def prepare_stepmix_features(df: pd.DataFrame) -> tuple:
-    """Prepare features for StepMix (continuous + exposure + message types)."""
+    """Prepare features for StepMix (continuous + exposure + message types).
+    Updated for analysis-03: includes text campaign metrics.
+    """
     base_cols = [
         'estimated_income', 'household_size', 'total_energy_burden',
         'living_area_sqft', 'house_age',
-        'campaign_count', 'email_count', 'exposure_days'
+        'campaign_count', 'email_count', 'total_text_count', 'exposure_days'
     ]
 
-    # Message type exposure features (NEW)
+    # Message type exposure features
     msgtype_cols = [c for c in df.columns if c.startswith('msgtype_') and c.endswith('_count')]
 
     continuous_cols = base_cols + msgtype_cols
 
-    # Build column list for selection
-    select_cols = ['participant_id'] + continuous_cols + ['ever_engaged', 'ever_clicked', 'engage_rate']
+    # Build column list for selection - updated for analysis-03
+    select_cols = ['participant_id'] + continuous_cols + ['ever_engaged', 'ever_clicked', 'ever_replied_text', 'engage_rate', 'text_reply_rate']
     available_cols = [c for c in select_cols if c in df.columns]
     df_features = df[available_cols].copy()
 
