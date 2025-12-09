@@ -1,0 +1,72 @@
+{
+  "phase1_continuous": [
+    "age",
+    "house_age",
+    "household_income",
+    "household_size",
+    "total_energy_burden",
+    "living_area_sqft",
+    "bedrooms",
+    "bathrooms"
+  ],
+  "phase1_categorical": [
+    "home_owner",
+    "dwelling_type",
+    "presence_of_children",
+    "pre_1978_home"
+  ],
+  "phase2_continuous": [
+    "age",
+    "house_age",
+    "household_income",
+    "household_size",
+    "total_energy_burden",
+    "living_area_sqft",
+    "bedrooms",
+    "bathrooms",
+    "campaign_count",
+    "email_count",
+    "total_text_count",
+    "exposure_days",
+    "channel_diversity",
+    "msgtype_informational_count",
+    "msgtype_motivational_struggle_count",
+    "msgtype_personalized_qualified_count",
+    "msgtype_relief_reassurance_count",
+    "msgtype_savings_financial_count",
+    "msgtype_urgency_deadline_count"
+  ],
+  "phase2_categorical": [
+    "home_owner",
+    "dwelling_type",
+    "presence_of_children",
+    "pre_1978_home",
+    "channel_combo"
+  ],
+  "message_type_features": [
+    "msgtype_informational_count",
+    "msgtype_motivational_struggle_count",
+    "msgtype_personalized_qualified_count",
+    "msgtype_relief_reassurance_count",
+    "msgtype_savings_financial_count",
+    "msgtype_urgency_deadline_count"
+  ],
+  "channel_features": [
+    "email_count",
+    "total_text_count",
+    "channel_diversity",
+    "channel_combo",
+    "has_email",
+    "has_text"
+  ],
+  "engagement_features": [
+    "ever_engaged",
+    "ever_clicked",
+    "ever_replied_text",
+    "email_open_rate",
+    "email_click_rate",
+    "text_reply_rate"
+  ],
+  "outcome_variable": "is_applicant",
+  "conversion_channel": "channel_of_conversion"
+}
