@@ -317,7 +317,64 @@ python -m src.analysis.cluster_validation
 
 ---
 
-*Last updated: 2025-12-07*
+*Last updated: 2025-12-08*
+
+## Application (Conversion) Ingestion
+
+### scripts/ingest_applications.py
+**Purpose**: Ingest program applications (conversions) from CSV into MongoDB `applications` collection.
+
+Applications represent the ultimate outcome in the campaign funnel - people who completed the sign-up form. This data is used to:
+- Validate clustering effectiveness (which clusters convert?)
+- Attribution analysis (which campaigns drove conversions?)
+- Compare self-reported vs modeled demographics
+
+Features:
+- Parses GravityForms CSV exports with 50+ columns
+- Normalizes messy data formats (income: "$100,000", "1850mo", "40,000"; phone: "(614)499-2431")
+- Extracts UTM attribution from source URLs (utm_source, utm_medium, utm_campaign, utm_content)
+- Matches to existing participants by email → phone
+- Creates indexes for efficient querying
+
+Usage:
+```bash
+# Ingest applications with participant matching
+python scripts/ingest_applications.py data/applications/APPLICANTS_sign-up-today-2025-09-03.csv
+
+# Skip participant matching
+python scripts/ingest_applications.py data/applications/APPLICANTS.csv --no-match
+
+# View collection summary only
+python scripts/ingest_applications.py --summary-only
+```
+
+Output: Applications collection with 296 records, 71% matched to participants, 65% with UTM attribution.
+
+### scripts/attribute_applications_to_campaigns.py
+**Purpose**: Attribute applications to likely influential campaigns using UTM data and date-based inference.
+
+Attribution methods (in priority order):
+1. **UTM Direct**: Parse utm_medium, utm_campaign, utm_content to match campaigns
+2. **Date Window**: Find campaigns sent to applicant's county within N days before application
+
+For matched participants, uses their actual campaign_exposures for higher-confidence attribution.
+
+Usage:
+```bash
+# Run attribution with default 14-day window
+python scripts/attribute_applications_to_campaigns.py
+
+# Use 7-day window
+python scripts/attribute_applications_to_campaigns.py --window-days 7
+
+# Dry run (no database updates)
+python scripts/attribute_applications_to_campaigns.py --dry-run
+
+# View attribution summary only
+python scripts/attribute_applications_to_campaigns.py --summary-only
+```
+
+Output: 85.8% of applications attributed to campaigns. Top campaigns and confidence distributions reported.
 
 ## scripts/dryrun_text_participant_matching.py
 **Purpose**: Dry-run script to analyze participant matching for text campaign ingestion.
@@ -363,3 +420,84 @@ Usage:
 ```bash
 python scripts/ingest_text_exposures.py [--dry-run] [--batch-size N]
 ```
+
+## Analysis-04: Applicant-Centric Cluster Analysis (src/analysis/analysis-04/)
+
+Analysis-04 focuses on understanding what drives program applications (conversions) across all campaign channels. Key difference from Analysis-03: outcome is `is_applicant` (binary) instead of engagement metrics.
+
+### extract_applicant_features.py
+**Purpose**: Extract unified participant features with applicant outcome flag for clustering.
+
+Key features:
+- Merges participants, campaign exposures, and applications
+- Self-reported demographics for applicants → participant fallback for non-applicants
+- Channel combo features: letter_only, letter+email, letter+text, letter+email+text
+- UTM attribution: channel_of_conversion for applicants
+- Creates demographics discrepancy report
+
+Output:
+- `data/clustering_results-04/participant_applicant_features.parquet`
+- `data/clustering_results-04/demographics_discrepancy_report.csv`
+
+Usage:
+```bash
+python -m src.analysis.analysis-04.extract_applicant_features
+```
+
+### phase1_demographics_clustering.py
+**Purpose**: Phase 1 demographics-only clustering to establish baseline.
+
+Uses FAMD + K-Means on demographic features. Tests whether demographics alone predict application rates.
+
+Key findings:
+- 5 clusters identified
+- Chi-square p < 0.001 (significant)
+- Modest predictive power (1.62% spread)
+
+Output: `phase1_clustered.parquet`, `phase1_cluster_stats.csv`
+
+### phase2_campaign_exposure_clustering.py
+**Purpose**: Phase 2 adds campaign channel and message type features.
+
+Key findings:
+- 6 clusters identified
+- Letter+Text only: 4.29% app rate (1.34x lift)
+- Letter+Email only: 1.42% app rate (0.44x lift)
+- Text campaigns drive higher conversions!
+
+Output: `phase2_clustered.parquet`, `phase2_cluster_stats.csv`
+
+### phase3_probabilistic_clustering.py
+**Purpose**: Bayesian Gaussian Mixture for soft cluster assignments.
+
+Creates outputs ready for PyMC causal modeling:
+- Soft cluster probabilities (K-1 columns)
+- Treatment indicators (has_text_treatment, has_email_treatment)
+- Standardized features for modeling
+
+Key findings:
+- Cluster 0: 23.44% app rate (7.3x lift) - super-converters
+- Naive text effect: +2.62 percentage points vs email-only
+
+Output:
+- `phase3_bayesian_integration.parquet` (main PyMC data)
+- `phase3_cluster_probs.npy` (soft assignments)
+- `phase3_pymc_summary.json` (metadata)
+
+### umap_visualization.py
+**Purpose**: UMAP visualizations for applicant analysis.
+
+Generates:
+- `umap_applicant_distribution.png`: Applicants vs non-applicants
+- `umap_phase3_clusters.png`: 10 probabilistic clusters
+- `umap_channel_exposure.png`: Channel patterns
+- `umap_treatment_effect.png`: Text campaign visualization
+- `umap_summary_dashboard.png`: Combined 4-panel dashboard
+
+Usage:
+```bash
+python -m src.analysis.analysis-04.umap_visualization
+```
+
+### ANALYSIS_REPORT.md
+Full analysis report with key findings, methodology, and Bayesian modeling recommendations located at `data/clustering_results-04/ANALYSIS_REPORT.md`.

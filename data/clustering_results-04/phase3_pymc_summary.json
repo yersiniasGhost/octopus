@@ -1,0 +1,23 @@
+{
+  "n_participants": 7473,
+  "n_applicants": 240,
+  "n_effective_clusters": 10,
+  "baseline_application_rate": 0.03211561621838619,
+  "cluster_prob_columns": [
+    "cluster_prob_0",
+    "cluster_prob_1",
+    "cluster_prob_2",
+    "cluster_prob_3",
+    "cluster_prob_4",
+    "cluster_prob_5",
+    "cluster_prob_6",
+    "cluster_prob_7",
+    "cluster_prob_8"
+  ],
+  "treatment_columns": [
+    "has_text_treatment",
+    "has_email_treatment",
+    "has_both_treatment"
+  ],
+  "outcome_column": "applied"
+}
