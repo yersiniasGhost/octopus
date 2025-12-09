@@ -1,0 +1,43 @@
+  Analysis Framework
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                    ALL PARTICIPANTS (7,451)                     │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  Baseline: Letters/Mailers → Everyone                           │
+  │                                                                 │
+  │  Variable Exposure:                                             │
+  │  ├── Email only (some)                                          │
+  │  ├── Text only (some)                                           │
+  │  ├── Email + Text (some)                                        │
+  │  └── Letter only (remaining)                                    │
+  │                                                                 │
+  │  Message Types: urgency, savings, relief, informational, etc.   │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  Outcome: 296 Applicants (~4% conversion)                       │
+  │  Attribution: UTM tracks which channel drove conversion         │
+  └─────────────────────────────────────────────────────────────────┘
+
+  Feature Categories
+
+  | Category                     | Features                                                                                           | Source                   |
+  |------------------------------|----------------------------------------------------------------------------------------------------|--------------------------|
+  | Demographics (self-reported) | age, household_income, household_members, housing_status, has_children, pre_1978_home              | Applications             |
+  | Channel Exposure             | email_count, text_count, channel_combo (letter_only, +email, +text, +both)                         | Campaign Exposures       |
+  | Message Types                | urgency_deadline, savings_financial, relief_reassurance, informational, personalized, motivational | Campaign Classifications |
+  | Exposure Intensity           | total_campaigns, exposure_days, channel_diversity                                                  | Computed                 |
+  | Conversion Attribution       | channel_of_conversion (letter, text, email)                                                        | UTM from Applications    |
+
+  Causal Modeling Prep
+
+  The Phase 3 probabilistic clustering will output:
+  - Soft cluster probabilities (K-1 columns for identifiability)
+  - Ready for PyMC hierarchical models
+  - Enables: "Given cluster membership, what's the causal effect of adding text campaigns?"
+
+  ---
+  Ready to proceed?
+
+  This gives us a clear path from clustering → causal inference:
+  1. Clustering answers: "What types of people apply?"
+  2. Causal modeling answers: "How can we increase applications for each type?"
+
