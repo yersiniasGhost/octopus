@@ -1,0 +1,6 @@
+cluster,engaged_count,engage_rate,n_participants,avg_campaigns,avg_emails,avg_channel_diversity,avg_msgtype_informational_count,avg_msgtype_motivational_struggle_count,avg_msgtype_personalized_qualified_count,avg_msgtype_relief_reassurance_count,avg_msgtype_savings_financial_count,avg_msgtype_urgency_deadline_count
+0,90,0.1844,488,37.3504,35.8893,1.3115,5.5061,21.6701,19.3893,2.8258,20.9078,10.998
+1,47,0.092,511,5.0235,0.8004,1.0783,1.2661,1.0744,1.8376,2.6301,3.3483,2.8806
+2,44,0.1038,424,60.1132,35.7712,2.0,12.9222,27.2571,26.283,16.6156,35.3514,25.2689
+3,211,0.0612,3450,16.3936,15.7165,1.207,2.4128,8.5858,7.6907,1.4887,10.6948,3.4084
+4,244,0.0946,2578,28.1796,16.358,2.0,6.0074,11.2199,11.8801,8.7618,17.7017,10.4907
