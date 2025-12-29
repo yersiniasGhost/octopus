@@ -1,0 +1,79 @@
+● Clustering → Bayesian Integration Pipeline
+
+  The clustering analysis serves as a dimensionality reduction and stratification step that feeds into downstream Bayesian causal modeling. Here's how it works:
+
+  1. Why Cluster Before Bayesian Analysis?
+
+  The raw data has 17+ features per participant (demographics, campaign exposure, message types). Running a Bayesian model directly on all features would be:
+  - Computationally expensive
+  - Prone to multicollinearity issues
+  - Difficult to interpret
+
+  Clustering reduces this to soft cluster memberships that capture participant heterogeneity in a structured way.
+
+  2. Soft vs Hard Cluster Assignments
+
+  The key innovation is using BayesianGaussianMixture (Phase 3), which outputs:
+
+  Hard assignment:  participant_123 → Cluster 3
+  Soft assignment:  participant_123 → [0.02, 0.05, 0.71, 0.12, 0.03, 0.02, 0.01, 0.02, 0.01, 0.01]
+
+  Soft probabilities preserve classification uncertainty - a participant 71% likely to be in Cluster 3 is treated differently than one 99% likely.
+
+  3. Bayesian Model Integration
+
+  The saved outputs enable this PyMC model structure:
+
+  import pymc as pm
+
+  # Load cluster probabilities (n_participants × n_clusters)
+  cluster_probs = np.load('cluster_probabilities.npy')  # Shape: (7451, 10)
+
+  with pm.Model() as causal_model:
+      # Cluster effects (K-1 for identifiability)
+      beta_cluster = pm.Normal('beta_cluster', mu=0, sigma=1, shape=9)
+
+      # Treatment effect of interest (e.g., text vs email)
+      beta_text = pm.Normal('beta_text', mu=0, sigma=1)
+
+      # Linear predictor with cluster adjustment
+      logit_p = (
+          pm.math.dot(cluster_probs[:, :-1], beta_cluster) +  # Cluster heterogeneity
+          beta_text * has_text_campaign                        # Treatment effect
+      )
+
+      # Binary engagement outcome
+      engaged = pm.Bernoulli('engaged', logit_p=logit_p, observed=y)
+
+  4. Why This Matters for Causal Inference
+
+  | Approach                | Problem                                                |
+  |-------------------------|--------------------------------------------------------|
+  | Ignore heterogeneity    | Confounding - clusters differ in baseline engagement   |
+  | Hard cluster assignment | Loses uncertainty, overconfident estimates             |
+  | Soft probabilities      | Properly propagates uncertainty through Bayesian model |
+
+  5. Output Files for Bayesian Integration
+
+  | File                                  | Purpose                                                         |
+  |---------------------------------------|-----------------------------------------------------------------|
+  | cluster_probabilities.npy             | Raw probability matrix (7451 × 10)                              |
+  | phase3_bayesian_integration.parquet   | Full dataset with cluster_prob_0 through cluster_prob_8 columns |
+  | phase3_clustered_participants.parquet | Complete feature set + cluster assignments                      |
+
+  6. The Analytical Flow
+
+  Raw Features (17 dimensions)
+          ↓
+     FAMD + K-Prototypes (Phase 1-2)
+          ↓
+     BayesianGMM (Phase 3)
+          ↓
+     Soft Cluster Probabilities (10 dimensions)
+          ↓
+     PyMC Causal Model
+          ↓
+     Treatment Effect Estimates (adjusted for heterogeneity)
+
+  The clusters essentially become latent confounders - variables that affect both treatment assignment (who gets text vs email) and outcome (engagement). By including soft cluster
+  memberships, the Bayesian model can estimate causal effects while accounting for participant-type differences.
