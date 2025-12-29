@@ -501,3 +501,47 @@ python -m src.analysis.analysis-04.umap_visualization
 
 ### ANALYSIS_REPORT.md
 Full analysis report with key findings, methodology, and Bayesian modeling recommendations located at `data/clustering_results-04/ANALYSIS_REPORT.md`.
+
+## Demographic Enrichment
+
+### enrich_demographics_from_bolt.py
+**Purpose**: Enrich existing county demographic documents with additional fields from BOLT analysis Excel files.
+
+Reads BOLT analysis files (from data enrichment vendor with MD_ prefixed fields) and updates existing demographic documents in `empower_development` database with:
+- `owner_age`: Age in 2-year increments
+- `number_of_adults`: Household adult count
+- `marital_status`: Single/Married
+- `presence_of_children`: Yes/No
+- `estimated_home_value`: Dollar amount
+- Additional fields where available: gender, dwelling_type, home_owner, presence_of_senior, education, etc.
+
+Key features:
+- Only updates EXISTING documents (no new inserts)
+- Matches by parcel_id (primary) or address (fallback)
+- Tracks and reports unmatched records to CSV
+- Supports multi-county files via county column detection
+- Dry-run mode for validation before updates
+
+Files processed:
+- `allen__EmpowerSaves_BOLT Analysis_20250310.xlsx` → AllenCountyDemographic
+- `fayette_EmpowerSaves_BOLT Analysis_20250310.xlsx` → FayetteCountyDemographic
+- `Richland_EmpowerSaves_BOL Analysis_20250317.xlsx` → RichlandCountyDemographic
+- `HHWP_EmpowerSaves_BOLT Analysis_20250220.xlsx` → Hancock, Putnam, Wyandot
+- `EmpowerSaves-OHCAC_BOLT ANALYSIS_2050228.xlsx` → Marion, Morrow, Richland
+- `EmpowerSaves_COAD_BOLT Analysis_with costs_20250507.xlsx` → COAD counties
+- `IMPACT_EmpowerSaves_BOLT ANALYSIS_with costs_for texting_20250509.xlsx` → Franklin
+
+Usage:
+```bash
+# Dry run - show what would be updated
+python scripts/enrich_demographics_from_bolt.py --dry-run
+
+# Update all files
+python scripts/enrich_demographics_from_bolt.py
+
+# Update specific file only
+python scripts/enrich_demographics_from_bolt.py --file Fayette
+python scripts/enrich_demographics_from_bolt.py --file Allen --dry-run
+```
+
+Output: Updates 7,197 documents across 8+ collections with demographic enrichment fields.
