@@ -34,9 +34,6 @@ def dashboard():
         # Get stats for all campaign types
         all_stats = service.get_all_campaign_stats()
 
-        # Get recent campaigns across all types
-        recent_campaigns = service.get_recent_campaigns_all_types(limit=10)
-
         # Get conversion stats
         conversion_stats = service.get_overall_conversion_stats()
 
@@ -50,7 +47,6 @@ def dashboard():
                               title='Multi-Channel Dashboard',
                               user=current_user,
                               all_stats=all_stats,
-                              recent_campaigns=recent_campaigns,
                               conversion_stats=conversion_stats,
                               recent_applicants=recent_applicants,
                               applicant_summary=applicant_summary)
@@ -67,7 +63,6 @@ def dashboard():
                                   'mailer': {'total_campaigns': 0},
                                   'letter': {'total_campaigns': 0}
                               },
-                              recent_campaigns=[],
                               conversion_stats={
                                   'participants': {'total': 0},
                                   'applicants': {'total': 0},

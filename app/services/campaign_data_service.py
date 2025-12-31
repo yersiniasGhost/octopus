@@ -324,34 +324,6 @@ class CampaignDataService:
             'letter': self.get_letter_stats()
         }
 
-    def get_recent_campaigns_all_types(self, limit: int = 10) -> List[Dict]:
-        """Get most recent campaigns across all types"""
-        try:
-            # Combine campaigns from both databases
-            email_campaigns = list(self.email_db.campaigns.find(
-                {},
-                {'name': 1, 'campaign_type': 1, 'sent_at': 1, '_id': 0}
-            ).sort('sent_at', -1).limit(limit))
-
-            # Set campaign_type for email campaigns if not set
-            for campaign in email_campaigns:
-                if 'campaign_type' not in campaign:
-                    campaign['campaign_type'] = 'email'
-
-            other_campaigns = list(self.empower_db.campaigns.find(
-                {'campaign_type': {'$in': ['text', 'mailer', 'letter']}},
-                {'name': 1, 'campaign_type': 1, 'sent_at': 1, '_id': 0}
-            ).sort('sent_at', -1).limit(limit))
-
-            # Merge and sort by sent_at
-            all_campaigns = email_campaigns + other_campaigns
-            all_campaigns.sort(key=lambda x: x.get('sent_at', ''), reverse=True)
-
-            return all_campaigns[:limit]
-        except Exception as e:
-            logger.error(f"Error fetching recent campaigns: {str(e)}")
-            return []
-
     def get_overall_conversion_stats(self) -> Dict[str, Any]:
         """Calculate overall conversion statistics"""
         try:
