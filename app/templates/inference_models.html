@@ -1,0 +1,663 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="inference-models-section py-5">
+    <div class="container">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Inference Models</li>
+                    </ol>
+                </nav>
+                <h1 class="display-4 fw-bold">
+                    <i class="bi bi-cpu-fill text-purple"></i> Inference Models
+                </h1>
+                <p class="lead text-muted">Bayesian models for campaign optimization and audience targeting.</p>
+            </div>
+        </div>
+
+        <!-- Model Selector -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <label for="modelSelector" class="form-label fw-bold">
+                            <i class="bi bi-diagram-3"></i> Select Model
+                        </label>
+                        <select class="form-select form-select-lg" id="modelSelector" onchange="selectModel(this.value)">
+                            <option value="">-- Choose a model --</option>
+                            {% for model in models %}
+                            <option value="{{ model.model_id }}"
+                                    {% if selected_model and selected_model.model_id == model.model_id %}selected{% endif %}>
+                                {{ model.name }} (v{{ model.version }})
+                                {% if model.status == 'beta' %} [BETA]{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if models|length == 0 %}
+                        <p class="text-muted mt-2 small">
+                            <i class="bi bi-info-circle"></i> No models registered yet.
+                            Models are auto-discovered from <code>src/bayesian_models/</code>.
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                {% if selected_model %}
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ selected_model.name }}</h5>
+                        <p class="text-muted mb-2">{{ selected_model.description }}</p>
+                        <div>
+                            {% for tag in selected_model.tags %}
+                            <span class="badge bg-secondary me-1">{{ tag }}</span>
+                            {% endfor %}
+                            {% if selected_model.status == 'beta' %}
+                            <span class="badge bg-warning text-dark">BETA</span>
+                            {% elif selected_model.status == 'active' %}
+                            <span class="badge bg-success">ACTIVE</span>
+                            {% endif %}
+                            {% if model_status and model_status.is_trained %}
+                            <span class="badge bg-info"><i class="bi bi-check-circle"></i> Trained</span>
+                            {% else %}
+                            <span class="badge bg-secondary"><i class="bi bi-clock"></i> Not Trained</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if selected_model %}
+        <!-- Model Detail Tabs -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white">
+                        <ul class="nav nav-tabs card-header-tabs" id="modelTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="dag-tab" data-bs-toggle="tab"
+                                        data-bs-target="#dag-panel" type="button" role="tab">
+                                    <i class="bi bi-diagram-3"></i> Model DAG
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="comments-tab" data-bs-toggle="tab"
+                                        data-bs-target="#comments-panel" type="button" role="tab">
+                                    <i class="bi bi-chat-left-text"></i> Description
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="fit-tab" data-bs-toggle="tab"
+                                        data-bs-target="#fit-panel" type="button" role="tab">
+                                    <i class="bi bi-graph-up"></i> Model Fit
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="effectiveness-tab" data-bs-toggle="tab"
+                                        data-bs-target="#effectiveness-panel" type="button" role="tab">
+                                    <i class="bi bi-award"></i> Effectiveness
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="inference-tab" data-bs-toggle="tab"
+                                        data-bs-target="#inference-panel" type="button" role="tab">
+                                    <i class="bi bi-lightning-charge"></i> Inference
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="modelTabContent">
+                            <!-- DAG Panel -->
+                            <div class="tab-pane fade show active" id="dag-panel" role="tabpanel">
+                                <h5 class="mb-3">Model Structure (DAG)</h5>
+                                <p class="text-muted">Directed Acyclic Graph showing model inputs, parameters, and relationships.</p>
+
+                                <div id="dag-container" class="dag-container border rounded p-3 bg-light text-center">
+                                    {% if dag_image %}
+                                    <img src="{{ dag_image }}" alt="Model DAG" class="img-fluid">
+                                    {% else %}
+                                    <!-- Placeholder DAG visualization -->
+                                    <div class="dag-placeholder py-5">
+                                        <i class="bi bi-diagram-3 text-muted" style="font-size: 4rem;"></i>
+                                        <p class="text-muted mt-3">DAG visualization not yet generated.</p>
+                                        <p class="small text-muted">
+                                            Run <code>python -m src.bayesian_models.{{ selected_model.model_id }}.generate_dag</code>
+                                            to create the visualization.
+                                        </p>
+
+                                        <!-- Show model structure as text -->
+                                        <div class="text-start mx-auto" style="max-width: 600px;">
+                                            <h6 class="mt-4">Model Variables:</h6>
+                                            <div class="dag-text-representation">
+                                                {{ dag_text|safe if dag_text else '<p class="text-muted">No structure data available</p>' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Description/Comments Panel -->
+                            <div class="tab-pane fade" id="comments-panel" role="tabpanel">
+                                <h5 class="mb-3">Model Description</h5>
+
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="mb-4">
+                                            <h6>Purpose</h6>
+                                            <p>{{ selected_model.description or 'No description provided.' }}</p>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <h6>Key Features</h6>
+                                            <ul>
+                                                {% if selected_model.tags %}
+                                                {% for tag in selected_model.tags %}
+                                                <li>{{ tag|replace('_', ' ')|title }}</li>
+                                                {% endfor %}
+                                                {% else %}
+                                                <li class="text-muted">No features specified</li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+
+                                        {% if model_config and model_config.hypotheses %}
+                                        <div class="mb-4">
+                                            <h6>Hypotheses</h6>
+                                            <ul>
+                                                {% for h in model_config.hypotheses %}
+                                                <li>{{ h }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if model_config and model_config.notes %}
+                                        <div class="mb-4">
+                                            <h6>Notes</h6>
+                                            <p class="text-muted">{{ model_config.notes }}</p>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light border-0">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Model Info</h6>
+                                                <table class="table table-sm table-borderless mb-0">
+                                                    <tr>
+                                                        <td class="text-muted">Version</td>
+                                                        <td>{{ selected_model.version }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="text-muted">Author</td>
+                                                        <td>{{ selected_model.author }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="text-muted">Status</td>
+                                                        <td>
+                                                            {% if selected_model.status == 'active' %}
+                                                            <span class="badge bg-success">Active</span>
+                                                            {% elif selected_model.status == 'beta' %}
+                                                            <span class="badge bg-warning text-dark">Beta</span>
+                                                            {% else %}
+                                                            <span class="badge bg-secondary">{{ selected_model.status }}</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% if model_status %}
+                                                    <tr>
+                                                        <td class="text-muted">Trained</td>
+                                                        <td>
+                                                            {% if model_status.is_trained %}
+                                                            <span class="text-success"><i class="bi bi-check-circle"></i> Yes</span>
+                                                            {% else %}
+                                                            <span class="text-muted"><i class="bi bi-x-circle"></i> No</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endif %}
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Model Fit Panel -->
+                            <div class="tab-pane fade" id="fit-panel" role="tabpanel">
+                                <h5 class="mb-3">Model Fit Results</h5>
+
+                                {% if model_status and model_status.is_trained %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card bg-light border-0 mb-3">
+                                            <div class="card-body">
+                                                <h6><i class="bi bi-bar-chart"></i> Convergence Diagnostics</h6>
+                                                {% if fit_results and fit_results.diagnostics %}
+                                                <table class="table table-sm">
+                                                    <tr>
+                                                        <td>R-hat (max)</td>
+                                                        <td><strong>{{ "%.3f"|format(fit_results.diagnostics.rhat_max) }}</strong></td>
+                                                        <td>
+                                                            {% if fit_results.diagnostics.rhat_max <= 1.01 %}
+                                                            <span class="badge bg-success">Good</span>
+                                                            {% elif fit_results.diagnostics.rhat_max <= 1.05 %}
+                                                            <span class="badge bg-warning text-dark">OK</span>
+                                                            {% else %}
+                                                            <span class="badge bg-danger">Check</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>ESS (min)</td>
+                                                        <td><strong>{{ fit_results.diagnostics.ess_min }}</strong></td>
+                                                        <td>
+                                                            {% if fit_results.diagnostics.ess_min >= 400 %}
+                                                            <span class="badge bg-success">Good</span>
+                                                            {% elif fit_results.diagnostics.ess_min >= 100 %}
+                                                            <span class="badge bg-warning text-dark">OK</span>
+                                                            {% else %}
+                                                            <span class="badge bg-danger">Low</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Divergences</td>
+                                                        <td><strong>{{ fit_results.diagnostics.divergences }}</strong></td>
+                                                        <td>
+                                                            {% if fit_results.diagnostics.divergences == 0 %}
+                                                            <span class="badge bg-success">None</span>
+                                                            {% else %}
+                                                            <span class="badge bg-danger">Check</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                                {% else %}
+                                                <p class="text-muted">Diagnostics not available</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card bg-light border-0 mb-3">
+                                            <div class="card-body">
+                                                <h6><i class="bi bi-calculator"></i> Model Comparison</h6>
+                                                {% if fit_results and fit_results.comparison %}
+                                                <table class="table table-sm">
+                                                    <tr>
+                                                        <td>LOO-CV</td>
+                                                        <td><strong>{{ "%.2f"|format(fit_results.comparison.loo) }}</strong></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>WAIC</td>
+                                                        <td><strong>{{ "%.2f"|format(fit_results.comparison.waic) }}</strong></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>p_loo</td>
+                                                        <td><strong>{{ "%.2f"|format(fit_results.comparison.p_loo) }}</strong></td>
+                                                    </tr>
+                                                </table>
+                                                {% else %}
+                                                <p class="text-muted">Comparison metrics not available</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Trace plots -->
+                                {% if trace_plots %}
+                                <h6 class="mt-4">Trace Plots</h6>
+                                <div class="row">
+                                    {% for plot in trace_plots %}
+                                    <div class="col-md-6 mb-3">
+                                        <img src="{{ plot }}" alt="Trace plot" class="img-fluid border rounded">
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+
+                                {% else %}
+                                <div class="text-center py-5">
+                                    <i class="bi bi-hourglass text-muted" style="font-size: 3rem;"></i>
+                                    <p class="text-muted mt-3">Model has not been trained yet.</p>
+                                    <p class="small text-muted">
+                                        Run training script to generate fit results.
+                                    </p>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Effectiveness Panel -->
+                            <div class="tab-pane fade" id="effectiveness-panel" role="tabpanel">
+                                <h5 class="mb-3">Model Effectiveness</h5>
+
+                                {% if model_status and model_status.is_trained %}
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted">AUC-ROC</h6>
+                                                <h2 class="display-6">
+                                                    {{ "%.3f"|format(effectiveness.auc_roc) if effectiveness else '--' }}
+                                                </h2>
+                                                {% if effectiveness and effectiveness.auc_roc %}
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-success" style="width: {{ effectiveness.auc_roc * 100 }}%"></div>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted">Accuracy</h6>
+                                                <h2 class="display-6">
+                                                    {{ "%.1f%%"|format(effectiveness.accuracy * 100) if effectiveness else '--' }}
+                                                </h2>
+                                                {% if effectiveness and effectiveness.accuracy %}
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-info" style="width: {{ effectiveness.accuracy * 100 }}%"></div>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm text-center">
+                                            <div class="card-body">
+                                                <h6 class="text-muted">Calibration Error</h6>
+                                                <h2 class="display-6">
+                                                    {{ "%.3f"|format(effectiveness.calibration_error) if effectiveness else '--' }}
+                                                </h2>
+                                                {% if effectiveness and effectiveness.calibration_error %}
+                                                <small class="text-muted">(lower is better)</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Coefficient Summary -->
+                                {% if effectiveness and effectiveness.coefficients %}
+                                <h6 class="mt-4">Key Coefficients (Posterior Mean)</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Parameter</th>
+                                                <th>Mean</th>
+                                                <th>95% CI</th>
+                                                <th>Prob > 0</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for coef in effectiveness.coefficients %}
+                                            <tr>
+                                                <td><code>{{ coef.name }}</code></td>
+                                                <td>{{ "%.3f"|format(coef.mean) }}</td>
+                                                <td>[{{ "%.3f"|format(coef.ci_low) }}, {{ "%.3f"|format(coef.ci_high) }}]</td>
+                                                <td>
+                                                    {% if coef.prob_positive >= 0.95 %}
+                                                    <span class="badge bg-success">{{ "%.1f%%"|format(coef.prob_positive * 100) }}</span>
+                                                    {% elif coef.prob_positive <= 0.05 %}
+                                                    <span class="badge bg-danger">{{ "%.1f%%"|format(coef.prob_positive * 100) }}</span>
+                                                    {% else %}
+                                                    <span class="badge bg-secondary">{{ "%.1f%%"|format(coef.prob_positive * 100) }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% endif %}
+
+                                {% else %}
+                                <div class="text-center py-5">
+                                    <i class="bi bi-bar-chart text-muted" style="font-size: 3rem;"></i>
+                                    <p class="text-muted mt-3">Effectiveness metrics not available.</p>
+                                    <p class="small text-muted">Train the model to see effectiveness metrics.</p>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Inference Panel -->
+                            <div class="tab-pane fade" id="inference-panel" role="tabpanel">
+                                <h5 class="mb-3">Run Inference</h5>
+
+                                {% if model_status and model_status.is_trained %}
+                                <form id="inferenceForm" method="POST" action="{{ url_for('main.run_inference', model_id=selected_model.model_id) }}">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6>Input Parameters</h6>
+                                            {% if selected_model.inference_params %}
+                                            {% for param in selected_model.inference_params %}
+                                            <div class="mb-3">
+                                                <label for="{{ param.name }}" class="form-label">
+                                                    {{ param.label }}
+                                                    {% if param.required %}<span class="text-danger">*</span>{% endif %}
+                                                </label>
+                                                {% if param.type == 'select' %}
+                                                <select class="form-select" id="{{ param.name }}" name="{{ param.name }}"
+                                                        {% if param.required %}required{% endif %}>
+                                                    {% for option in param.options %}
+                                                    <option value="{{ option }}" {% if param.default == option %}selected{% endif %}>
+                                                        {{ option }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                                {% elif param.type == 'boolean' %}
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" id="{{ param.name }}"
+                                                           name="{{ param.name }}" {% if param.default %}checked{% endif %}>
+                                                </div>
+                                                {% else %}
+                                                <input type="{{ 'number' if param.type in ['integer', 'float'] else 'text' }}"
+                                                       class="form-control" id="{{ param.name }}" name="{{ param.name }}"
+                                                       value="{{ param.default or '' }}"
+                                                       {% if param.min_value is not none %}min="{{ param.min_value }}"{% endif %}
+                                                       {% if param.max_value is not none %}max="{{ param.max_value }}"{% endif %}
+                                                       {% if param.type == 'float' %}step="0.01"{% endif %}
+                                                       {% if param.required %}required{% endif %}>
+                                                {% endif %}
+                                                {% if param.help_text %}
+                                                <div class="form-text">{{ param.help_text }}</div>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                            {% else %}
+                                            <p class="text-muted">No inference parameters defined for this model.</p>
+                                            {% endif %}
+
+                                            <button type="submit" class="btn btn-purple" id="runInferenceBtn">
+                                                <i class="bi bi-lightning-charge"></i> Run Inference
+                                            </button>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>Results</h6>
+                                            <div id="inferenceResults" class="border rounded p-3 bg-light" style="min-height: 200px;">
+                                                <p class="text-muted text-center py-4">
+                                                    <i class="bi bi-arrow-left"></i> Configure parameters and click "Run Inference"
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                                {% else %}
+                                <div class="text-center py-5">
+                                    <i class="bi bi-lightning text-muted" style="font-size: 3rem;"></i>
+                                    <p class="text-muted mt-3">Model must be trained before running inference.</p>
+                                    <p class="small text-muted">
+                                        Run <code>python src/bayesian_scripts/train_{{ selected_model.model_id }}.py</code>
+                                        to train the model.
+                                    </p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- No model selected -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-diagram-3 text-muted" style="font-size: 4rem;"></i>
+                        <h4 class="mt-4">Select a Model</h4>
+                        <p class="text-muted">Choose a model from the dropdown above to view its structure, fit results, and run inference.</p>
+
+                        {% if models|length > 0 %}
+                        <div class="mt-4">
+                            <h6>Available Models:</h6>
+                            <div class="list-group list-group-flush mx-auto" style="max-width: 400px;">
+                                {% for model in models %}
+                                <a href="{{ url_for('main.inference_models', model=model.model_id) }}"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    {{ model.name }}
+                                    <span class="badge bg-secondary">v{{ model.version }}</span>
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<style>
+.text-purple {
+    color: #6f42c1;
+}
+.btn-purple {
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+    color: white;
+}
+.btn-purple:hover {
+    background-color: #5a32a3;
+    border-color: #5a32a3;
+    color: white;
+}
+.dag-container {
+    min-height: 300px;
+}
+.dag-text-representation {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+.nav-tabs .nav-link {
+    color: #6c757d;
+}
+.nav-tabs .nav-link.active {
+    color: #6f42c1;
+    font-weight: 500;
+}
+.nav-tabs .nav-link:hover {
+    color: #5a32a3;
+}
+</style>
+
+<script>
+function selectModel(modelId) {
+    if (modelId) {
+        window.location.href = '{{ url_for("main.inference_models") }}?model=' + modelId;
+    }
+}
+
+// Handle inference form submission via AJAX
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('inferenceForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('runInferenceBtn');
+            const resultsDiv = document.getElementById('inferenceResults');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+            resultsDiv.innerHTML = '<p class="text-center py-4"><span class="spinner-border"></span></p>';
+
+            const formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-lightning-charge"></i> Run Inference';
+
+                if (data.success) {
+                    resultsDiv.innerHTML = `
+                        <h6 class="text-success"><i class="bi bi-check-circle"></i> Inference Complete</h6>
+                        <hr>
+                        <div class="results-content">
+                            ${formatResults(data.results)}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i> ${data.error}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-lightning-charge"></i> Run Inference';
+                resultsDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
+                    </div>
+                `;
+            });
+        });
+    }
+});
+
+function formatResults(results) {
+    if (typeof results === 'object') {
+        let html = '<table class="table table-sm">';
+        for (const [key, value] of Object.entries(results)) {
+            html += `<tr><td><strong>${key}</strong></td><td>${formatValue(value)}</td></tr>`;
+        }
+        html += '</table>';
+        return html;
+    }
+    return results;
+}
+
+function formatValue(value) {
+    if (typeof value === 'number') {
+        return value.toFixed(4);
+    }
+    if (typeof value === 'object') {
+        return JSON.stringify(value, null, 2);
+    }
+    return value;
+}
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
 """Main application routes"""
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 import logging
 from pymongo import MongoClient
@@ -371,6 +371,144 @@ def letter_dashboard():
     return render_template('dashboards/letter_tbd.html',
                           title='Letter Campaign Dashboard',
                           user=current_user)
+
+
+@main_bp.route('/inference-models')
+@login_required
+def inference_models():
+    """
+    Inference models page - ML models for campaign optimization
+
+    Displays registered Bayesian models with:
+    - Model selector dropdown
+    - DAG visualization
+    - Model fit results
+    - Effectiveness metrics
+    - Inference interface
+    """
+    from src.bayesian_models.model_registry import get_registry
+    from pathlib import Path
+    import json
+
+    registry = get_registry()
+    models = registry.get_all_models()
+
+    # Get selected model from query params
+    selected_model_id = request.args.get('model', None)
+    selected_model = None
+    model_status = None
+    model_config = None
+    dag_image = None
+    dag_text = None
+    fit_results = None
+    effectiveness = None
+    trace_plots = []
+
+    if selected_model_id:
+        metadata = registry.get_model_metadata(selected_model_id)
+        if metadata:
+            selected_model = metadata.to_dict()
+            model_status = registry.get_model_status(selected_model_id)
+
+            # Try to load additional model config
+            model_dir = registry.models_dir / selected_model_id
+            config_path = model_dir / 'config.yaml'
+            if config_path.exists():
+                import yaml
+                with open(config_path, 'r') as f:
+                    model_config = yaml.safe_load(f)
+
+            # Check for DAG image in diagrams folder
+            output_dir = Path('models') / selected_model_id / 'diagrams'
+            if output_dir.exists():
+                dag_files = list(output_dir.glob('dag*.png')) + list(output_dir.glob('dag*.svg'))
+                if dag_files:
+                    dag_image = f'/static/models/{selected_model_id}/diagrams/{dag_files[0].name}'
+
+            # Generate text-based DAG representation if no image
+            if not dag_image and model_config:
+                predictors = model_config.get('predictors', [])
+                outcome = model_config.get('outcome', 'y')
+                if predictors:
+                    dag_lines = [f"<strong>Outcome:</strong> {outcome}", "<strong>Predictors:</strong>"]
+                    for p in predictors:
+                        dag_lines.append(f"  - {p}")
+                    dag_text = "<br>".join(dag_lines)
+
+            # Load fit results if available
+            reports_dir = Path('models') / selected_model_id / 'reports'
+            if reports_dir.exists():
+                fit_file = reports_dir / 'fit_summary.json'
+                if fit_file.exists():
+                    with open(fit_file, 'r') as f:
+                        fit_results = json.load(f)
+
+                eff_file = reports_dir / 'effectiveness.json'
+                if eff_file.exists():
+                    with open(eff_file, 'r') as f:
+                        effectiveness = json.load(f)
+
+            # Load trace plots
+            diagrams_dir = Path('models') / selected_model_id / 'diagrams'
+            if diagrams_dir.exists():
+                for plot_file in diagrams_dir.glob('trace*.png'):
+                    trace_plots.append(f'/static/models/{selected_model_id}/diagrams/{plot_file.name}')
+
+    return render_template('inference_models.html',
+                          title='Inference Models',
+                          user=current_user,
+                          models=models,
+                          selected_model=selected_model,
+                          model_status=model_status,
+                          model_config=model_config,
+                          dag_image=dag_image,
+                          dag_text=dag_text,
+                          fit_results=fit_results,
+                          effectiveness=effectiveness,
+                          trace_plots=trace_plots)
+
+
+@main_bp.route('/inference-models/<model_id>/run', methods=['POST'])
+@login_required
+def run_inference(model_id):
+    """
+    Run inference with a trained model
+
+    Accepts form data with inference parameters,
+    returns JSON with prediction results.
+    """
+    from src.bayesian_models.model_registry import get_registry
+
+    registry = get_registry()
+    model_status = registry.get_model_status(model_id)
+
+    if not model_status or not model_status.get('is_trained'):
+        return jsonify({'success': False, 'error': 'Model is not trained'})
+
+    try:
+        # Load the model instance
+        model_instance = registry.load_model_instance(model_id)
+        if not model_instance:
+            return jsonify({'success': False, 'error': 'Could not load model'})
+
+        # Get inference parameters from form
+        inference_params = {}
+        for key, value in request.form.items():
+            inference_params[key] = value
+
+        # Validate parameters
+        is_valid, error = model_instance.validate_inference_params(inference_params)
+        if not is_valid:
+            return jsonify({'success': False, 'error': error})
+
+        # Run inference
+        results = model_instance.predict(inference_params)
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error running inference for {model_id}: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)})
 
 
 @main_bp.route('/dashboard/modeling')

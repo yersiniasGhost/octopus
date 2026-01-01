@@ -305,10 +305,37 @@
             </div>
         </div>
 
+        <!-- Inference Models Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-cpu-fill"></i> Inference Models
+                        </h5>
+                        <p class="text-muted mb-3">Machine learning models for campaign optimization and audience targeting.</p>
+                        <a href="{{ url_for('main.inference_models') }}" class="btn btn-purple">
+                            <i class="bi bi-arrow-right-circle"></i> View Models
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </section>
 
 <style>
+.btn-purple {
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+    color: white;
+}
+.btn-purple:hover {
+    background-color: #5a32a3;
+    border-color: #5a32a3;
+    color: white;
+}
 .hover-card {
     transition: transform 0.2s, box-shadow 0.2s;
 }
