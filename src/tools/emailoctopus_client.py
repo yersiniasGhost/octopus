@@ -8,11 +8,11 @@ import requests
 import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-import logging
 
 from src.utils.envvars import EnvVars
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class EmailOctopusAPIError(Exception):

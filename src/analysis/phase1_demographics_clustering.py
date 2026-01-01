@@ -9,7 +9,6 @@ This implements the first phase of progressive clustering analysis:
 
 Per CLUSTERING_PROJECT.md: "Cluster on pre-treatment features, then characterize by outcomes"
 """
-import logging
 from pathlib import Path
 from typing import Optional, Tuple, List
 
@@ -23,8 +22,9 @@ from scipy.stats import chi2_contingency
 import prince
 from kmodes.kprototypes import KPrototypes
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 # Output directory
 OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')

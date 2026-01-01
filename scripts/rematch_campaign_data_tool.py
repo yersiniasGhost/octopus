@@ -22,7 +22,6 @@ Usage:
 """
 import os
 import sys
-import logging
 from datetime import datetime
 from typing import Optional, Dict
 from collections import defaultdict
@@ -34,11 +33,11 @@ from dotenv import load_dotenv
 
 from src.tools.residence_matcher import ResidenceMatcher, PhoneNormalizer, AddressNormalizer
 from src.models.campaign_data import Demographics, Residence, Linkage, DataQuality
+from src.utils.log_manager import LogManager
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class CampaignDataRematcher:

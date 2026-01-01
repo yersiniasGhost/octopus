@@ -1,7 +1,6 @@
 """Main application routes"""
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
-import logging
 from pymongo import MongoClient
 import math
 
@@ -9,8 +8,9 @@ from app.services import EmailOctopusClient
 from app.services.emailoctopus_client import EmailOctopusAPIError
 from app.services.campaign_data_service import CampaignDataService
 from src.utils.envvars import EnvVars
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 main_bp = Blueprint('main', __name__)
 

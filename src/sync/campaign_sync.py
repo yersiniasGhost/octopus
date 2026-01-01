@@ -3,7 +3,6 @@ Main campaign sync orchestrator
 
 Coordinates fetching data from EmailOctopus, storing in MongoDB, and exporting to CSV.
 """
-import logging
 import time
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -14,8 +13,9 @@ from src.sync.csv_writer import CSVWriter
 from src.models.campaign import Campaign
 from src.models.participant import Participant
 from src.tools.mongo import Mongo
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class CampaignSync:

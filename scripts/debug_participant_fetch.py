@@ -12,15 +12,12 @@ sys.path.insert(0, str(project_root))
 
 from src.tools.emailoctopus_client import EmailOctopusClient
 from src.utils.envvars import EnvVars
+from src.utils.log_manager import LogManager
 
-# Setup logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-# Reduce noise
-logging.getLogger('urllib3').setLevel(logging.WARNING)
+# Setup logging using LogManager
+log_manager = LogManager()
+log_manager.update_all_log_levels(logging.DEBUG)
+log_manager.configure_library_loggers(level=logging.WARNING)
 
 def test_fetch(campaign_id: str):
     """Test fetching participants for a campaign"""

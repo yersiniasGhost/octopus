@@ -8,19 +8,18 @@ to demographic data across all counties, and generates enriched CSV output.
 import sys
 import os
 import csv
-import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 import pymongo
 from dotenv import load_dotenv
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

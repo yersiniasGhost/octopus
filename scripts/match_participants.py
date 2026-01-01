@@ -12,7 +12,6 @@ This script:
 import os
 import sys
 import re
-import logging
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -22,16 +21,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from src.utils.log_manager import LogManager
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class MatchQuality(Enum):

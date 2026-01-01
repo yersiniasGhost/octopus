@@ -2,14 +2,14 @@
 CSV export writer for campaign data
 """
 import csv
-import logging
 from pathlib import Path
 from typing import List, Dict
 from datetime import datetime
 
 from src.models.participant import Participant
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class CSVWriter:

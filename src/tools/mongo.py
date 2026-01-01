@@ -1,14 +1,14 @@
 """
 MongoDB connection singleton for campaign data sync
 """
-import logging
 import pymongo.errors
 from pymongo import MongoClient
 
 from src.utils.singleton import Singleton
 from src.utils.envvars import EnvVars
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class Mongo(metaclass=Singleton):

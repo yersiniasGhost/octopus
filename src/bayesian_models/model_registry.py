@@ -3,15 +3,15 @@ Model Registry - Auto-discovery and management of Bayesian models
 """
 from pathlib import Path
 from typing import Dict, List, Optional
-import logging
 import importlib.util
 import sys
 
 from src.bayesian_models.base_model import (
     BaseBayesianModel, ModelMetadata, MODELS_OUTPUT_DIR
 )
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class ModelRegistry:

@@ -3,15 +3,15 @@ EmailOctopus data fetcher with pagination support
 
 Handles fetching all campaigns and participants from EmailOctopus API
 """
-import logging
 import time
 from typing import List, Dict, Optional, Generator
 from datetime import datetime
 from urllib.parse import unquote
 
 from src.tools.emailoctopus_client import EmailOctopusClient, EmailOctopusAPIError
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class EmailOctopusFetcher:

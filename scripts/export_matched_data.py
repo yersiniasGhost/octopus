@@ -16,7 +16,6 @@ import os
 import sys
 import csv
 import json
-import logging
 from typing import Dict, List, Optional
 from pathlib import Path
 from datetime import datetime
@@ -36,13 +35,9 @@ from match_participants_optimized import (
     MatchResult,
     MatchQuality
 )
+from src.utils.log_manager import LogManager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class MatchedDataExporter:

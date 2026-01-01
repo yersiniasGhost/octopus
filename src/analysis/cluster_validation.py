@@ -7,7 +7,6 @@ Validates clustering results using:
 3. Outcome predictive power comparison
 4. Cross-phase agreement analysis
 """
-import logging
 from pathlib import Path
 
 import pandas as pd
@@ -20,8 +19,9 @@ from sklearn.cluster import KMeans
 from sklearn.utils import resample
 from scipy.stats import chi2_contingency, ttest_ind
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
 

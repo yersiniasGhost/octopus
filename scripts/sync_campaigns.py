@@ -24,24 +24,15 @@ sys.path.insert(0, str(project_root))
 
 from src.sync.campaign_sync import CampaignSync
 from src.utils.envvars import EnvVars
+from src.utils.log_manager import LogManager
 
 
 def setup_logging(verbose: bool = False):
-    """Configure logging"""
+    """Configure logging using LogManager"""
     level = logging.DEBUG if verbose else logging.INFO
-    format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-
-    logging.basicConfig(
-        level=level,
-        format=format_str,
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-
-    # Reduce noise from some libraries
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('pymongo').setLevel(logging.WARNING)
+    log_manager = LogManager()
+    log_manager.update_all_log_levels(level)
+    log_manager.configure_library_loggers(level=logging.WARNING)
 
 
 def main():
@@ -93,7 +84,7 @@ Examples:
 
     # Setup logging
     setup_logging(args.verbose)
-    logger = logging.getLogger(__name__)
+    logger = LogManager().get_logger(__name__)
 
     try:
         # Check required environment variables

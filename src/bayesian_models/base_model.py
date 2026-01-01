@@ -17,9 +17,10 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 import yaml
-import logging
 
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 # Project root directory (where models/ output folder lives)
 PROJECT_ROOT = Path(__file__).parent.parent.parent

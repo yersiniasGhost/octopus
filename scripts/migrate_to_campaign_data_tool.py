@@ -30,7 +30,6 @@ import sys
 import re
 import csv
 import json
-import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -51,11 +50,11 @@ from src.models.campaign_data import (
     CampaignStatistics, ContactSnapshot, EnergyAtSend,
     Channel, UnifiedEngagement
 )
+from src.utils.log_manager import LogManager
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 # Constants

@@ -18,7 +18,6 @@ Output for Bayesian modeling:
 Causal modeling use case:
 "Given cluster membership probability, what's the causal effect of adding text campaigns?"
 """
-import logging
 import json
 from pathlib import Path
 from typing import Dict, Tuple, Optional
@@ -32,8 +31,9 @@ from sklearn.mixture import BayesianGaussianMixture
 from sklearn.metrics import silhouette_score
 import prince
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 
 class Phase3ProbabilisticClustering:

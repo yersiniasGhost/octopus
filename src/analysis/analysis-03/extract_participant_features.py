@@ -16,7 +16,6 @@ Key differences from analysis-02:
 
 Output: DataFrame with participant-level features ready for FAMD and clustering.
 """
-import logging
 from typing import Optional, Tuple
 from datetime import datetime
 
@@ -24,8 +23,9 @@ import pandas as pd
 import numpy as np
 from pymongo import MongoClient
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 
 class ParticipantFeatureExtractor:

@@ -8,7 +8,6 @@ Density-based clustering that:
 
 This complements K-prototypes by discovering structure without assumptions.
 """
-import logging
 from pathlib import Path
 
 import pandas as pd
@@ -20,8 +19,9 @@ from sklearn.metrics import silhouette_score
 import hdbscan
 import gower
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results')
 

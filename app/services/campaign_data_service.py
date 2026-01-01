@@ -11,9 +11,9 @@ Handles data access for campaigns across multiple databases:
 from pymongo import MongoClient
 from typing import Dict, List, Any, Optional
 from src.utils.envvars import EnvVars
-import logging
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class CampaignDataService:

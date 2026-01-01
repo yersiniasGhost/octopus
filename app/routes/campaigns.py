@@ -3,7 +3,6 @@ Campaign routes for EmailOctopus campaign management
 """
 from flask import Blueprint, render_template, jsonify, flash, request, send_file
 from flask_login import login_required
-import logging
 import csv
 from pathlib import Path
 
@@ -13,8 +12,9 @@ from app.services.emailoctopus_client import (
     EmailOctopusAuthenticationError,
     EmailOctopusRateLimitError
 )
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 campaigns_bp = Blueprint('campaigns', __name__)
 

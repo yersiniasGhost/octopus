@@ -1,7 +1,6 @@
 """
 MongoDB writer with upsert logic for incremental sync
 """
-import logging
 from typing import Dict, List
 from datetime import datetime
 
@@ -10,8 +9,9 @@ from pymongo.errors import PyMongoError, DuplicateKeyError
 from src.tools.mongo import Mongo
 from src.models.campaign import Campaign
 from src.models.participant import Participant
+from src.utils.log_manager import LogManager
 
-logger = logging.getLogger(__name__)
+logger = LogManager().get_logger(__name__)
 
 
 class MongoDBWriter:

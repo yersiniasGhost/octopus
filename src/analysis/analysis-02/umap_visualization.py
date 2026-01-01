@@ -7,7 +7,6 @@ for rare binary outcomes (2.18% engagement rate).
 Key technique: Plot non-engaged first (small, transparent) then
 overlay engaged (large, opaque) to reveal patterns.
 """
-import logging
 from pathlib import Path
 
 import pandas as pd
@@ -17,8 +16,9 @@ import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 from umap import UMAP
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 OUTPUT_DIR = Path('/home/yersinia/devel/octopus/data/clustering_results-02')
 

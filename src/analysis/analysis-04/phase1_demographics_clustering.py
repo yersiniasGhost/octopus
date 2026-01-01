@@ -18,7 +18,6 @@ Features used:
 
 Output: Cluster assignments with application rate analysis per cluster.
 """
-import logging
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -32,8 +31,9 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import prince  # For FAMD
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 
 class Phase1DemographicsClustering:

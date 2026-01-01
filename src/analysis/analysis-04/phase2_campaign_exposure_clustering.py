@@ -15,7 +15,6 @@ Key Question: Does campaign exposure help predict who applies, beyond demographi
 
 Output: Cluster assignments with application rate analysis comparing Phase 1 vs Phase 2.
 """
-import logging
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -29,8 +28,9 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import prince
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 
 class Phase2CampaignExposureClustering:

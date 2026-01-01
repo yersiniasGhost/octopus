@@ -10,7 +10,6 @@ Generate UMAP projections to visualize:
 
 Output: PNG visualizations in clustering_results-04/
 """
-import logging
 from pathlib import Path
 from typing import Optional
 
@@ -22,8 +21,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 import umap
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.utils.log_manager import LogManager
+
+logger = LogManager().get_logger(__name__)
 
 
 class UMAPVisualizer:
