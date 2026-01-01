@@ -19,11 +19,11 @@ Use the model_registry to discover and load models:
 Available Models (with config.yaml):
 - model_01_baseline: Baseline Email Open Model
 - model_02_energy_burden: Energy Burden Email Open Model
+- model_03_demographics: Demographics Email Open Model (with kWh usage)
 - click_model: Campaign Click Probability Model
 - click_model_02: Enhanced Click Model
 
 Legacy Models (standalone files, not registry-compatible):
-- model_03_demographics.py
 - messaging_effectiveness_model.py
 """
 

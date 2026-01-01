@@ -616,3 +616,40 @@ python src/bayesian_scripts/train_model_02_energy_burden.py --help
 ```
 
 Output: Model artifacts in `data/inference/model_02_energy_burden/` ready for UI visualization and inference.
+
+### train_model_03_demographics.py
+**Purpose**: Train the Demographics Email Open Model (Model 03) using the registry-based architecture.
+
+Tests the hypothesis: does electricity usage (kWh) predict email open rates, controlling for energy burden, income level, and household size?
+
+Features:
+- Extends `BaseBayesianModel` with standard interface
+- Four predictors including new kWh usage:
+  - `beta_burden`: Energy burden (expected positive)
+  - `beta_income`: Income level (confounder - expected negative)
+  - `beta_hhsize`: Household size (confounder - expected positive)
+  - `beta_kwh`: Annual kWh usage (NEW hypothesis - expected positive, higher usage → higher salience)
+- Outputs saved to `data/inference/model_03_demographics/`:
+  - `traces/`: MCMC trace files (.nc NetCDF format)
+  - `reports/`: Training results with kWh hypothesis test outcomes
+  - `diagrams/`: DAG visualization, trace plots, posterior plots, forest plots
+  - `checkpoints/`: Scaler parameters for inference
+- Hypothesis test result reported (SUPPORTED/REJECTED/INCONCLUSIVE) for kWh usage effect
+- Supports dry-run mode for data validation
+
+Usage:
+```bash
+# Train with defaults (2000 draws, 4 chains)
+python src/bayesian_scripts/train_model_03_demographics.py
+
+# Custom sampling parameters
+python src/bayesian_scripts/train_model_03_demographics.py --draws 3000 --chains 4 --tune 1500
+
+# Dry run - load data only, no training
+python src/bayesian_scripts/train_model_03_demographics.py --dry-run
+
+# View all options
+python src/bayesian_scripts/train_model_03_demographics.py --help
+```
+
+Output: Model artifacts in `data/inference/model_03_demographics/` ready for UI visualization and inference.

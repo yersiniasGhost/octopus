@@ -1,0 +1,131 @@
+# Model 03: Demographics Model with kWh Usage
+name: "Demographics Email Open Model"
+description: |
+  Extends Model 02 by adding electricity usage (kWh) as a predictor.
+  Tests whether electricity usage intensity predicts engagement beyond
+  energy burden and demographics.
+
+  Research Question: "Does electricity usage level predict email open rates,
+  controlling for energy burden, income level, and household size?"
+
+  Expected Effects:
+  - Energy burden: POSITIVE (high burden -> more need -> higher engagement)
+  - Income level: NEGATIVE (lower income -> target population -> higher engagement)
+  - Household size: POSITIVE (more people -> more impact -> higher engagement)
+  - kWh usage: POSITIVE (higher usage -> higher bills -> more salience)
+
+version: "1.0"
+author: "EmpowerSaves Analytics Team"
+status: "active"  # active, beta, deprecated
+
+tags:
+  - "email"
+  - "open-rate"
+  - "demographics"
+  - "kwh-usage"
+  - "logistic-regression"
+
+# Model structure for DAG visualization
+model_structure:
+  priors:
+    - name: "intercept"
+      distribution: "Normal(0, 2)"
+      description: "Baseline log-odds of email open"
+    - name: "beta_burden"
+      distribution: "Normal(0.5, 1)"
+      description: "Effect of energy burden (slight positive bias expected)"
+    - name: "beta_income"
+      distribution: "Normal(0, 1)"
+      description: "Effect of income level"
+    - name: "beta_hhsize"
+      distribution: "Normal(0, 1)"
+      description: "Effect of household size"
+    - name: "beta_kwh"
+      distribution: "Normal(0, 1)"
+      description: "Effect of annual kWh cost"
+
+  likelihood:
+    name: "y_open"
+    distribution: "Bernoulli(logit_p)"
+    description: "Binary outcome - email opened (1) or not (0)"
+
+  linear_model: "logit_p = intercept + beta_burden * burden + beta_income * income + beta_hhsize * hhsize + beta_kwh * kwh_cost"
+
+# Parameters for inference/prediction
+inference_params:
+  - name: "energy_burden"
+    type: "float"
+    label: "Energy Burden (%)"
+    required: true
+    min_value: 0
+    max_value: 100
+    default: 10
+    help_text: "Energy burden as percentage of income"
+
+  - name: "income_level"
+    type: "integer"
+    label: "Income Level (0-9)"
+    required: true
+    min_value: 0
+    max_value: 9
+    default: 5
+    help_text: "Income decile (0=lowest, 9=highest)"
+
+  - name: "household_size"
+    type: "integer"
+    label: "Household Size"
+    required: true
+    min_value: 1
+    max_value: 10
+    default: 3
+    help_text: "Number of people in household"
+
+  - name: "kwh_cost"
+    type: "float"
+    label: "Annual kWh Cost ($)"
+    required: true
+    min_value: 0
+    max_value: 20000
+    default: 2000
+    help_text: "Annual electricity cost in dollars"
+
+  - name: "credible_interval"
+    type: "float"
+    label: "Credible Interval"
+    default: 0.95
+    required: false
+    min_value: 0.5
+    max_value: 0.99
+    help_text: "Width of credible interval (e.g., 0.95 for 95% CI)"
+
+# Training configuration
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
+  max_treedepth: 10
+
+# Data requirements
+data_requirements:
+  source: "campaign_data.participants"
+  required_fields:
+    - "demographics.total_energy_burden"
+    - "demographics.income_level"
+    - "demographics.household_size"
+    - "demographics.annual_kwh_cost"
+    - "engagement_summary.by_channel.email.engaged"
+  preprocessing:
+    - "Standardize all predictors to z-scores"
+    - "Filter to records with non-null outcome and numeric values"
+
+# Model outputs
+outputs:
+  - name: "open_probability"
+    description: "Predicted probability of email open"
+  - name: "credible_interval"
+    description: "Credible interval bounds for prediction"
+  - name: "odds_ratios"
+    description: "Odds ratios for each coefficient"
+  - name: "hypothesis_result"
+    description: "Result of kWh usage hypothesis test"
