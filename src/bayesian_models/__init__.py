@@ -5,18 +5,40 @@ This package contains hierarchical Bayesian models for predicting
 email engagement (opens and clicks) based on energy burden, demographics,
 and property characteristics.
 
-Available Models:
-- Model 1: Baseline (cost + savings)
-- Model 2: Energy Burden (primary hypothesis)
-- Model 3-10: Progressive complexity (see MODEL_PROGRESSION_SUMMARY.md)
+Directory Structure:
+    {model_id}/           - Model directory with registry support
+        config.yaml       - Metadata and inference parameters
+        model.py          - Model implementation (extends BaseBayesianModel)
+        __init__.py       - Package exports
+
+Use the model_registry to discover and load models:
+    from src.bayesian_models.model_registry import get_registry
+    registry = get_registry()
+    model = registry.load_model_instance('model_01_baseline')
+
+Available Models (with config.yaml):
+- model_01_baseline: Baseline Email Open Model
+- model_02_energy_burden: Energy Burden Email Open Model
+- click_model: Campaign Click Probability Model
+- click_model_02: Enhanced Click Model
+
+Legacy Models (standalone files, not registry-compatible):
+- model_03_demographics.py
+- messaging_effectiveness_model.py
 """
 
-from .model_01_baseline import BaselineOpenModel
-from .model_02_energy_burden import EnergyBurdenOpenModel
+# Don't auto-import models to avoid dependency issues
+# Models are loaded dynamically through the registry
+
+from .base_model import BaseBayesianModel, ModelMetadata, InferenceParameter
+from .model_registry import get_registry, ModelRegistry
 
 __all__ = [
-    'BaselineOpenModel',
-    'EnergyBurdenOpenModel',
+    'BaseBayesianModel',
+    'ModelMetadata',
+    'InferenceParameter',
+    'get_registry',
+    'ModelRegistry',
 ]
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'

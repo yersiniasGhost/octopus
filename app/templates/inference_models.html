@@ -244,11 +244,11 @@
                                                 <table class="table table-sm">
                                                     <tr>
                                                         <td>R-hat (max)</td>
-                                                        <td><strong>{{ "%.3f"|format(fit_results.diagnostics.rhat_max) }}</strong></td>
+                                                        <td><strong>{{ "%.3f"|format(fit_results.diagnostics.r_hat_max) }}</strong></td>
                                                         <td>
-                                                            {% if fit_results.diagnostics.rhat_max <= 1.01 %}
+                                                            {% if fit_results.diagnostics.r_hat_max <= 1.01 %}
                                                             <span class="badge bg-success">Good</span>
-                                                            {% elif fit_results.diagnostics.rhat_max <= 1.05 %}
+                                                            {% elif fit_results.diagnostics.r_hat_max <= 1.05 %}
                                                             <span class="badge bg-warning text-dark">OK</span>
                                                             {% else %}
                                                             <span class="badge bg-danger">Check</span>
@@ -256,12 +256,25 @@
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td>ESS (min)</td>
-                                                        <td><strong>{{ fit_results.diagnostics.ess_min }}</strong></td>
+                                                        <td>ESS Bulk (min)</td>
+                                                        <td><strong>{{ fit_results.diagnostics.ess_bulk_min|int }}</strong></td>
                                                         <td>
-                                                            {% if fit_results.diagnostics.ess_min >= 400 %}
+                                                            {% if fit_results.diagnostics.ess_bulk_min >= 400 %}
                                                             <span class="badge bg-success">Good</span>
-                                                            {% elif fit_results.diagnostics.ess_min >= 100 %}
+                                                            {% elif fit_results.diagnostics.ess_bulk_min >= 100 %}
+                                                            <span class="badge bg-warning text-dark">OK</span>
+                                                            {% else %}
+                                                            <span class="badge bg-danger">Low</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>ESS Tail (min)</td>
+                                                        <td><strong>{{ fit_results.diagnostics.ess_tail_min|int }}</strong></td>
+                                                        <td>
+                                                            {% if fit_results.diagnostics.ess_tail_min >= 400 %}
+                                                            <span class="badge bg-success">Good</span>
+                                                            {% elif fit_results.diagnostics.ess_tail_min >= 100 %}
                                                             <span class="badge bg-warning text-dark">OK</span>
                                                             {% else %}
                                                             <span class="badge bg-danger">Low</span>

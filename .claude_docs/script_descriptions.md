@@ -545,3 +545,74 @@ python scripts/enrich_demographics_from_bolt.py --file Allen --dry-run
 ```
 
 Output: Updates 7,197 documents across 8+ collections with demographic enrichment fields.
+
+## Bayesian Model Training (src/bayesian_scripts/)
+
+### train_model_01_baseline.py
+**Purpose**: Train the Baseline Email Open Model (Model 01) using the registry-based architecture.
+
+Trains a simple logistic regression model predicting email opens based on energy cost and savings potential. This establishes baseline predictive performance before adding energy burden and demographic confounders.
+
+Features:
+- Uses `BaseBayesianModel` base class with standard interface
+- Outputs saved to `data/inference/model_01_baseline/`:
+  - `traces/`: MCMC trace files (.nc NetCDF format)
+  - `reports/`: Training results, coefficients, odds ratios
+  - `diagrams/`: DAG visualization, trace plots, posterior plots
+  - `checkpoints/`: Scaler parameters for inference
+- Generates diagnostic plots (trace, posterior, forest)
+- Computes odds ratios with credibility assessments
+- Supports dry-run mode for data validation
+
+Usage:
+```bash
+# Train with defaults (2000 draws, 4 chains)
+python src/bayesian_scripts/train_model_01_baseline.py
+
+# Custom sampling parameters
+python src/bayesian_scripts/train_model_01_baseline.py --draws 3000 --chains 4 --tune 1500
+
+# Dry run - load data only, no training
+python src/bayesian_scripts/train_model_01_baseline.py --dry-run
+
+# View all options
+python src/bayesian_scripts/train_model_01_baseline.py --help
+```
+
+Output: Model artifacts in `data/inference/model_01_baseline/` ready for UI visualization and inference.
+
+### train_model_02_energy_burden.py
+**Purpose**: Train the Energy Burden Email Open Model (Model 02) using the registry-based architecture.
+
+Tests the hypothesis: households with high energy burden (>6% of income) have higher email open rates, controlling for income level and household size.
+
+Features:
+- Extends `BaseBayesianModel` with standard interface
+- Three predictors with confounders:
+  - `beta_burden`: Energy burden (primary hypothesis - expected positive)
+  - `beta_income`: Income level (confounder - expected negative)
+  - `beta_hhsize`: Household size (confounder - expected positive)
+- Outputs saved to `data/inference/model_02_energy_burden/`:
+  - `traces/`: MCMC trace files (.nc NetCDF format)
+  - `reports/`: Training results with hypothesis test outcomes
+  - `diagrams/`: DAG visualization, trace plots, posterior plots, forest plots
+  - `checkpoints/`: Scaler parameters for inference
+- Hypothesis test result reported (SUPPORTED/REJECTED/INCONCLUSIVE)
+- Supports dry-run mode for data validation
+
+Usage:
+```bash
+# Train with defaults (2000 draws, 4 chains)
+python src/bayesian_scripts/train_model_02_energy_burden.py
+
+# Custom sampling parameters
+python src/bayesian_scripts/train_model_02_energy_burden.py --draws 3000 --chains 4 --tune 1500
+
+# Dry run - load data only, no training
+python src/bayesian_scripts/train_model_02_energy_burden.py --dry-run
+
+# View all options
+python src/bayesian_scripts/train_model_02_energy_burden.py --help
+```
+
+Output: Model artifacts in `data/inference/model_02_energy_burden/` ready for UI visualization and inference.

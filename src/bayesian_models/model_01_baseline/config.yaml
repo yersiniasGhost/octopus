@@ -1,0 +1,97 @@
+# Model 01: Baseline Open Engagement Model
+name: "Baseline Email Open Model"
+description: |
+  Simple logistic regression model predicting email opens based on energy cost
+  and savings potential. This establishes baseline predictive performance before
+  adding energy burden and demographic confounders.
+
+  Research Question: "Does energy cost and savings potential predict email open rates?"
+
+version: "1.0"
+author: "EmpowerSaves Analytics Team"
+status: "active"  # active, beta, deprecated
+
+tags:
+  - "email"
+  - "open-rate"
+  - "baseline"
+  - "logistic-regression"
+
+# Model structure for DAG visualization
+model_structure:
+  priors:
+    - name: "intercept"
+      distribution: "Normal(0, 2)"
+      description: "Baseline log-odds of email open"
+    - name: "beta_cost"
+      distribution: "Normal(0, 1)"
+      description: "Effect of annual energy cost"
+    - name: "beta_savings"
+      distribution: "Normal(0, 1)"
+      description: "Effect of annual savings potential"
+
+  likelihood:
+    name: "y_open"
+    distribution: "Bernoulli(logit_p)"
+    description: "Binary outcome - email opened (1) or not (0)"
+
+  linear_model: "logit_p = intercept + beta_cost * annual_cost + beta_savings * annual_savings"
+
+# Parameters for inference/prediction
+inference_params:
+  - name: "annual_cost"
+    type: "float"
+    label: "Annual Energy Cost ($)"
+    required: true
+    min_value: 0
+    max_value: 20000
+    default: 2000
+    help_text: "Annual energy cost in dollars (will be standardized)"
+
+  - name: "energy_burden"
+    type: "float"
+    label: "Energy Burden (%)"
+    required: true
+    min_value: 0
+    max_value: 100
+    default: 10
+    help_text: "Energy burden as percentage of income (higher = more savings potential)"
+
+  - name: "credible_interval"
+    type: "float"
+    label: "Credible Interval"
+    default: 0.95
+    required: false
+    min_value: 0.5
+    max_value: 0.99
+    help_text: "Width of credible interval (e.g., 0.95 for 95% CI)"
+
+# Training configuration
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
+  max_treedepth: 10
+
+# Data requirements
+data_requirements:
+  source: "campaign_data.participants"
+  required_fields:
+    - "annual_cost"
+    - "annual_savings"
+    - "y_opened"
+  preprocessing:
+    - "Standardize annual_cost and annual_savings to z-scores"
+    - "Filter to records with non-null outcome"
+
+# Model outputs
+outputs:
+  - name: "open_probability"
+    description: "Predicted probability of email open"
+  - name: "credible_interval"
+    description: "Credible interval bounds for prediction"
+  - name: "odds_ratios"
+    description: "Odds ratios for each coefficient"
+  - name: "coefficient_summary"
+    description: "Posterior summary statistics for all parameters"

@@ -4,13 +4,13 @@ Base class for all Bayesian models with metadata support
 Directory Structure:
     src/bayesian_models/{model_id}/     # Model definition
         config.yaml                      # Metadata and inference params
-        {model_id}.py                    # Model implementation
-        {model_id}_data.py               # Data loading (optional)
+        model.py                         # Model implementation
+        model_data.py                    # Data loading (optional)
 
-    models/{model_id}/                   # Model outputs (created by training)
+    data/inference/{model_id}/           # Model outputs (created by training)
         traces/                          # MCMC traces (.nc files)
         reports/                         # Summary stats, metrics (.csv, .json)
-        diagrams/                        # Visualizations (.png, .svg)
+        diagrams/                        # Visualizations, DAGs (.png, .svg)
         checkpoints/                     # Model checkpoints for inference
 """
 from abc import ABC, abstractmethod
@@ -22,9 +22,11 @@ from src.utils.log_manager import LogManager
 
 logger = LogManager().get_logger(__name__)
 
-# Project root directory (where models/ output folder lives)
+# Project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_OUTPUT_DIR = PROJECT_ROOT / 'models'
+
+# Model outputs stored in data/inference/{model_id}/
+MODELS_OUTPUT_DIR = PROJECT_ROOT / 'data' / 'inference'
 
 
 class InferenceParameter:
