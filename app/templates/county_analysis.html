@@ -1,0 +1,1102 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<style>
+    .analysis-card {
+        border: none;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    .chart-container {
+        position: relative;
+        height: 350px;
+    }
+    .stats-card {
+        background: var(--bg-dark-secondary);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .stats-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+    .stats-label {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 3rem;
+    }
+    .county-select {
+        font-size: 1.1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        border: 2px solid var(--border-dark);
+        background-color: var(--bg-dark-secondary);
+        color: #e5e5e5;
+        min-width: 250px;
+    }
+    .county-select:focus {
+        border-color: var(--primary-color);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+    }
+    .analysis-section {
+        display: none;
+    }
+    .analysis-section.active {
+        display: block;
+    }
+    .btn-analyze {
+        padding: 0.75rem 2rem;
+        font-size: 1.1rem;
+    }
+    .income-level-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        margin-right: 0.25rem;
+    }
+    .income-bracket-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .income-bracket-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+    .income-bracket-btn.active {
+        border-color: #fff;
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+    }
+    .income-bracket-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .energy-burden-section {
+        display: none;
+    }
+    .energy-burden-section.active {
+        display: block;
+    }
+    .burden-stats-card {
+        background: linear-gradient(135deg, var(--bg-dark-secondary) 0%, rgba(255,193,7,0.1) 100%);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .burden-stats-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #ffc107;
+    }
+    .percentile-stats-card {
+        background: linear-gradient(135deg, var(--bg-dark-secondary) 0%, rgba(13,110,253,0.1) 100%);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .percentile-stats-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .charts-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+    }
+    .chart-col {
+        flex: 1;
+        min-width: 400px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="county-analysis-section py-5">
+    <div class="container">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-5 fw-bold">
+                    <i class="bi bi-geo-alt-fill"></i> County Analysis
+                </h1>
+                <p class="lead text-muted">
+                    Analyze demographic and income data at the county level.
+                </p>
+            </div>
+        </div>
+
+        <!-- County Selection -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card analysis-card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <label for="countySelect" class="form-label fw-bold">Select County</label>
+                                <select id="countySelect" class="form-select county-select">
+                                    <option value="">-- Select a County --</option>
+                                    {% for county in counties %}
+                                    <option value="{{ county }}">{{ county }} County</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                                <button id="analyzeIncomeBtn" class="btn btn-primary btn-analyze" disabled>
+                                    <i class="bi bi-bar-chart-fill"></i> Analyze Income Distribution
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading-spinner">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Analyzing county data...</p>
+        </div>
+
+        <!-- Error Display -->
+        <div id="errorAlert" class="alert alert-danger" style="display: none;">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span id="errorMessage"></span>
+        </div>
+
+        <!-- Income Distribution Section -->
+        <div id="incomeSection" class="analysis-section">
+            <!-- Summary Stats Row -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-value" id="totalRecords">0</div>
+                        <div class="stats-label">Total Records</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-value" id="meanIncome">$0</div>
+                        <div class="stats-label">Mean Income</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-value" id="medianIncome">$0</div>
+                        <div class="stats-label">Median Income</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="stats-value" id="incomeRange">$0</div>
+                        <div class="stats-label">Income Range</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row">
+                <!-- Histogram -->
+                <div class="col-lg-7 mb-4">
+                    <div class="card analysis-card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Income Level Distribution (Histogram)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="incomeHistogram"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pie Chart -->
+                <div class="col-lg-5 mb-4">
+                    <div class="card analysis-card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Income Level Breakdown</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="incomePieChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Income Bracket Selector - Click for Energy Burden -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card analysis-card">
+                        <div class="card-body">
+                            <h6 class="mb-3">
+                                <i class="bi bi-lightning-charge"></i> Energy Burden by Income Bracket
+                                <small class="text-muted ms-2">Click a bracket to view energy burden distribution</small>
+                            </h6>
+                            <div class="d-flex flex-wrap gap-2" id="incomeBracketButtons">
+                                <button class="btn btn-secondary income-bracket-btn" data-bracket="all" disabled>All</button>
+                                <button class="btn btn-danger income-bracket-btn" data-bracket="0" disabled>$0-15k</button>
+                                <button class="btn btn-danger income-bracket-btn" data-bracket="1" disabled>$15k-25k</button>
+                                <button class="btn btn-warning income-bracket-btn" data-bracket="2" disabled>$25k-35k</button>
+                                <button class="btn btn-warning income-bracket-btn" data-bracket="3" disabled>$35k-50k</button>
+                                <button class="btn btn-info income-bracket-btn" data-bracket="4" disabled>$50k-75k</button>
+                                <button class="btn btn-primary income-bracket-btn" data-bracket="5" disabled>$75k-100k</button>
+                                <button class="btn btn-primary income-bracket-btn" data-bracket="6" disabled>$100k-150k</button>
+                                <button class="btn btn-success income-bracket-btn" data-bracket="7" disabled>$150k+</button>
+                            </div>
+                            <small class="text-muted mt-2 d-block">
+                                <i class="bi bi-info-circle"></i> Energy burden = annual energy cost / annual income (as percentage).
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Energy Burden Section (shown when income level selected) -->
+            <div id="energyBurdenSection" class="energy-burden-section">
+                <!-- Energy Burden Loading -->
+                <div id="burdenLoadingSpinner" class="loading-spinner" style="display: none;">
+                    <div class="spinner-border text-warning" role="status" style="width: 2rem; height: 2rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading energy burden data...</p>
+                </div>
+
+                <!-- Energy Burden Stats -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h5 class="mb-3">
+                            <i class="bi bi-lightning-charge text-warning"></i>
+                            Energy Burden for Income Bracket <span id="selectedIncomeBracket" class="badge bg-secondary">-</span>
+                        </h5>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="burden-stats-card">
+                            <div class="burden-stats-value" id="burdenRecords">0</div>
+                            <div class="stats-label">Records</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="burden-stats-card">
+                            <div class="burden-stats-value" id="meanBurden">0%</div>
+                            <div class="stats-label">Mean Burden</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="burden-stats-card">
+                            <div class="burden-stats-value" id="medianBurden">0%</div>
+                            <div class="stats-label">Median Burden</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="burden-stats-card">
+                            <div class="burden-stats-value" id="maxBurden">0%</div>
+                            <div class="stats-label">Max Burden</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row - Energy Burden and Percentile Distribution side by side -->
+                <div class="charts-row">
+                    <!-- Energy Burden Histogram -->
+                    <div class="chart-col">
+                        <div class="card analysis-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-bar-chart text-warning"></i>
+                                    Energy Burden Distribution
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="energyBurdenHistogram"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Energy Percentile Distribution -->
+                    <div class="chart-col">
+                        <div class="card analysis-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-speedometer2 text-primary"></i>
+                                    Energy Use Percentile (vs Comparable Homes)
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <!-- Percentile Loading -->
+                                <div id="percentileLoadingSpinner" class="loading-spinner" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status" style="width: 2rem; height: 2rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-2 text-muted">Loading percentile data...</p>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="percentileHistogram"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Percentile Stats Row -->
+                <div class="row mt-4" id="percentileStatsRow" style="display: none;">
+                    <div class="col-12">
+                        <h6 class="mb-3">
+                            <i class="bi bi-speedometer2 text-primary"></i>
+                            Energy Percentile Statistics
+                            <small class="text-muted ms-2">Higher percentile = higher energy use relative to similar homes</small>
+                        </h6>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="percentile-stats-card">
+                            <div class="percentile-stats-value" id="percentileRecords">0</div>
+                            <div class="stats-label">Records with Percentile</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="percentile-stats-card">
+                            <div class="percentile-stats-value" id="meanPercentile">0%</div>
+                            <div class="stats-label">Mean Percentile</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="percentile-stats-card">
+                            <div class="percentile-stats-value" id="medianPercentile">0%</div>
+                            <div class="stats-label">Median Percentile</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="percentile-stats-card">
+                            <div class="percentile-stats-value" id="percentileCoverage">0%</div>
+                            <div class="stats-label">Coverage</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Placeholder for Future Analysis Tools -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card analysis-card bg-dark">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-tools text-muted" style="font-size: 2rem;"></i>
+                        <p class="text-muted mt-2 mb-0">
+                            More analysis tools coming soon: Energy Burden Analysis, Demographic Breakdown, Geographic Mapping
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const countySelect = document.getElementById('countySelect');
+    const analyzeBtn = document.getElementById('analyzeIncomeBtn');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const incomeSection = document.getElementById('incomeSection');
+    const errorAlert = document.getElementById('errorAlert');
+    const errorMessage = document.getElementById('errorMessage');
+    const incomeBracketButtons = document.querySelectorAll('.income-bracket-btn');
+    const energyBurdenSection = document.getElementById('energyBurdenSection');
+    const burdenLoadingSpinner = document.getElementById('burdenLoadingSpinner');
+
+    // Chart instances (for cleanup)
+    let histogramChart = null;
+    let pieChart = null;
+    let energyBurdenChart = null;
+    let percentileChart = null;
+
+    // Percentile section elements
+    const percentileLoadingSpinner = document.getElementById('percentileLoadingSpinner');
+    const percentileStatsRow = document.getElementById('percentileStatsRow');
+
+    // Track current county for energy burden queries
+    let currentCounty = null;
+
+    // Color palette for income charts
+    const chartColors = [
+        '#dc3545', '#e35d6a',  // 0-1: Red (lowest)
+        '#ffc107', '#ffcd39',  // 2-3: Yellow
+        '#17a2b8', '#3ab5c7',  // 4-5: Cyan
+        '#0d6efd', '#3d8bfd',  // 6-7: Blue
+        '#198754', '#3ba172'   // 8-9: Green (highest)
+    ];
+
+    // Color palette for energy burden chart (gradient from green to red)
+    const burdenColors = [
+        '#198754', '#28a745',  // 0-4%: Green (low burden - good)
+        '#6cba7c', '#8fcf9f',  // 4-8%: Light green
+        '#ffc107', '#ffcd39',  // 8-12%: Yellow (moderate)
+        '#fd7e14', '#e85d04',  // 12-16%: Orange (high)
+        '#dc3545', '#b02a37'   // 16%+: Red (very high burden)
+    ];
+
+    // Color palette for percentile chart (gradient from green to red)
+    // Low percentile = efficient (green), High percentile = high usage (red)
+    const percentileColors = [
+        '#198754', '#28a745',  // 0-20%: Green (very efficient)
+        '#6cba7c', '#8fcf9f',  // 20-40%: Light green (efficient)
+        '#ffc107', '#ffcd39',  // 40-60%: Yellow (average)
+        '#fd7e14', '#e85d04',  // 60-80%: Orange (above average)
+        '#dc3545', '#b02a37'   // 80-100%: Red (high usage)
+    ];
+
+    // Enable/disable button based on selection
+    countySelect.addEventListener('change', function() {
+        analyzeBtn.disabled = !this.value;
+        // Reset energy burden section when county changes
+        energyBurdenSection.classList.remove('active');
+        percentileStatsRow.style.display = 'none';
+        incomeBracketButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.classList.remove('active');
+        });
+        // Destroy percentile chart if exists
+        if (percentileChart) {
+            percentileChart.destroy();
+            percentileChart = null;
+        }
+    });
+
+    // Analyze button click handler
+    analyzeBtn.addEventListener('click', async function() {
+        const county = countySelect.value;
+        if (!county) return;
+
+        // Show loading, hide results and errors
+        loadingSpinner.style.display = 'block';
+        incomeSection.classList.remove('active');
+        hideAlerts();
+        analyzeBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/county-analysis/income-distribution', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ county: county })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                if (data.data_status === 'unavailable') {
+                    displayNoDataMessage(data);
+                } else {
+                    displayIncomeData(data);
+                }
+            } else {
+                showError(data.error || 'An error occurred');
+            }
+        } catch (err) {
+            showError('Network error: ' + err.message);
+        } finally {
+            loadingSpinner.style.display = 'none';
+            analyzeBtn.disabled = false;
+        }
+    });
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorAlert.className = 'alert alert-danger';
+        errorAlert.style.display = 'block';
+    }
+
+    function hideAlerts() {
+        errorAlert.style.display = 'none';
+        errorAlert.className = 'alert alert-danger';  // Reset to default
+    }
+
+    function displayNoDataMessage(data) {
+        // Show the section but with a "no data" message
+        incomeSection.classList.add('active');
+
+        // Update stats to show N/A
+        document.getElementById('totalRecords').textContent = '0';
+        document.getElementById('meanIncome').textContent = 'N/A';
+        document.getElementById('medianIncome').textContent = 'N/A';
+        document.getElementById('modeIncome').textContent = 'N/A';
+
+        // Destroy existing charts
+        if (histogramChart) histogramChart.destroy();
+        if (pieChart) pieChart.destroy();
+
+        // Create empty histogram with message
+        const histogramCtx = document.getElementById('incomeHistogram').getContext('2d');
+        histogramChart = new Chart(histogramCtx, {
+            type: 'bar',
+            data: {
+                labels: ['No Data Available'],
+                datasets: [{
+                    label: 'No Data',
+                    data: [0],
+                    backgroundColor: '#6c757d'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: [data.county + ' County - Income Data Unavailable', data.message || ''],
+                        color: '#ffc107',
+                        font: { size: 14 }
+                    }
+                }
+            }
+        });
+
+        // Create empty pie chart with message
+        const pieCtx = document.getElementById('incomePieChart').getContext('2d');
+        pieChart = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['No Data'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: ['#6c757d'],
+                    borderColor: '#1a1a2e',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: 'Income data needs to be calculated',
+                        color: '#ffc107'
+                    }
+                }
+            }
+        });
+
+        // Disable income bracket buttons since there's no data
+        currentCounty = null;
+        incomeBracketButtons.forEach(btn => {
+            btn.disabled = true;
+        });
+        energyBurdenSection.classList.remove('active');
+
+        // Show info alert about missing data
+        showWarning(data.message + (data.total_in_collection ? ` (${data.total_in_collection.toLocaleString()} total records in collection)` : ''));
+    }
+
+    function showWarning(message) {
+        errorMessage.textContent = message;
+        errorAlert.className = 'alert alert-warning';
+        errorAlert.style.display = 'block';
+    }
+
+    function formatCurrency(value) {
+        if (value === null || value === undefined) return 'N/A';
+        return '$' + Math.round(value).toLocaleString();
+    }
+
+    function displayIncomeData(data) {
+        // Update stats
+        document.getElementById('totalRecords').textContent = data.total_records.toLocaleString();
+        document.getElementById('meanIncome').textContent = formatCurrency(data.statistics.mean_income);
+        document.getElementById('medianIncome').textContent = formatCurrency(data.statistics.median_income);
+
+        // Show income range
+        const minIncome = data.statistics.min_income;
+        const maxIncome = data.statistics.max_income;
+        if (minIncome && maxIncome) {
+            document.getElementById('incomeRange').textContent = formatCurrency(minIncome) + ' - ' + formatCurrency(maxIncome);
+        } else {
+            document.getElementById('incomeRange').textContent = 'N/A';
+        }
+
+        // Destroy existing charts if they exist
+        if (histogramChart) {
+            histogramChart.destroy();
+        }
+        if (pieChart) {
+            pieChart.destroy();
+        }
+
+        // Create Histogram
+        const histogramCtx = document.getElementById('incomeHistogram').getContext('2d');
+        histogramChart = new Chart(histogramCtx, {
+            type: 'bar',
+            data: {
+                labels: data.histogram.labels,
+                datasets: [{
+                    label: 'Number of People',
+                    data: data.histogram.counts,
+                    backgroundColor: chartColors,
+                    borderColor: chartColors.map(c => c),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: data.county + ' County - Income Distribution',
+                        color: '#e5e5e5'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const count = context.raw;
+                                const percentage = ((count / data.total_records) * 100).toFixed(1);
+                                return `${count.toLocaleString()} people (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#adb5bd'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Number of People',
+                            color: '#e5e5e5'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#adb5bd'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Income Bracket',
+                            color: '#e5e5e5'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Create Pie Chart
+        const pieCtx = document.getElementById('incomePieChart').getContext('2d');
+        pieChart = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: data.histogram.labels,
+                datasets: [{
+                    data: data.histogram.counts,
+                    backgroundColor: chartColors,
+                    borderColor: '#1a1a2e',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#e5e5e5',
+                            padding: 10,
+                            usePointStyle: true
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Income Bracket Proportion',
+                        color: '#e5e5e5'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const count = context.raw;
+                                const percentage = ((count / data.total_records) * 100).toFixed(1);
+                                return `${context.label}: ${count.toLocaleString()} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Show the results section
+        incomeSection.classList.add('active');
+
+        // Store current county and enable income bracket buttons
+        currentCounty = data.county;
+        incomeBracketButtons.forEach(btn => {
+            btn.disabled = false;
+        });
+
+        // Reset energy burden section
+        energyBurdenSection.classList.remove('active');
+        incomeBracketButtons.forEach(btn => btn.classList.remove('active'));
+    }
+
+    // Income bracket button click handlers
+    incomeBracketButtons.forEach(btn => {
+        btn.addEventListener('click', async function() {
+            if (this.disabled || !currentCounty) return;
+
+            // Handle both "all" and numeric bracket indices
+            const bracketRaw = this.dataset.bracket;
+            const bracketIndex = bracketRaw === 'all' ? 'all' : parseInt(bracketRaw);
+            const bracketLabel = this.textContent;
+
+            // Update active state
+            incomeBracketButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            // Update selected bracket badge
+            document.getElementById('selectedIncomeBracket').textContent = bracketLabel;
+            document.getElementById('selectedIncomeBracket').className = 'badge ' + this.className.split(' ').find(c => c.startsWith('btn-')).replace('btn-', 'bg-');
+
+            // Show loading for both charts
+            energyBurdenSection.classList.add('active');
+            burdenLoadingSpinner.style.display = 'block';
+            percentileLoadingSpinner.style.display = 'block';
+
+            // Fetch both energy burden and percentile data in parallel
+            const requestBody = JSON.stringify({
+                county: currentCounty,
+                bracket_index: bracketIndex
+            });
+
+            try {
+                const [burdenResponse, percentileResponse] = await Promise.all([
+                    fetch('/api/county-analysis/energy-burden-by-income', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: requestBody
+                    }),
+                    fetch('/api/county-analysis/percentile-distribution-by-income', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: requestBody
+                    })
+                ]);
+
+                const burdenData = await burdenResponse.json();
+                const percentileData = await percentileResponse.json();
+
+                if (burdenData.success) {
+                    displayEnergyBurdenData(burdenData);
+                } else {
+                    showError(burdenData.error || 'An error occurred loading energy burden data');
+                }
+
+                if (percentileData.success) {
+                    displayPercentileData(percentileData);
+                } else {
+                    // Don't show error for percentile - it may just not have data yet
+                    displayPercentileData({ success: true, histogram: { labels: [], counts: [] }, total_records: 0 });
+                }
+            } catch (err) {
+                showError('Network error: ' + err.message);
+            } finally {
+                burdenLoadingSpinner.style.display = 'none';
+                percentileLoadingSpinner.style.display = 'none';
+            }
+        });
+    });
+
+    function displayEnergyBurdenData(data) {
+        // Update stats
+        document.getElementById('burdenRecords').textContent = data.total_records.toLocaleString();
+
+        if (data.statistics && Object.keys(data.statistics).length > 0) {
+            document.getElementById('meanBurden').textContent = data.statistics.mean_burden + '%';
+            document.getElementById('medianBurden').textContent = data.statistics.median_burden + '%';
+            document.getElementById('maxBurden').textContent = data.statistics.max_burden + '%';
+        } else {
+            document.getElementById('meanBurden').textContent = 'N/A';
+            document.getElementById('medianBurden').textContent = 'N/A';
+            document.getElementById('maxBurden').textContent = 'N/A';
+        }
+
+        // Destroy existing chart if it exists
+        if (energyBurdenChart) {
+            energyBurdenChart.destroy();
+        }
+
+        // Create Energy Burden Histogram
+        const ctx = document.getElementById('energyBurdenHistogram').getContext('2d');
+
+        if (data.histogram.labels.length === 0) {
+            // No data case
+            energyBurdenChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['No Data'],
+                    datasets: [{
+                        label: 'No records found',
+                        data: [0],
+                        backgroundColor: '#6c757d'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'No energy burden data available for this income level',
+                            color: '#e5e5e5'
+                        }
+                    }
+                }
+            });
+            return;
+        }
+
+        energyBurdenChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.histogram.labels,
+                datasets: [{
+                    label: 'Number of Households',
+                    data: data.histogram.counts,
+                    backgroundColor: burdenColors,
+                    borderColor: burdenColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: `${data.county} County - Energy Burden for ${data.income_bracket}`,
+                        color: '#e5e5e5'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const count = context.raw;
+                                const percentage = ((count / data.total_records) * 100).toFixed(1);
+                                return `${count.toLocaleString()} households (${percentage}%)`;
+                            },
+                            afterLabel: function(context) {
+                                const label = context.label;
+                                if (label.includes('20%+')) {
+                                    return 'High energy burden - may need assistance';
+                                } else if (label.includes('10-') || label.includes('12-') || label.includes('14-')) {
+                                    return 'Moderate energy burden';
+                                }
+                                return '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#adb5bd'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Number of Households',
+                            color: '#e5e5e5'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#adb5bd'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Energy Burden (% of Income)',
+                            color: '#e5e5e5'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function displayPercentileData(data) {
+        // Update stats
+        document.getElementById('percentileRecords').textContent = data.total_records.toLocaleString();
+
+        if (data.statistics && Object.keys(data.statistics).length > 0) {
+            document.getElementById('meanPercentile').textContent = data.statistics.mean_percentile + '%';
+            document.getElementById('medianPercentile').textContent = data.statistics.median_percentile + '%';
+            // Calculate coverage percentage
+            const coverage = data.total_in_bracket > 0
+                ? Math.round((data.total_records / data.total_in_bracket) * 100)
+                : 0;
+            document.getElementById('percentileCoverage').textContent = coverage + '%';
+            percentileStatsRow.style.display = 'flex';
+        } else {
+            document.getElementById('meanPercentile').textContent = 'N/A';
+            document.getElementById('medianPercentile').textContent = 'N/A';
+            document.getElementById('percentileCoverage').textContent = 'N/A';
+            percentileStatsRow.style.display = 'none';
+        }
+
+        // Destroy existing chart if it exists
+        if (percentileChart) {
+            percentileChart.destroy();
+        }
+
+        // Create Percentile Histogram
+        const ctx = document.getElementById('percentileHistogram').getContext('2d');
+
+        if (!data.histogram.labels || data.histogram.labels.length === 0) {
+            // No data case - show informative message
+            percentileChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Awaiting Data'],
+                    datasets: [{
+                        label: 'Percentile calculation in progress',
+                        data: [0],
+                        backgroundColor: '#6c757d'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: data.message || 'Energy percentile data not yet available',
+                            color: '#ffc107',
+                            font: { size: 14 }
+                        },
+                        subtitle: {
+                            display: true,
+                            text: data.total_in_bracket ? `${data.total_in_bracket.toLocaleString()} properties in bracket` : '',
+                            color: '#adb5bd'
+                        }
+                    }
+                }
+            });
+            return;
+        }
+
+        percentileChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.histogram.labels,
+                datasets: [{
+                    label: 'Number of Properties',
+                    data: data.histogram.counts,
+                    backgroundColor: percentileColors,
+                    borderColor: percentileColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: `${data.county} County - Energy Percentile for ${data.income_bracket}`,
+                        color: '#e5e5e5'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const count = context.raw;
+                                const percentage = ((count / data.total_records) * 100).toFixed(1);
+                                return `${count.toLocaleString()} properties (${percentage}%)`;
+                            },
+                            afterLabel: function(context) {
+                                const label = context.label;
+                                if (label.includes('0-10%') || label.includes('10-20%')) {
+                                    return 'Low energy usage relative to similar homes';
+                                } else if (label.includes('80-90%') || label.includes('90-100%')) {
+                                    return 'High energy usage - efficiency opportunity';
+                                }
+                                return '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#adb5bd'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Number of Properties',
+                            color: '#e5e5e5'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#adb5bd'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Energy Percentile (vs Comparable Homes)',
+                            color: '#e5e5e5'
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

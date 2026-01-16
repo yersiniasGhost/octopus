@@ -653,3 +653,488 @@ python src/bayesian_scripts/train_model_03_demographics.py --help
 ```
 
 Output: Model artifacts in `data/inference/model_03_demographics/` ready for UI visualization and inference.
+
+### train_messaging_effectiveness.py
+**Purpose**: Train the 2-Stage Messaging Effectiveness Model using the registry-based architecture.
+
+Analyzes the email campaign funnel with hierarchical Bayesian modeling:
+- Stage 1: P(Open | features) - What drives email opens?
+- Stage 2: P(Click | Open, features) - What drives clicks among openers?
+
+Features:
+- 2-stage hierarchical model with campaign random effects
+- Non-centered parameterization for stable MCMC sampling
+- Multiple effect types:
+  - Campaign random effects (partial pooling across campaigns)
+  - Message type effects (cost_framing, savings_framing, urgency, personalization, etc.)
+  - Location effects (city/zip geographic variation)
+  - Monthly seasonal effects (12 month indicators)
+  - Offer characteristics (savings, cost, kWh as continuous predictors)
+- Outputs saved to `data/inference/messaging_effectiveness/`:
+  - `traces/`: MCMC trace files (.nc NetCDF format)
+  - `reports/`: Effect summaries, diagnostics, campaign rankings
+  - `diagrams/`: Trace plots, forest plots for message types and campaigns
+  - `checkpoints/`: Model state for inference
+
+Prerequisites:
+```bash
+# Prepare data first (creates pickle files from CSV exports)
+python src/bayesian_scripts_orig/prepare_messaging_data.py
+```
+
+Usage:
+```bash
+# Train with defaults (POC subset, 2000 draws, 4 chains)
+python src/bayesian_scripts/train_messaging_effectiveness.py
+
+# Use full dataset
+python src/bayesian_scripts/train_messaging_effectiveness.py --full-data
+
+# Custom sampling parameters
+python src/bayesian_scripts/train_messaging_effectiveness.py --draws 3000 --chains 4 --tune 1500
+
+# Show campaign rankings after training
+python src/bayesian_scripts/train_messaging_effectiveness.py --show-rankings
+
+# Dry run - load data only, validate model structure
+python src/bayesian_scripts/train_messaging_effectiveness.py --dry-run
+
+# View all options
+python src/bayesian_scripts/train_messaging_effectiveness.py --help
+```
+
+Output: Model artifacts in `data/inference/messaging_effectiveness/` including campaign performance rankings with credible intervals.
+
+**Results Interpretation**: See `.claude_docs/20260101_1545_messaging_effectiveness_results.md` for detailed analysis of model findings, strategic recommendations, and campaign rankings.
+
+### train_model_04_campaign_effects.py
+**Purpose**: Train the Campaign Treatment Effects Model (Model 04) for causal estimation of message type effects.
+
+This is a Level 4 model in the causal progression, designed for campaign optimization. It estimates causal effects of campaign message types on click behavior with proper confounding control.
+
+Features:
+- Treatment variable: message_types (6 categories, multi-label)
+- Confounding control: income, energy_burden, county
+- County random effects for geographic variation
+- Multi-label treatment handling (campaigns can have multiple message types)
+- E-value sensitivity analysis for unmeasured confounding
+- Comprehensive validation and diagnostic output
+
+Research Questions Addressed:
+1. Which message types drive highest click-through rates?
+2. What are the relative effect sizes of different messaging strategies?
+3. How robust are treatment effects to unmeasured confounding?
+
+Causal Identification:
+- Adjustment set: {income, energy_burden, county}
+- Blocks backdoor paths from selection mechanism
+
+Usage:
+```bash
+# Train with defaults (2000 draws, 4 chains)
+python src/bayesian_scripts/train_model_04_campaign_effects.py
+
+# Quick test run (500 draws, 2 chains)
+python src/bayesian_scripts/train_model_04_campaign_effects.py --quick
+
+# With post-training validation
+python src/bayesian_scripts/train_model_04_campaign_effects.py --validate
+
+# View all options
+python src/bayesian_scripts/train_model_04_campaign_effects.py --help
+```
+
+Output: Model artifacts in `data/inference/model_04_campaign_effects/` including treatment effect estimates with E-values, county effects, and validation diagnostics.
+
+## Bayesian Model Validation (scripts/ and src/bayesian_models/validation/)
+
+### validate_bayesian_model.py
+**Purpose**: Run comprehensive validation on any trained Bayesian model.
+
+Performs McElreath's Statistical Rethinking validation methodology:
+- Convergence diagnostics (R-hat < 1.01, ESS > 400, no divergences)
+- Posterior predictive checks for calibration
+- PSIS-LOO cross-validation for model comparison
+- E-values for causal sensitivity analysis
+- Generates diagnostic plots for UI display
+
+Usage:
+```bash
+# Validate a trained model
+python scripts/validate_bayesian_model.py model_04_campaign_effects
+
+# With diagnostic plots
+python scripts/validate_bayesian_model.py model_03_demographics --plots
+
+# Export JSON report
+python scripts/validate_bayesian_model.py model_04_campaign_effects --output-json report.json
+
+# Skip LOO for faster validation
+python scripts/validate_bayesian_model.py model_04_campaign_effects --no-loo
+```
+
+Output: Detailed validation report with pass/fail status, recommendations, and optional plots.
+
+### train_model_05_rate_energy_income.py
+**Purpose**: Train the Click Rate by Energy Cost × Income Category Model (Model 05).
+
+A hierarchical Bayesian model using energy cost and income category as separate predictors with varying slopes. This design avoids information loss from discretizing the derived energy burden ratio.
+
+Model Structure:
+- `logit(p) = α + β·energy_cost + γ[income_cat] + δ[income_cat]·energy_cost`
+- 10 income categories with hierarchical partial pooling
+- Varying slopes δ[k] capture how energy cost effect differs by income
+- Implicitly models energy burden without discretization
+
+Key Features:
+- Base rate centered at 2.5% click rate (α ~ Normal(-3.7, 0.5))
+- Non-centered parameterization for stable sampling
+- GPU acceleration via NumPyro backend
+- Comprehensive diagnostic and visualization outputs
+
+Outputs saved to `data/inference/model_05_rate_energy_income/`:
+- `traces/`: MCMC trace files (.nc NetCDF format)
+- `reports/`: Category effects, varying slopes, diagnostics
+- `diagrams/`: DAG, interaction plots, forest plots for γ and δ
+- `checkpoints/`: Scaler parameters for inference
+
+Usage:
+```bash
+# Train with defaults (2000 draws, 4 chains, GPU)
+python src/bayesian_scripts/train_model_05_rate_energy_income.py
+
+# Custom sampling parameters
+python src/bayesian_scripts/train_model_05_rate_energy_income.py --draws 3000 --chains 4
+
+# Disable GPU (use CPU only)
+python src/bayesian_scripts/train_model_05_rate_energy_income.py --no-gpu
+
+# Dry run - load data only, validate structure
+python src/bayesian_scripts/train_model_05_rate_energy_income.py --dry-run
+
+# View all options
+python src/bayesian_scripts/train_model_05_rate_energy_income.py --help
+```
+
+Output: Model artifacts ready for UI visualization. Includes income category comparison table and slope variation analysis.
+
+### generate_data_summary.py
+**Purpose**: Generate data ingestion summaries for trained Bayesian models.
+
+Creates detailed JSON summary files documenting what data was used to train each model:
+- Total participants, observations, campaigns, counties
+- Click/engagement rates
+- Per-county breakdown with participant counts and click rates
+- Per-campaign breakdown with exposure counts and message types
+- Missing data statistics (no demographics, no county, excluded records)
+- Treatment variable summaries for causal models
+
+The summaries are displayed in the Inference Models UI under the "Data Summary" tab.
+
+Usage:
+```bash
+# Generate for specific model
+python scripts/generate_data_summary.py --model model_04_campaign_effects
+
+# Generate for all models with registered generators
+python scripts/generate_data_summary.py --all
+
+# List available models
+python scripts/generate_data_summary.py --list
+```
+
+Output: `data/inference/{model_id}/reports/data_summary.json`
+
+### Validation Framework (src/bayesian_models/validation/)
+Reusable validation module for programmatic and UI integration:
+- `ModelValidator`: Main validation class
+- `diagnostics.py`: Convergence checks, E-values, LOO, PPC
+- `visualizations.py`: Forest plots, calibration plots, E-value charts
+
+Usage in code:
+```python
+from src.bayesian_models.validation import ModelValidator
+
+validator = ModelValidator(trace, treatment_effects=effects)
+report = validator.full_validation()
+ui_summary = validator.get_summary_for_ui()  # For dashboard display
+validator.generate_all_plots(output_dir, return_base64=True)  # For web
+```
+
+## Data Enrichment
+
+### enrich_thermal_loads.py
+**Purpose**: Enrich participants with thermal load data from county-specific collections.
+
+Joins participant data (via parcel_id) with thermal load regression analysis:
+- Reads from `campaign_data.participants` (with `linkage.parcel_id`)
+- Matches to `empower_development.{County}ThermalLoads` collections
+- Adds heating/cooling load regression coefficients to participant records
+
+Fields added to participants:
+- `thermal.kwh_hl_slope`: Heating load slope (kWh/HDD)
+- `thermal.kwh_hl_intercept`: Heating load intercept
+- `thermal.kwh_hl_r2`: Heating load R² fit quality
+- `thermal.kwh_cl_slope`: Cooling load slope (kWh/CDD)
+- `thermal.kwh_cl_intercept`: Cooling load intercept
+- `thermal.kwh_cl_r2`: Cooling load R² fit quality
+- `thermal.enriched_at`: Timestamp of enrichment
+- `thermal.source_collection`: Source collection name
+- `thermal.county`: Normalized county name
+
+Coverage Notes (as of 2026-01-04):
+- 43.8% overall coverage (3,265 / 7,446 participants with parcel_id)
+- 100% coverage in: Allen, Athens, Fayette, Marion, Morrow, Richland
+- 0% coverage in: Belmont, Coshocton, Guernsey, Harrison, Holmes, Morgan, Muskingum
+- The 0% counties have no overlapping parcels between participant data and thermal analysis
+
+Usage:
+```bash
+# Dry run (preview changes)
+python scripts/enrich_thermal_loads.py --dry-run
+
+# Run enrichment
+python scripts/enrich_thermal_loads.py
+
+# Specific county only
+python scripts/enrich_thermal_loads.py --county "Hennepin"
+
+# Re-enrich already enriched participants
+python scripts/enrich_thermal_loads.py --force
+
+# Verbose output
+python scripts/enrich_thermal_loads.py --verbose
+```
+
+## Data Quality
+
+### fix_income_mismatches_tool.py
+**Purpose**: Identify and fix mismatches between `income_level` and `estimated_income` in demographic data.
+
+Analyzes the relationship between the categorical `income_level` (1-9 scale) and the dollar-based `estimated_income` field. Records where these don't align (e.g., income_level=6 but estimated_income=$7,500) are flagged and can be corrected.
+
+The script:
+1. Calculates median income for each income_level from the data
+2. Flags records where estimated_income is outside the expected IQR range
+3. Exports mismatches to CSV for review
+4. Fixes by setting estimated_income to the median for that income_level
+5. Recalculates total_energy_burden based on corrected income
+6. Preserves original values in `*_original` fields for audit trail
+
+Fields added during fix:
+- `estimated_income_original`: Original income value before fix
+- `total_energy_burden_original`: Original burden value before fix
+- `income_fix_date`: ISO timestamp of when fix was applied
+- `income_fix_reason`: Reason for the fix
+
+Usage:
+```bash
+# Analyze data and show statistics
+python scripts/fix_income_mismatches_tool.py --analyze
+
+# Export mismatches to CSV
+python scripts/fix_income_mismatches_tool.py --export --output data/exports/income_mismatches.csv
+
+# Preview what would be fixed (dry run)
+python scripts/fix_income_mismatches_tool.py --fix --dry-run
+
+# Apply fixes to database
+python scripts/fix_income_mismatches_tool.py --fix
+```
+
+Results (2026-01-14): Fixed 4,378 records in FranklinCountyDemographic. Eliminated all records with >100% energy burden.
+
+## Comparable Residence Finder (src/tools/comparables/)
+
+A reusable tool for finding comparable residences based on property characteristics, demographics, and energy consumption patterns.
+
+### Purpose
+When analyzing energy usage or targeting campaign outreach, we need to compare "apples to apples" - a 5000 sqft mansion's energy costs shouldn't be compared directly to a 1500 sqft ranch. The ComparableFinder locates similar homes within the same geographic area to enable fair comparisons.
+
+### Core Classes
+
+**ComparableFinder**: Main finder class that combines data from multiple collections:
+- `{County}Residential`: Physical property data (sqft, stories, age, rooms)
+- `{County}Demographic`: Occupant data (household size, income, energy costs)
+- `{County}ThermalLoads`: Energy consumption patterns (heating/cooling loads)
+
+**ComparableFilters**: Optional filter configuration with all fields optional:
+- Geographic: `same_zip`, `same_city`, `zip_codes`, `census_tract`
+- Physical: `sqft_tolerance`, `story_height_tolerance/exact`, `age_tolerance`
+- Rooms: `bedrooms_tolerance/exact`, `bathrooms_tolerance`
+- Construction: `construction_quality`, `heat_type`, `air_conditioning`
+- Demographic: `household_size_tolerance/exact`, `income_tolerance/pct`
+- Energy: `energy_burden_max`, `annual_kwh_cost_max`
+- Exclusions: `exclude_parcel_ids`
+
+**ScoringWeights**: Configurable weights for similarity scoring:
+- Default weights prioritize physical characteristics (sqft=3.0, story=2.0, age=2.0)
+- Configurable reference ranges for normalization
+
+### Usage Examples
+
+```python
+from src.tools.comparables import ComparableFinder, ComparableFilters
+from src.tools.mongo import get_empower_db
+
+db = get_empower_db()
+finder = ComparableFinder(db, county='FranklinCounty')
+
+# Basic: Find 10 most similar homes
+results = finder.find_comparables('21425802C', n_results=10)
+for comp in results.comparables:
+    print(f"{comp.address}: {comp.score.overall_score:.2f} similarity")
+
+# With filters: Same ZIP, similar size, exact story match
+filters = ComparableFilters(
+    same_zip=True,
+    sqft_tolerance=500,  # +/- 500 sqft
+    story_height_exact=True,
+    age_tolerance=10,  # +/- 10 years
+    household_size_tolerance=1  # +/- 1 person
+)
+results = finder.find_comparables('21425802C', n_results=10, filters=filters)
+
+# By address lookup
+results = finder.find_comparables_for_address(
+    '1050 STONEWOOD CT',
+    zip_code=44145,
+    n_results=5
+)
+```
+
+### Return Values
+
+**ComparableSearchResult** contains:
+- `target_parcel_id`, `target_address`, `county`: Target property info
+- `target_sqft`, `target_stories`, `target_age`, `target_household_size`: Target characteristics
+- `comparables`: List of `ComparableResult` objects ranked by similarity
+- `total_candidates`: Count of candidates before final ranking
+- `avg_sqft_diff`, `avg_age_diff`, `avg_energy_cost`: Result statistics
+
+**ComparableResult** contains:
+- Property info: `parcel_id`, `address`, `city`, `zip_code`
+- Characteristics: `living_area_sqft`, `story_height`, `age`, `bedrooms`, `bathrooms`
+- Demographics: `household_size`, `estimated_income`
+- Energy: `annual_kwh_cost`, `annual_gas_cost`, `total_energy_burden`
+- Scoring: `score` (ComparableScore with overall and per-feature scores)
+
+### EnergyPercentileCalculator
+
+Calculates energy consumption percentile for properties relative to comparable homes using scipy.stats.percentileofscore.
+
+```python
+from src.tools.comparables import EnergyPercentileCalculator, TieredFilterConfig
+
+db = get_empower_db()
+
+# Basic usage
+calculator = EnergyPercentileCalculator(db, county='Franklin')
+result = calculator.calculate_percentile(parcel_id='010-000002-00')
+
+if result.is_valid:
+    print(f"{result.annual_kwh:.0f} kWh/year")
+    print(f"{result.percentile_rank:.1f}th percentile")
+    print(f"Compared to {result.comparable_count} similar homes")
+
+# Custom configuration
+config = TieredFilterConfig(
+    sqft_pct=0.25,        # ±25% sqft range
+    age_tolerance=15,      # ±15 years
+    min_comparables=50     # Require 50 comparables before relaxing
+)
+calculator = EnergyPercentileCalculator(db, 'Franklin', config)
+
+# Batch processing with DB updates
+results = calculator.batch_calculate(parcel_ids, update_db=True)
+
+# Update single property
+result = calculator.update_property_percentile('010-000002-00')
+```
+
+**Interpretation**: Higher percentile = higher consumption. A home at the 65th percentile uses MORE electricity than 65% of comparable homes.
+
+### Similarity Scoring Algorithm
+
+Weighted similarity calculation across features:
+1. Each feature converted to 0-1 score using reference ranges
+2. Features combined using configurable weights
+3. Missing data gracefully excluded from scoring
+
+Default weights (adjustable via ScoringWeights):
+- sqft_weight=3.0, story_weight=2.0, age_weight=2.0
+- bedrooms_weight=1.5, bathrooms_weight=1.0
+- household_weight=1.5, income_weight=1.0
+
+### Tests
+
+Comprehensive test suite at `tests/test_comparable_finder.py`:
+- Scoring tests: identical/similar/different property comparisons
+- Filter tests: ZIP, sqft tolerance, story height, age tolerance
+- Integration tests: full search pipeline, result ranking
+- Edge cases: missing data, sentinel values, strict filters
+
+Run tests:
+```bash
+source venv/bin/activate && python -m pytest tests/test_comparable_finder.py -v --override-ini="addopts="
+```
+
+### calculate_energy_percentiles_tool.py
+**Purpose**: Calculate energy consumption percentile rank for residential properties relative to comparable homes.
+
+Uses scipy.stats.percentileofscore for robust percentile calculation that handles ties and edge cases. Higher percentile = higher consumption relative to peers (e.g., 65th percentile means uses more electricity than 65% of comparable homes).
+
+**Comparable Criteria (Tiered Relaxation)**:
+- Tier 1 (Core): sqft ±20%, age ±20 years, same story height
+- Tier 2 (Location): same ZIP code
+- Progressive relaxation: If <30 comparables found, constraints are relaxed step-by-step:
+  1. Expand sqft to ±30%
+  2. Remove ZIP constraint
+  3. Expand age to ±30 years
+  4. Remove story constraint
+  5. Expand sqft to ±50%
+
+**Features**:
+- Batch-optimized queries (300x faster than naive N+1 approach)
+- Annualized kWh calculation from monthly time series (requires 6+ months data)
+- Stores results to MongoDB with full criteria transparency
+- Progress reporting and CSV export
+
+**Database Storage Schema**:
+```python
+{
+    "energy_percentile": {
+        "annual_kwh": 8500,
+        "percentile_rank": 65.0,
+        "comparable_count": 127,
+        "comparable_criteria": {
+            "sqft_range": [1100, 1650],
+            "age_range": [1990, 2010],
+            "zip": 43204,
+            "story_height": 2.0,
+            "relaxations_applied": []
+        },
+        "calculated_at": "2025-01-15T20:38:00Z"
+    }
+}
+```
+
+**Usage**:
+```bash
+# Test on single parcel
+python scripts/calculate_energy_percentiles_tool.py --parcel 010-000002-00 --verbose
+
+# Process 100 properties (dry run - no DB updates)
+python scripts/calculate_energy_percentiles_tool.py --county Franklin --limit 100
+
+# Process all and save to database
+python scripts/calculate_energy_percentiles_tool.py --county Franklin --update-db
+
+# Export results to CSV
+python scripts/calculate_energy_percentiles_tool.py --county Franklin --limit 1000 -o results.csv
+
+# Process from file of parcel IDs
+python scripts/calculate_energy_percentiles_tool.py --parcel-file parcels.txt --update-db
+```
+
+**Output**: Percentile distribution summary and optional CSV with parcel_id, annual_kwh, percentile_rank, comparable_count.
