@@ -275,8 +275,17 @@ class BaseBayesianModel(ABC):
                         return False, f"{param_def.label} must be a number"
 
                 elif param_def.param_type == 'select':
-                    if param_def.options and value not in param_def.options:
-                        return False, f"{param_def.label} must be one of: {', '.join(param_def.options)}"
+                    if param_def.options:
+                        # Handle both object options {label, value} and simple string options
+                        valid_values = []
+                        for opt in param_def.options:
+                            if isinstance(opt, dict) and 'value' in opt:
+                                valid_values.append(opt['value'])
+                            else:
+                                valid_values.append(opt)
+                        if value not in valid_values:
+                            display_values = ', '.join(str(v) for v in valid_values)
+                            return False, f"{param_def.label} must be one of: {display_values}"
 
         return True, None
 

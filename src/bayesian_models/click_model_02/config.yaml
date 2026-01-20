@@ -1,5 +1,5 @@
 # Bayesian Click Model Configuration
-name: "Campaign Click Probability Model"
+name: "Campaign Click Probability Model (02)"
 description: "Bayesian hierarchical model for predicting email campaign click-through rates across different counties and demographics"
 version: "1.0"
 author: "EmpowerSaves Analytics Team"

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="analysis-section py-5">
+    <div class="container">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Analysis</li>
+                    </ol>
+                </nav>
+                <h1 class="display-4 fw-bold">
+                    <i class="bi bi-funnel-fill text-purple"></i> Participant Analysis
+                </h1>
+                <p class="lead text-muted">Create targeted participant lists based on selection criteria.</p>
+            </div>
+        </div>
+
+        <!-- Placeholder Content -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <div class="mb-4">
+                            <i class="bi bi-gear-wide-connected display-1 text-muted"></i>
+                        </div>
+                        <h3 class="text-muted">Analysis Tools Coming Soon</h3>
+                        <p class="text-muted mb-4">
+                            This page will provide tools to create new lists of participants based on selection criteria such as:
+                        </p>
+                        <div class="row justify-content-center">
+                            <div class="col-md-8">
+                                <div class="row g-3 text-start">
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                                            <i class="bi bi-geo-alt-fill text-primary me-3 fs-4"></i>
+                                            <div>
+                                                <strong>Geographic Filters</strong>
+                                                <p class="mb-0 small text-muted">County, ZIP code, region</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                                            <i class="bi bi-people-fill text-success me-3 fs-4"></i>
+                                            <div>
+                                                <strong>Demographics</strong>
+                                                <p class="mb-0 small text-muted">Income, energy usage, property type</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                                            <i class="bi bi-bar-chart-fill text-info me-3 fs-4"></i>
+                                            <div>
+                                                <strong>Engagement Metrics</strong>
+                                                <p class="mb-0 small text-muted">Open rates, click rates, response history</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                                            <i class="bi bi-bullseye text-warning me-3 fs-4"></i>
+                                            <div>
+                                                <strong>Campaign History</strong>
+                                                <p class="mb-0 small text-muted">Previous campaigns, conversion status</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr class="my-4">
+                        <p class="text-muted small">
+                            <i class="bi bi-info-circle"></i>
+                            Functionality will include list creation, preview, and export capabilities.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

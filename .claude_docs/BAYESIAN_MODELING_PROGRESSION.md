@@ -49,6 +49,7 @@
 - `customer_name` - Available (enables deduplication)
 - `mobile` - Mobile phone availability (int, -1 if none)
 - `email` - Email availability flag
+- `age` - Home owner's age  
 
 #### **Property Characteristics**
 - `living_area_total` - Square footage

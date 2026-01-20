@@ -1,0 +1,1172 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .query-input {
+        font-size: 1.1rem;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 2px solid var(--border-dark);
+        background-color: var(--bg-dark-secondary);
+        color: #e5e5e5;  /* Light text for dark background */
+        transition: border-color 0.2s;
+    }
+    .query-input:focus {
+        border-color: var(--primary-color);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+        color: #ffffff;  /* Bright white when focused */
+    }
+    .query-input::placeholder {
+        color: #888888;  /* Medium grey for placeholder */
+    }
+    .result-card {
+        border: none;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    .summary-text {
+        font-size: 1.05rem;
+        line-height: 1.7;
+        white-space: pre-wrap;
+    }
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .loading-content {
+        background: var(--bg-dark-secondary);
+        padding: 2rem 3rem;
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+    .data-table {
+        font-size: 0.875rem;
+    }
+    .data-table th {
+        position: sticky;
+        top: 0;
+        background: var(--bg-dark-secondary);
+        z-index: 10;
+    }
+    .table-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .collection-badge {
+        font-size: 0.75rem;
+        vertical-align: middle;
+    }
+    .example-query {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .example-query:hover {
+        background-color: var(--bg-dark-secondary);
+    }
+    .stats-pill {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        margin: 0.25rem;
+        border-radius: 2rem;
+        font-size: 0.8rem;
+        background: var(--bg-dark-secondary);
+    }
+    /* Agent reasoning styles */
+    .reasoning-step {
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+    }
+    .step-thinking {
+        background: rgba(var(--bs-info-rgb), 0.1);
+        border-left: 3px solid var(--bs-info);
+    }
+    .step-tool-call {
+        background: rgba(var(--bs-warning-rgb), 0.1);
+        border-left: 3px solid var(--bs-warning);
+    }
+    .step-tool-result {
+        background: rgba(var(--bs-success-rgb), 0.1);
+        border-left: 3px solid var(--bs-success);
+    }
+    .step-tool-result.error {
+        background: rgba(var(--bs-danger-rgb), 0.1);
+        border-left: 3px solid var(--bs-danger);
+    }
+    .step-icon {
+        width: 20px;
+        display: inline-block;
+        text-align: center;
+    }
+    .tool-input {
+        font-family: monospace;
+        font-size: 0.75rem;
+        background: rgba(0,0,0,0.2);
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        margin-top: 0.5rem;
+        max-height: 100px;
+        overflow-y: auto;
+    }
+    .reasoning-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .iteration-badge {
+        font-size: 0.65rem;
+        vertical-align: middle;
+    }
+    /* Expandable object styles */
+    .clickable-expand {
+        cursor: pointer;
+        border-bottom: 1px dashed var(--text-muted);
+    }
+    .clickable-expand:hover {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+    }
+    .json-viewer {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 0.8rem;
+        background: var(--bg-dark-secondary);
+        padding: 1rem;
+        border-radius: 0.375rem;
+        max-height: 60vh;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .json-key { color: #88c0d0; }
+    .json-string { color: #a3be8c; }
+    .json-number { color: #b48ead; }
+    .json-boolean { color: #d08770; }
+    .json-null { color: #bf616a; }
+    /* Method selector styles */
+    .method-selector {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    .method-selector .form-check {
+        margin-bottom: 0;
+    }
+    .method-selector .form-check-input:checked {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+    .method-badge {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.4rem;
+        vertical-align: middle;
+    }
+    /* Python script display */
+    .step-script {
+        background: rgba(130, 80, 223, 0.1);
+        border-left: 3px solid #8250df;
+    }
+    .script-code {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 0.8rem;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        margin-top: 0.5rem;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        color: #e6e6e6;
+    }
+    .step-script-result {
+        background: rgba(130, 80, 223, 0.05);
+        border-left: 3px solid #8250df;
+    }
+    .step-script-result.error {
+        background: rgba(var(--bs-danger-rgb), 0.1);
+        border-left: 3px solid var(--bs-danger);
+    }
+    .script-output {
+        font-family: monospace;
+        font-size: 0.75rem;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        margin-top: 0.25rem;
+        white-space: pre-wrap;
+        color: #a8d08d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="explore-section py-5">
+    <div class="container">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-5 fw-bold">
+                    <i class="bi bi-search"></i> Explore Data
+                </h1>
+                <p class="lead text-muted">
+                    Ask questions in plain English to explore campaign and demographic data.
+                </p>
+            </div>
+        </div>
+
+        <!-- Query Input -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card result-card">
+                    <div class="card-body">
+                        <form id="queryForm" class="mb-3">
+                            <div class="input-group">
+                                <input type="text"
+                                       id="queryInput"
+                                       class="form-control query-input"
+                                       placeholder="Ask a question... e.g., 'Report on all data we have about Dave Smith in Franklin county'"
+                                       autocomplete="off"
+                                       maxlength="1000">
+                                <button type="submit" class="btn btn-primary btn-lg px-4" id="submitBtn">
+                                    <i class="bi bi-send-fill"></i> Ask
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Method Selector and Example Queries -->
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="method-selector">
+                                <span class="text-muted small me-2">Method:</span>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="queryMethod" id="methodTools" value="tools" checked>
+                                    <label class="form-check-label small" for="methodTools">
+                                        Tools <span class="badge bg-secondary method-badge">Predefined</span>
+                                    </label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="queryMethod" id="methodPython" value="python">
+                                    <label class="form-check-label small" for="methodPython">
+                                        Python <span class="badge bg-info method-badge">Scripts</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="small text-muted">
+                                <strong>Try:</strong>
+                                <span class="example-query badge bg-secondary ms-2" data-query="Report on all data we have about Dave Smith in Franklin county">Person lookup</span>
+                                <span class="example-query badge bg-secondary" data-query="Show me all email campaigns and their click rates">Campaign stats</span>
+                                <span class="example-query badge bg-secondary" data-query="Find contacts in Franklin county with energy burden above 10%">High burden</span>
+                                <span class="example-query badge bg-secondary" data-query="How many participants have opened emails but never clicked?">Engagement</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Context -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card result-card">
+                    <div class="card-body py-2">
+                        <div class="d-flex flex-wrap align-items-center">
+                            <span class="text-muted me-3"><i class="bi bi-database"></i> Available Data:</span>
+                            {% if stats.campaign_data %}
+                            <span class="stats-pill">
+                                <i class="bi bi-envelope"></i> {{ "{:,}".format(stats.campaign_data.get('campaigns', 0)) }} campaigns
+                            </span>
+                            <span class="stats-pill">
+                                <i class="bi bi-people"></i> {{ "{:,}".format(stats.campaign_data.get('participants', 0)) }} participants
+                            </span>
+                            {% endif %}
+                            {% if counties %}
+                            <span class="stats-pill">
+                                <i class="bi bi-geo-alt"></i> {{ counties|length }} counties
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section (hidden initially) -->
+        <div id="resultsSection" style="display: none;">
+            <!-- Agent Reasoning (collapsible) -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card result-card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="bi bi-robot"></i> Agent Reasoning
+                                <span id="stepCount" class="badge bg-secondary ms-2">0 steps</span>
+                            </h6>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#reasoningCollapse">
+                                <i class="bi bi-chevron-down"></i> Toggle
+                            </button>
+                        </div>
+                        <div class="collapse show" id="reasoningCollapse">
+                            <div class="card-body reasoning-container" id="reasoningSteps">
+                                <!-- Steps will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card result-card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="bi bi-chat-left-text"></i> Summary
+                            </h5>
+                            <div id="summary" class="summary-text"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Tables -->
+            <div id="dataTables"></div>
+
+            <!-- Metadata -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card result-card bg-dark">
+                        <div class="card-body py-2">
+                            <small class="text-muted">
+                                <span id="metaQuery"></span> |
+                                <span id="metaTimestamp"></span> |
+                                <span id="metaRecords"></span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Display -->
+        <div id="errorSection" class="row" style="display: none;">
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <h5><i class="bi bi-exclamation-triangle"></i> Error</h5>
+                    <p id="errorMessage" class="mb-0"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="loading-content">
+        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mb-0">Analyzing your query...</p>
+        <small class="text-muted">This may take a few seconds</small>
+    </div>
+</div>
+
+<!-- JSON Viewer Modal -->
+<div class="modal fade" id="jsonViewerModal" tabindex="-1" aria-labelledby="jsonViewerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="jsonViewerModalLabel"><i class="bi bi-code-square"></i> Data Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="jsonViewerContent" class="json-viewer"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="copyJsonBtn"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('queryForm');
+    const input = document.getElementById('queryInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const resultsSection = document.getElementById('resultsSection');
+    const errorSection = document.getElementById('errorSection');
+
+    // Example query click handlers
+    document.querySelectorAll('.example-query').forEach(el => {
+        el.addEventListener('click', function() {
+            input.value = this.dataset.query;
+            input.focus();
+        });
+    });
+
+    // Form submission
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const query = input.value.trim();
+        if (!query) {
+            input.focus();
+            return;
+        }
+
+        // Get selected method
+        const methodRadio = document.querySelector('input[name="queryMethod"]:checked');
+        const method = methodRadio ? methodRadio.value : 'tools';
+
+        // Show loading
+        loadingOverlay.style.display = 'flex';
+        resultsSection.style.display = 'none';
+        errorSection.style.display = 'none';
+        submitBtn.disabled = true;
+
+        // Update loading message based on method
+        const loadingText = document.querySelector('.loading-content p');
+        if (loadingText) {
+            loadingText.textContent = method === 'python'
+                ? 'Claude is writing Python scripts...'
+                : 'Analyzing your query...';
+        }
+
+        try {
+            const response = await fetch('/api/explore/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query, method: method })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                displayResults(data);
+            } else {
+                displayError(data.error || data.summary || 'An unknown error occurred');
+            }
+        } catch (err) {
+            displayError('Network error: ' + err.message);
+        } finally {
+            loadingOverlay.style.display = 'none';
+            submitBtn.disabled = false;
+        }
+    });
+
+    function displayResults(data) {
+        // Show reasoning steps
+        displayReasoningSteps(data.steps || []);
+
+        // Show summary
+        document.getElementById('summary').textContent = data.summary || 'No summary available';
+
+        // Build data tables
+        const tablesContainer = document.getElementById('dataTables');
+        tablesContainer.innerHTML = '';
+
+        if (data.results && data.results.length > 0) {
+            data.results.forEach((result, index) => {
+                if (result.data && result.data.length > 0) {
+                    tablesContainer.appendChild(createDataTable(result, index));
+                }
+            });
+        }
+
+        // Attach click handlers for expandable nested objects
+        setTimeout(() => attachExpandHandlers(), 100);
+
+        // Show metadata
+        if (data.metadata) {
+            document.getElementById('metaQuery').textContent = `Query: "${data.metadata.query}"`;
+            document.getElementById('metaTimestamp').textContent = `Time: ${new Date(data.metadata.timestamp).toLocaleString()}`;
+            const iterations = data.metadata.iterations || 0;
+            const records = data.metadata.total_records || 0;
+            const method = data.metadata.method || 'tools';
+            const methodLabel = method === 'python' ? 'Python scripts' : 'Tool calls';
+            document.getElementById('metaRecords').textContent = `${iterations} ${methodLabel} | ${records} records`;
+        }
+
+        resultsSection.style.display = 'block';
+        errorSection.style.display = 'none';
+    }
+
+    function displayReasoningSteps(steps) {
+        const container = document.getElementById('reasoningSteps');
+        container.innerHTML = '';
+
+        if (!steps || steps.length === 0) {
+            container.innerHTML = '<p class="text-muted">No reasoning steps recorded.</p>';
+            document.getElementById('stepCount').textContent = '0 steps';
+            return;
+        }
+
+        document.getElementById('stepCount').textContent = `${steps.length} steps`;
+
+        steps.forEach((step, index) => {
+            const stepEl = document.createElement('div');
+            stepEl.className = 'reasoning-step';
+
+            if (step.type === 'thinking') {
+                stepEl.className += ' step-thinking';
+                stepEl.innerHTML = `
+                    <span class="step-icon"><i class="bi bi-chat-dots"></i></span>
+                    <span class="badge bg-info iteration-badge me-2">Step ${step.iteration}</span>
+                    <strong>Thinking:</strong>
+                    <div class="mt-1">${escapeHtml(step.content).substring(0, 500)}${step.content.length > 500 ? '...' : ''}</div>
+                `;
+            } else if (step.type === 'tool_call') {
+                stepEl.className += ' step-tool-call';
+                stepEl.innerHTML = `
+                    <span class="step-icon"><i class="bi bi-tools"></i></span>
+                    <span class="badge bg-warning text-dark iteration-badge me-2">Step ${step.iteration}</span>
+                    <strong>Tool:</strong> <code>${step.tool}</code>
+                    <div class="tool-input">${escapeHtml(JSON.stringify(step.input, null, 2))}</div>
+                `;
+            } else if (step.type === 'tool_result') {
+                const isError = !step.success;
+                stepEl.className += ' step-tool-result' + (isError ? ' error' : '');
+                stepEl.innerHTML = `
+                    <span class="step-icon"><i class="bi bi-${isError ? 'x-circle' : 'check-circle'}"></i></span>
+                    <span class="badge bg-${isError ? 'danger' : 'success'} iteration-badge me-2">Step ${step.iteration}</span>
+                    <strong>Result:</strong> ${escapeHtml(step.summary)}
+                `;
+            } else if (step.type === 'script') {
+                // Python script execution
+                stepEl.className += ' step-script';
+                stepEl.innerHTML = `
+                    <span class="step-icon"><i class="bi bi-code-slash"></i></span>
+                    <span class="badge bg-purple iteration-badge me-2" style="background-color: #8250df !important;">Step ${step.iteration}</span>
+                    <strong>Python Script:</strong> ${escapeHtml(step.description || '')}
+                    <div class="script-code">${escapeHtml(step.script || '')}</div>
+                `;
+            } else if (step.type === 'script_result') {
+                const isError = !step.success;
+                stepEl.className += ' step-script-result' + (isError ? ' error' : '');
+                let html = `
+                    <span class="step-icon"><i class="bi bi-${isError ? 'x-circle' : 'terminal'}"></i></span>
+                    <span class="badge bg-${isError ? 'danger' : 'secondary'} iteration-badge me-2" ${!isError ? 'style="background-color: #8250df !important;"' : ''}>Step ${step.iteration}</span>
+                    <strong>${isError ? 'Error' : 'Script Result'}:</strong> ${escapeHtml(step.summary)}
+                `;
+                if (step.output) {
+                    html += `<div class="script-output">${escapeHtml(step.output)}</div>`;
+                }
+                if (isError && step.error) {
+                    html += `<div class="script-output" style="color: #f85149;">${escapeHtml(step.error)}</div>`;
+                }
+                stepEl.innerHTML = html;
+            }
+
+            container.appendChild(stepEl);
+        });
+
+        // Scroll to bottom to show latest step
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function displayError(message) {
+        document.getElementById('errorMessage').textContent = message;
+        errorSection.style.display = 'block';
+        resultsSection.style.display = 'none';
+    }
+
+    // Default rows per page (can be changed via dropdown)
+    let globalPageSize = 10;
+
+    function createDataTable(result, index) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'row mb-4';
+        wrapper.id = `table-wrapper-${index}`;
+        const pageSize = globalPageSize;
+
+        wrapper.innerHTML = `
+            <div class="col-12">
+                <div class="card result-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <span class="badge bg-primary collection-badge me-2">${result.collection}</span>
+                            ${result.description || ''}
+                        </h6>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center">
+                                <label for="pageSize-${index}" class="form-label mb-0 me-2 small text-muted">Rows:</label>
+                                <select id="pageSize-${index}" class="form-select form-select-sm page-size-select" style="width: auto;">
+                                    <option value="10" ${pageSize === 10 ? 'selected' : ''}>10</option>
+                                    <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
+                                    <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
+                                    <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-sm btn-outline-success" onclick="downloadTableAsCSV(${index})" title="Download as CSV">
+                                <i class="bi bi-download"></i> CSV
+                            </button>
+                            <span class="badge bg-secondary">${result.count} records</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-container" id="table-container-${index}">
+                            ${buildTable(result.data, pageSize)}
+                        </div>
+                    </div>
+                    <div class="card-footer" id="pagination-footer-${index}" ${result.count <= pageSize ? 'style="display:none;"' : ''}>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0 justify-content-center" id="pagination-${index}">
+                                ${buildPagination(result.data.length, pageSize, index)}
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Store data for pagination
+        wrapper.dataset.fullData = JSON.stringify(result.data);
+        wrapper.dataset.pageSize = pageSize.toString();
+        wrapper.dataset.currentPage = '0';
+
+        // Add pagination and page size handlers
+        setTimeout(() => {
+            const paginationEl = document.getElementById(`pagination-${index}`);
+            if (paginationEl) {
+                paginationEl.addEventListener('click', function(e) {
+                    if (e.target.dataset.page !== undefined) {
+                        const page = parseInt(e.target.dataset.page);
+                        updateTablePage(wrapper, page, index);
+                    }
+                });
+            }
+
+            // Page size dropdown handler
+            const pageSizeSelect = document.getElementById(`pageSize-${index}`);
+            if (pageSizeSelect) {
+                pageSizeSelect.addEventListener('change', function() {
+                    const newPageSize = parseInt(this.value);
+                    wrapper.dataset.pageSize = newPageSize.toString();
+                    wrapper.dataset.currentPage = '0';
+                    globalPageSize = newPageSize; // Remember for new tables
+
+                    // Rebuild table with new page size
+                    const fullData = JSON.parse(wrapper.dataset.fullData);
+                    const tableContainer = document.getElementById(`table-container-${index}`);
+                    tableContainer.innerHTML = buildTable(fullData, newPageSize);
+
+                    // Rebuild pagination
+                    const paginationEl = document.getElementById(`pagination-${index}`);
+                    paginationEl.innerHTML = buildPagination(fullData.length, newPageSize, index);
+
+                    // Show/hide pagination footer based on data size
+                    const footer = document.getElementById(`pagination-footer-${index}`);
+                    footer.style.display = fullData.length > newPageSize ? '' : 'none';
+                });
+            }
+        }, 0);
+
+        return wrapper;
+    }
+
+    function buildTable(data, pageSize = 10) {
+        if (!data || data.length === 0) return '<p class="p-3 text-muted">No data</p>';
+
+        // Get all unique keys from all rows
+        const allKeys = new Set();
+        data.forEach(row => {
+            Object.keys(row).forEach(key => allKeys.add(key));
+        });
+        const columns = Array.from(allKeys).filter(k => k !== '_id').slice(0, 15); // Limit columns
+
+        let html = `<table class="table table-hover table-striped data-table mb-0">
+            <thead>
+                <tr>
+                    ${columns.map(col => `<th>${formatColumnName(col)}</th>`).join('')}
+                </tr>
+            </thead>
+            <tbody>`;
+
+        // Show first N rows based on pageSize
+        data.slice(0, pageSize).forEach(row => {
+            html += '<tr>';
+            columns.forEach(col => {
+                const value = formatCellValue(row[col], col);
+                html += `<td>${value}</td>`;
+            });
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function formatColumnName(name) {
+        // Convert snake_case or camelCase to Title Case
+        return name
+            .replace(/_/g, ' ')
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+    }
+
+    function formatCellValue(value, fieldName = '') {
+        if (value === null || value === undefined) return '<span class="text-muted">-</span>';
+        if (typeof value === 'boolean') return value ? '✓' : '✗';
+        if (typeof value === 'object') {
+            if (Array.isArray(value)) {
+                if (value.length === 0) return '<span class="text-muted">[]</span>';
+                // For small arrays of primitives, show them
+                if (value.length <= 3 && value.every(v => typeof v !== 'object')) {
+                    return value.map(v => formatCellValue(v)).join(', ');
+                }
+                return `<span class="text-muted clickable-expand" data-json="${escapeHtml(JSON.stringify(value))}">[${value.length} items] <i class="bi bi-eye"></i></span>`;
+            }
+            // Handle nested objects intelligently
+            return formatNestedObject(value, fieldName);
+        }
+        if (typeof value === 'number') {
+            // Format numbers nicely
+            if (Number.isInteger(value)) return value.toLocaleString();
+            return value.toFixed(2);
+        }
+        // Truncate long strings
+        const str = String(value);
+        if (str.length > 50) return str.substring(0, 47) + '...';
+        return escapeHtml(str);
+    }
+
+    // Safe number formatting - handles null/undefined
+    function safeNumber(val) {
+        if (val === null || val === undefined) return null;
+        if (typeof val !== 'number') return val;
+        return Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2);
+    }
+
+    function formatNestedObject(obj, fieldName = '') {
+        if (!obj || typeof obj !== 'object') return '<span class="text-muted">-</span>';
+
+        const keys = Object.keys(obj);
+        if (keys.length === 0) return '<span class="text-muted">{}</span>';
+
+        const lowerField = fieldName.toLowerCase();
+
+        // Address pattern: combine street, city, zip
+        if (obj.street !== undefined || obj.city !== undefined || obj.address !== undefined) {
+            const parts = [];
+            if (obj.street) parts.push(obj.street);
+            if (obj.address && !obj.street) parts.push(obj.address);
+            if (obj.city) parts.push(obj.city);
+            if (obj.state) parts.push(obj.state);
+            if (obj.zip) parts.push(obj.zip);
+            if (parts.length > 0) {
+                const display = parts.join(', ');
+                return `<span title="${escapeHtml(JSON.stringify(obj))}">${escapeHtml(display.substring(0, 60))}${display.length > 60 ? '...' : ''}</span>`;
+            }
+        }
+
+        // Person/Applicant pattern: combine name parts
+        if (obj.first_name !== undefined || obj.last_name !== undefined) {
+            const parts = [];
+            if (obj.first_name) parts.push(obj.first_name);
+            if (obj.middle_name) parts.push(obj.middle_name);
+            if (obj.last_name) parts.push(obj.last_name);
+            let display = parts.join(' ');
+            if (obj.email) display += ` (${obj.email})`;
+            else if (obj.phone) display += ` (${obj.phone})`;
+            return `<span title="${escapeHtml(JSON.stringify(obj))}">${escapeHtml(display.substring(0, 60))}${display.length > 60 ? '...' : ''}</span>`;
+        }
+
+        // Statistics pattern: show key metrics
+        if (lowerField.includes('statistic') || lowerField.includes('summary') ||
+            obj.total_sent != null || obj.opened != null || obj.clicked != null) {
+            const metrics = [];
+            if (obj.total_sent != null) metrics.push(`Sent: ${safeNumber(obj.total_sent)}`);
+            if (obj.opened != null) metrics.push(`Opened: ${safeNumber(obj.opened)}`);
+            if (obj.clicked != null) metrics.push(`Clicked: ${safeNumber(obj.clicked)}`);
+            if (obj.total_campaigns != null) metrics.push(`Campaigns: ${obj.total_campaigns}`);
+            if (metrics.length > 0) {
+                return `<span class="text-info" title="${escapeHtml(JSON.stringify(obj))}">${metrics.join(' | ')}</span>`;
+            }
+        }
+
+        // Match/Linkage pattern
+        if (obj.match_method !== undefined || obj.method !== undefined || obj.confidence !== undefined) {
+            const method = obj.match_method || obj.method || 'matched';
+            const confidence = obj.confidence || obj.match_confidence;
+            let display = method;
+            if (confidence !== undefined) {
+                const confPct = typeof confidence === 'number' && confidence <= 1 ? (confidence * 100).toFixed(0) : confidence;
+                display += ` (${confPct}%)`;
+            }
+            return `<span class="badge bg-secondary" title="${escapeHtml(JSON.stringify(obj))}">${escapeHtml(display)}</span>`;
+        }
+
+        // Energy snapshot pattern
+        if (obj.kwh_annual != null || obj.annual_cost != null || obj.monthly_cost != null) {
+            const parts = [];
+            if (obj.kwh_annual != null) parts.push(`${safeNumber(obj.kwh_annual)} kWh/yr`);
+            if (obj.annual_cost != null) parts.push(`$${safeNumber(obj.annual_cost)}/yr`);
+            if (obj.monthly_cost != null && parts.length === 0) parts.push(`$${safeNumber(obj.monthly_cost)}/mo`);
+            if (parts.length > 0) {
+                return `<span class="text-warning" title="${escapeHtml(JSON.stringify(obj))}">${parts.join(' | ')}</span>`;
+            }
+        }
+
+        // Demographics pattern
+        if (obj.customer_name !== undefined || obj.income_level !== undefined || obj.household_size !== undefined) {
+            const parts = [];
+            if (obj.customer_name) parts.push(obj.customer_name);
+            if (obj.income_level) parts.push(obj.income_level);
+            if (obj.household_size) parts.push(`HH: ${obj.household_size}`);
+            if (parts.length > 0) {
+                return `<span title="${escapeHtml(JSON.stringify(obj))}">${escapeHtml(parts.join(' | '))}</span>`;
+            }
+        }
+
+        // Residence pattern
+        if (obj.living_area_sqft != null || obj.year_built != null || obj.bedrooms != null) {
+            const parts = [];
+            if (obj.living_area_sqft) parts.push(`${safeNumber(obj.living_area_sqft)} sqft`);
+            if (obj.bedrooms) parts.push(`${obj.bedrooms} BR`);
+            if (obj.year_built) parts.push(`Built ${obj.year_built}`);
+            if (parts.length > 0) {
+                return `<span title="${escapeHtml(JSON.stringify(obj))}">${parts.join(' | ')}</span>`;
+            }
+        }
+
+        // Data quality pattern
+        if (lowerField.includes('quality') || obj.completeness_score !== undefined) {
+            if (obj.completeness_score !== undefined) {
+                const score = typeof obj.completeness_score === 'number' ? (obj.completeness_score * 100).toFixed(0) : obj.completeness_score;
+                return `<span class="badge bg-info" title="${escapeHtml(JSON.stringify(obj))}">${score}% complete</span>`;
+            }
+        }
+
+        // Attribution pattern
+        if (lowerField.includes('attribution') || obj.utm !== undefined || obj.likely_campaigns !== undefined) {
+            const parts = [];
+            if (obj.utm && typeof obj.utm === 'object') {
+                if (obj.utm.source) parts.push(`src: ${obj.utm.source}`);
+                if (obj.utm.campaign) parts.push(`cmp: ${obj.utm.campaign}`);
+            }
+            if (obj.likely_campaigns && Array.isArray(obj.likely_campaigns)) {
+                parts.push(`${obj.likely_campaigns.length} likely campaigns`);
+            }
+            if (parts.length > 0) {
+                return `<span title="${escapeHtml(JSON.stringify(obj))}">${escapeHtml(parts.join(' | '))}</span>`;
+            }
+        }
+
+        // Contact snapshot pattern
+        if (lowerField.includes('contact') && (obj.email !== undefined || obj.phone !== undefined)) {
+            const parts = [];
+            if (obj.email) parts.push(obj.email);
+            if (obj.phone) parts.push(obj.phone);
+            if (obj.city) parts.push(obj.city);
+            if (parts.length > 0) {
+                return `<span title="${escapeHtml(JSON.stringify(obj))}">${escapeHtml(parts.join(' | '))}</span>`;
+            }
+        }
+
+        // Generic fallback: show first few meaningful values
+        const meaningfulKeys = keys.filter(k => {
+            const v = obj[k];
+            return v !== null && v !== undefined && v !== '' &&
+                   typeof v !== 'object' && k !== '_id';
+        }).slice(0, 3);
+
+        if (meaningfulKeys.length > 0) {
+            const preview = meaningfulKeys.map(k => {
+                const v = obj[k];
+                const displayVal = typeof v === 'number' ? safeNumber(v) : String(v).substring(0, 20);
+                return `${k}: ${displayVal}`;
+            }).join(', ');
+            return `<span class="text-muted clickable-expand" data-json="${escapeHtml(JSON.stringify(obj))}" title="Click to expand">${escapeHtml(preview)}${keys.length > 3 ? '...' : ''} <i class="bi bi-eye"></i></span>`;
+        }
+
+        // Last resort: show key count with expandable
+        return `<span class="text-muted clickable-expand" data-json="${escapeHtml(JSON.stringify(obj))}" title="Click to view ${keys.length} fields">{${keys.length} fields} <i class="bi bi-eye"></i></span>`;
+    }
+
+    function buildPagination(totalItems, pageSize, tableIndex) {
+        const totalPages = Math.ceil(totalItems / pageSize);
+        if (totalPages <= 1) return '';
+
+        let html = '';
+        for (let i = 0; i < Math.min(totalPages, 10); i++) {
+            html += `<li class="page-item ${i === 0 ? 'active' : ''}">
+                <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
+            </li>`;
+        }
+        return html;
+    }
+
+    function updateTablePage(wrapper, page, tableIndex) {
+        const fullData = JSON.parse(wrapper.dataset.fullData);
+        const pageSize = parseInt(wrapper.dataset.pageSize);
+        const start = page * pageSize;
+        const pageData = fullData.slice(start, start + pageSize);
+
+        // Update table body
+        const tbody = wrapper.querySelector('tbody');
+        const allKeys = new Set();
+        fullData.forEach(row => Object.keys(row).forEach(key => allKeys.add(key)));
+        const columns = Array.from(allKeys).filter(k => k !== '_id').slice(0, 15);
+
+        let html = '';
+        pageData.forEach(row => {
+            html += '<tr>';
+            columns.forEach(col => {
+                html += `<td>${formatCellValue(row[col], col)}</td>`;
+            });
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+
+        // Re-attach click handlers for expandable elements
+        attachExpandHandlers();
+
+        // Update pagination active state
+        const paginationItems = wrapper.querySelectorAll('.page-item');
+        paginationItems.forEach((item, i) => {
+            item.classList.toggle('active', i === page);
+        });
+
+        wrapper.dataset.currentPage = page.toString();
+    }
+
+    // JSON Viewer Modal functionality
+    const jsonViewerModal = new bootstrap.Modal(document.getElementById('jsonViewerModal'));
+    const jsonViewerContent = document.getElementById('jsonViewerContent');
+    let currentJsonData = null;
+
+    function attachExpandHandlers() {
+        document.querySelectorAll('.clickable-expand').forEach(el => {
+            if (!el.dataset.handlerAttached) {
+                el.dataset.handlerAttached = 'true';
+                el.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const jsonStr = this.dataset.json;
+                    if (jsonStr) {
+                        try {
+                            currentJsonData = JSON.parse(jsonStr);
+                            jsonViewerContent.innerHTML = formatJsonForDisplay(currentJsonData);
+                            jsonViewerModal.show();
+                        } catch (err) {
+                            console.error('Failed to parse JSON:', err);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    function formatJsonForDisplay(obj, indent = 0) {
+        const spaces = '  '.repeat(indent);
+        if (obj === null) return '<span class="json-null">null</span>';
+        if (obj === undefined) return '<span class="json-null">undefined</span>';
+        if (typeof obj === 'boolean') return `<span class="json-boolean">${obj}</span>`;
+        if (typeof obj === 'number') return `<span class="json-number">${safeNumber(obj)}</span>`;
+        if (typeof obj === 'string') return `<span class="json-string">"${escapeHtml(obj)}"</span>`;
+
+        if (Array.isArray(obj)) {
+            if (obj.length === 0) return '[]';
+            let html = '[\n';
+            obj.forEach((item, i) => {
+                html += spaces + '  ' + formatJsonForDisplay(item, indent + 1);
+                if (i < obj.length - 1) html += ',';
+                html += '\n';
+            });
+            html += spaces + ']';
+            return html;
+        }
+
+        if (typeof obj === 'object') {
+            const keys = Object.keys(obj);
+            if (keys.length === 0) return '{}';
+            let html = '{\n';
+            keys.forEach((key, i) => {
+                html += spaces + '  <span class="json-key">"' + escapeHtml(key) + '"</span>: ';
+                html += formatJsonForDisplay(obj[key], indent + 1);
+                if (i < keys.length - 1) html += ',';
+                html += '\n';
+            });
+            html += spaces + '}';
+            return html;
+        }
+
+        return String(obj);
+    }
+
+    // Copy JSON button handler
+    document.getElementById('copyJsonBtn').addEventListener('click', function() {
+        if (currentJsonData) {
+            const text = JSON.stringify(currentJsonData, null, 2);
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = this;
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                btn.classList.replace('btn-primary', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.classList.replace('btn-success', 'btn-primary');
+                }, 2000);
+            });
+        }
+    });
+
+    // Keyboard shortcut: Enter to submit
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Focus input on page load
+    input.focus();
+});
+
+// CSV Download function (global scope for onclick handler)
+function downloadTableAsCSV(tableIndex) {
+    const wrapper = document.getElementById(`table-wrapper-${tableIndex}`);
+    if (!wrapper || !wrapper.dataset.fullData) {
+        console.error('Table data not found');
+        return;
+    }
+
+    const data = JSON.parse(wrapper.dataset.fullData);
+    if (!data || data.length === 0) {
+        console.error('No data to export');
+        return;
+    }
+
+    // Get all unique keys from all rows (excluding _id)
+    const allKeys = new Set();
+    data.forEach(row => {
+        Object.keys(row).forEach(key => allKeys.add(key));
+    });
+    const columns = Array.from(allKeys).filter(k => k !== '_id');
+
+    // Build CSV content
+    const csvRows = [];
+
+    // Header row
+    csvRows.push(columns.map(col => escapeCSVValue(col)).join(','));
+
+    // Data rows
+    data.forEach(row => {
+        const values = columns.map(col => {
+            const value = row[col];
+            return escapeCSVValue(formatCSVValue(value));
+        });
+        csvRows.push(values.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+
+    // Get collection name for filename
+    const collectionBadge = wrapper.querySelector('.collection-badge');
+    const collectionName = collectionBadge ? collectionBadge.textContent.trim() : 'data';
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `${collectionName}_${timestamp}.csv`;
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+function escapeCSVValue(value) {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    // Escape quotes and wrap in quotes if contains comma, quote, or newline
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+}
+
+function formatCSVValue(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+            // For arrays, join primitive values or stringify objects
+            if (value.length === 0) return '';
+            if (value.every(v => typeof v !== 'object')) {
+                return value.join('; ');
+            }
+            return JSON.stringify(value);
+        }
+        // For objects, try to extract meaningful display values
+        return formatObjectForCSV(value);
+    }
+    return String(value);
+}
+
+function formatObjectForCSV(obj) {
+    if (!obj || typeof obj !== 'object') return '';
+
+    // Address pattern
+    if (obj.street !== undefined || obj.city !== undefined || obj.address !== undefined) {
+        const parts = [];
+        if (obj.street) parts.push(obj.street);
+        if (obj.address && !obj.street) parts.push(obj.address);
+        if (obj.city) parts.push(obj.city);
+        if (obj.state) parts.push(obj.state);
+        if (obj.zip) parts.push(obj.zip);
+        if (parts.length > 0) return parts.join(', ');
+    }
+
+    // Person pattern
+    if (obj.first_name !== undefined || obj.last_name !== undefined) {
+        const parts = [];
+        if (obj.first_name) parts.push(obj.first_name);
+        if (obj.middle_name) parts.push(obj.middle_name);
+        if (obj.last_name) parts.push(obj.last_name);
+        let display = parts.join(' ');
+        if (obj.email) display += ` (${obj.email})`;
+        return display;
+    }
+
+    // Statistics pattern
+    if (obj.total_sent != null || obj.opened != null || obj.clicked != null) {
+        const metrics = [];
+        if (obj.total_sent != null) metrics.push(`Sent: ${obj.total_sent}`);
+        if (obj.opened != null) metrics.push(`Opened: ${obj.opened}`);
+        if (obj.clicked != null) metrics.push(`Clicked: ${obj.clicked}`);
+        if (metrics.length > 0) return metrics.join('; ');
+    }
+
+    // Fallback: stringify the object
+    return JSON.stringify(obj);
+}
+</script>
+{% endblock %}

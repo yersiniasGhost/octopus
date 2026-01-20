@@ -89,6 +89,12 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('main.dashboard') }}">Dashboard</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('explore.explore') }}">Explore</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('county_analysis.county_analysis') }}">County Analysis</a>
+                        </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
                                 {{ current_user.username }}

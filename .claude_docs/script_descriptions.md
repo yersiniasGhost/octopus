@@ -1138,3 +1138,108 @@ python scripts/calculate_energy_percentiles_tool.py --parcel-file parcels.txt --
 ```
 
 **Output**: Percentile distribution summary and optional CSV with parcel_id, annual_kwh, percentile_rank, comparable_count.
+
+### generate_campaign_list_by_energy_percentile_tool.py
+**Purpose**: Generate campaign target lists sorted by highest energy consumption percentile or heating load, organized by zipcode and bucketed by square footage.
+
+Creates CSV files for targeted outreach campaigns focusing on households with the highest energy usage relative to comparable homes. Useful for identifying homes that could benefit most from energy efficiency programs.
+
+**Features**:
+- Filters by county and specific zip codes
+- Joins Residential and Demographic data for complete household info
+- **Standard mode**: Sorts by highest energy percentile (100th = highest usage)
+- **Heating load mode** (`--heating-load`): Joins with ThermalLoads collection, sorts by `kwh_hl_slope` (highest heating load first - best weatherization targets)
+- Organizes output by zipcode folders
+- Buckets within each zipcode by sqft ranges:
+  - under_1000_sqft, 1000_to_1500_sqft, 1500_to_2000_sqft
+  - 2000_to_2500_sqft, 2500_to_3000_sqft, over_3000_sqft
+- Includes phone numbers where available
+- Indicates demographic database match status
+- **No-overwrite protection**: Creates unique directory names if output exists
+
+**CSV Columns**:
+- Standard: Name, Address, City, Zipcode, Phone, Sqft, Year_Built, Energy_Percentile, In_Demographic_DB
+- Heating load mode adds: Heating_Load_Slope, Heating_Load_R2
+
+**Usage**:
+```bash
+# Generate for Franklin County with default zip codes
+python scripts/generate_campaign_list_by_energy_percentile_tool.py
+
+# Specify custom zip codes
+python scripts/generate_campaign_list_by_energy_percentile_tool.py --zips 43210,43222,43211
+
+# Custom output folder
+python scripts/generate_campaign_list_by_energy_percentile_tool.py --output-dir data/my-campaign
+
+# Minimum percentile threshold (only 70th percentile and above)
+python scripts/generate_campaign_list_by_energy_percentile_tool.py --min-percentile 70
+
+# Heating load mode (for weatherization targeting)
+python scripts/generate_campaign_list_by_energy_percentile_tool.py --heating-load
+
+# Heating load with R² quality filter
+python scripts/generate_campaign_list_by_energy_percentile_tool.py --heating-load --min-r2 0.5
+```
+
+**Output Structure**:
+```
+data/campaign-list-YYYYMMDD-county/           # Standard mode
+data/campaign-list-YYYYMMDD-county-heating-load/  # Heating load mode
+├── 43201/
+│   ├── under_1000_sqft.csv
+│   ├── 1000_to_1500_sqft.csv
+│   ├── ...
+│   └── all_households.csv
+├── 43203/
+│   └── ...
+└── ...
+```
+
+### calculate_missing_thermal_loads_tool.py
+**Purpose**: Calculate thermal load coefficients for parcels that are in the electrical database but missing from the thermal loads database.
+
+Implements the same ASHRAE energy signature methodology used in the original Franklin thermal load calculation:
+1. **Degree-Hour Integration**: Calculates Heating Degree-Hours (HDH) and Cooling Degree-Hours (CDH) using trapezoidal integration on hourly weather data
+2. **Linear Regression**: Fits kWh consumption against degree-hours to extract thermal load slope and R² fit quality
+
+**Thresholds**:
+- Heating: 62°F (below this, heating degree-hours accumulate)
+- Cooling: 72°F (above this, cooling degree-hours accumulate)
+
+**Weather Data**: Reads NOAA weather data from John Glenn Columbus International Airport (station 72428014821) with hourly temperature observations.
+
+**Features**:
+- Identifies parcels missing from thermal loads collection
+- Processes weather data in NOAA raw format or pre-processed CSV
+- Calculates billing-period-aligned HDH/CDH values
+- Performs sklearn LinearRegression for each parcel
+- Dry-run mode for validation before database insertion
+- Verbose logging with detailed progress information
+- Configurable county and parcel limits
+
+**Database Collections**:
+- Source: `{County}ElectricalDB` - Monthly kWh billing data
+- Existing: `{County}ThermalLoads` - Already-calculated thermal records
+- Target: `{County}ThermalLoads` - Insert new thermal calculations
+
+**Usage**:
+```bash
+# Dry run - show what would be calculated (no DB writes)
+python scripts/calculate_missing_thermal_loads_tool.py --county Franklin --dry-run
+
+# Test with limit
+python scripts/calculate_missing_thermal_loads_tool.py --county Franklin --dry-run --limit 10 --verbose
+
+# Full calculation (inserts to MongoDB)
+python scripts/calculate_missing_thermal_loads_tool.py --county Franklin
+
+# With custom weather file
+python scripts/calculate_missing_thermal_loads_tool.py --county Franklin --weather-file /path/to/weather.csv
+```
+
+**Output**:
+- Thermal load records with: kwh_hl_slope, kwh_hl_intercept, kwh_hl_r2, kwh_cl_slope, kwh_cl_intercept, kwh_cl_r2
+- Processing statistics: parcels found, successfully processed, failed, inserted
+
+**Dependencies**: sklearn, pandas, pymongo, numpy

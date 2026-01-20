@@ -20,11 +20,12 @@ Available Models (with config.yaml):
 - model_01_baseline: Baseline Email Open Model
 - model_02_energy_burden: Energy Burden Email Open Model
 - model_03_demographics: Demographics Email Open Model (with kWh usage)
+- messaging_effectiveness: 2-Stage Hierarchical Model (Open → Click funnel)
 - click_model: Campaign Click Probability Model
 - click_model_02: Enhanced Click Model
 
 Legacy Models (standalone files, not registry-compatible):
-- messaging_effectiveness_model.py
+- messaging_effectiveness_model.py (superseded by messaging_effectiveness/)
 """
 
 # Don't auto-import models to avoid dependency issues

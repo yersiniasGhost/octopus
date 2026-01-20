@@ -93,6 +93,12 @@
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="data-summary-tab" data-bs-toggle="tab"
+                                        data-bs-target="#data-summary-panel" type="button" role="tab">
+                                    <i class="bi bi-database"></i> Data Summary
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="fit-tab" data-bs-toggle="tab"
                                         data-bs-target="#fit-panel" type="button" role="tab">
                                     <i class="bi bi-graph-up"></i> Model Fit
@@ -102,6 +108,22 @@
                                 <button class="nav-link" id="effectiveness-tab" data-bs-toggle="tab"
                                         data-bs-target="#effectiveness-panel" type="button" role="tab">
                                     <i class="bi bi-award"></i> Effectiveness
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="validation-tab" data-bs-toggle="tab"
+                                        data-bs-target="#validation-panel" type="button" role="tab">
+                                    <i class="bi bi-check2-square"></i> Validation
+                                    {% if validation_data %}
+                                    {% set status = validation_data.overall.status %}
+                                    {% if status == 'PASSED' %}
+                                    <span class="badge bg-success ms-1">✓</span>
+                                    {% elif status == 'PASSED_WITH_WARNINGS' %}
+                                    <span class="badge bg-warning text-dark ms-1">!</span>
+                                    {% else %}
+                                    <span class="badge bg-danger ms-1">✗</span>
+                                    {% endif %}
+                                    {% endif %}
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
@@ -228,6 +250,330 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Data Summary Panel -->
+                            <div class="tab-pane fade" id="data-summary-panel" role="tabpanel">
+                                <h5 class="mb-3">Data Ingestion Summary</h5>
+                                <p class="text-muted mb-4">Overview of the data used to train this model, including participant counts, campaigns, and any missing data.</p>
+
+                                {% if data_summary %}
+                                <div class="row mb-4">
+                                    <!-- Overview Stats Cards -->
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-primary text-white text-center h-100">
+                                            <div class="card-body">
+                                                <h6 class="text-white-50 mb-1">Participants</h6>
+                                                <h2 class="display-6 mb-0">{{ "{:,}".format(data_summary.total_participants) }}</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-success text-white text-center h-100">
+                                            <div class="card-body">
+                                                <h6 class="text-white-50 mb-1">Observations</h6>
+                                                <h2 class="display-6 mb-0">{{ "{:,}".format(data_summary.total_observations) }}</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-info text-white text-center h-100">
+                                            <div class="card-body">
+                                                <h6 class="text-white-50 mb-1">Campaigns</h6>
+                                                <h2 class="display-6 mb-0">{{ data_summary.total_campaigns }}</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-purple text-white text-center h-100">
+                                            <div class="card-body">
+                                                <h6 class="text-white-50 mb-1">Counties</h6>
+                                                <h2 class="display-6 mb-0">{{ data_summary.total_counties }}</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-4">
+                                    <!-- Click Rate -->
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm h-100">
+                                            <div class="card-header bg-white">
+                                                <h6 class="mb-0"><i class="bi bi-cursor"></i> Click Performance</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <table class="table table-sm table-borderless mb-0">
+                                                    <tr>
+                                                        <td class="text-muted">Total Clicks</td>
+                                                        <td class="text-end"><strong>{{ "{:,}".format(data_summary.click_count) }}</strong></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="text-muted">Overall Click Rate</td>
+                                                        <td class="text-end">
+                                                            <strong>{{ "%.2f%%"|format(data_summary.overall_click_rate * 100) }}</strong>
+                                                        </td>
+                                                    </tr>
+                                                    {% if data_summary.date_range_start %}
+                                                    <tr>
+                                                        <td class="text-muted">Data Range</td>
+                                                        <td class="text-end">
+                                                            <small>{{ data_summary.date_range_start[:10] }} - {{ data_summary.date_range_end[:10] if data_summary.date_range_end else 'Now' }}</small>
+                                                        </td>
+                                                    </tr>
+                                                    {% endif %}
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Missing Data Summary -->
+                                    <div class="col-md-8">
+                                        <div class="card border-0 shadow-sm h-100">
+                                            <div class="card-header bg-white">
+                                                <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Missing Data</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                {% set missing = data_summary.missing_data %}
+                                                {% set has_missing = missing.participants_no_county > 0 or missing.participants_no_demographics > 0 or missing.participants_no_income > 0 or missing.counties_excluded_low_count > 0 %}
+
+                                                {% if has_missing %}
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <table class="table table-sm table-borderless mb-0">
+                                                            {% if missing.participants_no_county > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">No County</td>
+                                                                <td class="text-end"><span class="badge bg-warning text-dark">{{ "{:,}".format(missing.participants_no_county) }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                            {% if missing.participants_no_demographics > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">No Demographics</td>
+                                                                <td class="text-end"><span class="badge bg-warning text-dark">{{ "{:,}".format(missing.participants_no_demographics) }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                            {% if missing.participants_no_income > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">No Income Data</td>
+                                                                <td class="text-end"><span class="badge bg-warning text-dark">{{ "{:,}".format(missing.participants_no_income) }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                            {% if missing.participants_no_energy_burden > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">No Energy Burden</td>
+                                                                <td class="text-end"><span class="badge bg-warning text-dark">{{ "{:,}".format(missing.participants_no_energy_burden) }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                        </table>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <table class="table table-sm table-borderless mb-0">
+                                                            {% if missing.exposures_no_campaign_match > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">Unmatched Campaign Exposures</td>
+                                                                <td class="text-end"><span class="badge bg-secondary">{{ "{:,}".format(missing.exposures_no_campaign_match) }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                            {% if missing.counties_excluded_low_count > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">Counties Excluded (low n)</td>
+                                                                <td class="text-end"><span class="badge bg-secondary">{{ missing.counties_excluded_low_count }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                            {% if missing.campaigns_no_message_types > 0 %}
+                                                            <tr>
+                                                                <td class="text-muted">Campaigns No Message Type</td>
+                                                                <td class="text-end"><span class="badge bg-secondary">{{ missing.campaigns_no_message_types }}</span></td>
+                                                            </tr>
+                                                            {% endif %}
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {% if missing.excluded_county_names %}
+                                                <div class="mt-2">
+                                                    <small class="text-muted">
+                                                        <strong>Excluded counties:</strong>
+                                                        {{ missing.excluded_county_names[:5]|join(', ') }}{% if missing.excluded_county_names|length > 5 %} and {{ missing.excluded_county_names|length - 5 }} more{% endif %}
+                                                    </small>
+                                                </div>
+                                                {% endif %}
+                                                {% else %}
+                                                <p class="text-success mb-0">
+                                                    <i class="bi bi-check-circle"></i> No significant missing data. All records have complete information.
+                                                </p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Campaigns Table -->
+                                {% if data_summary.campaigns %}
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="bi bi-megaphone"></i> Campaigns Included ({{ data_summary.campaigns|length }})</h6>
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#campaignsTable" aria-expanded="true">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <div class="collapse show" id="campaignsTable">
+                                        <div class="card-body p-0">
+                                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                                <table class="table table-sm table-hover mb-0">
+                                                    <thead class="table-light sticky-top">
+                                                        <tr>
+                                                            <th>Campaign</th>
+                                                            <th class="text-end">Exposures</th>
+                                                            <th class="text-end">Clicks</th>
+                                                            <th class="text-end">Click Rate</th>
+                                                            <th>Message Types</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for campaign in data_summary.campaigns|sort(attribute='exposure_count', reverse=True) %}
+                                                        <tr>
+                                                            <td>
+                                                                <small class="text-muted">{{ campaign.campaign_id[:8] }}...</small>
+                                                                {% if campaign.name %}
+                                                                <br><span class="fw-medium">{{ campaign.name }}</span>
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="text-end">{{ "{:,}".format(campaign.exposure_count) }}</td>
+                                                            <td class="text-end">{{ "{:,}".format(campaign.click_count) }}</td>
+                                                            <td class="text-end">
+                                                                {% if campaign.click_rate > 0.05 %}
+                                                                <span class="badge bg-success">{{ "%.2f%%"|format(campaign.click_rate * 100) }}</span>
+                                                                {% elif campaign.click_rate > 0.02 %}
+                                                                <span class="badge bg-info">{{ "%.2f%%"|format(campaign.click_rate * 100) }}</span>
+                                                                {% else %}
+                                                                <span class="text-muted">{{ "%.2f%%"|format(campaign.click_rate * 100) }}</span>
+                                                                {% endif %}
+                                                            </td>
+                                                            <td>
+                                                                {% for msg_type in campaign.message_types or [] %}
+                                                                <span class="badge bg-secondary">{{ msg_type }}</span>
+                                                                {% endfor %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Counties Table -->
+                                {% if data_summary.counties %}
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="bi bi-geo-alt"></i> Counties Included ({{ data_summary.counties|length }})</h6>
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#countiesTable" aria-expanded="false">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <div class="collapse" id="countiesTable">
+                                        <div class="card-body p-0">
+                                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                                <table class="table table-sm table-hover mb-0">
+                                                    <thead class="table-light sticky-top">
+                                                        <tr>
+                                                            <th>County</th>
+                                                            <th class="text-end">Participants</th>
+                                                            <th class="text-end">Clicks</th>
+                                                            <th class="text-end">Click Rate</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for county in data_summary.counties|sort(attribute='participant_count', reverse=True) %}
+                                                        <tr>
+                                                            <td>{{ county.name }}</td>
+                                                            <td class="text-end">{{ "{:,}".format(county.participant_count) }}</td>
+                                                            <td class="text-end">{{ "{:,}".format(county.click_count) }}</td>
+                                                            <td class="text-end">
+                                                                {% if county.click_rate > 0.05 %}
+                                                                <span class="badge bg-success">{{ "%.2f%%"|format(county.click_rate * 100) }}</span>
+                                                                {% elif county.click_rate > 0.02 %}
+                                                                <span class="badge bg-info">{{ "%.2f%%"|format(county.click_rate * 100) }}</span>
+                                                                {% else %}
+                                                                <span class="text-muted">{{ "%.2f%%"|format(county.click_rate * 100) }}</span>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Treatment Summary (for causal models) -->
+                                {% if data_summary.treatment_summary %}
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white">
+                                        <h6 class="mb-0"><i class="bi bi-diagram-2"></i> Treatment Variables</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            {% for name, details in data_summary.treatment_summary.items() %}
+                                            <div class="col-md-6 mb-3">
+                                                <div class="border rounded p-3 h-100">
+                                                    <h6 class="mb-2"><code>{{ name }}</code></h6>
+                                                    <table class="table table-sm table-borderless mb-0">
+                                                        {% for key, value in details.items() %}
+                                                        <tr>
+                                                            <td class="text-muted text-capitalize">{{ key|replace('_', ' ') }}</td>
+                                                            <td class="text-end">
+                                                                {% if value is number %}
+                                                                    {% if value < 1 %}
+                                                                    {{ "%.2f%%"|format(value * 100) }}
+                                                                    {% else %}
+                                                                    {{ "{:,}".format(value|int) }}
+                                                                    {% endif %}
+                                                                {% else %}
+                                                                {{ value }}
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Metadata Footer -->
+                                <div class="text-muted small">
+                                    <i class="bi bi-clock"></i> Generated: {{ data_summary.generated_at[:19] if data_summary.generated_at else 'Unknown' }}
+                                    {% if data_summary.data_sources %}
+                                    <br><i class="bi bi-database"></i> Sources: {{ data_summary.data_sources|join(', ') }}
+                                    {% endif %}
+                                </div>
+
+                                {% else %}
+                                <!-- No data summary available -->
+                                <div class="text-center py-5">
+                                    <i class="bi bi-database-x text-muted" style="font-size: 3rem;"></i>
+                                    <p class="text-muted mt-3">No data summary available for this model.</p>
+                                    <p class="small text-muted">
+                                        Data summary is generated during model training.
+                                        {% if model_status and not model_status.is_trained %}
+                                        <br>Train the model first to generate the data summary.
+                                        {% else %}
+                                        <br>Re-train the model to generate a data summary.
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                {% endif %}
                             </div>
 
                             <!-- Model Fit Panel -->
@@ -444,6 +790,319 @@
                                 {% endif %}
                             </div>
 
+                            <!-- Validation Panel -->
+                            <div class="tab-pane fade" id="validation-panel" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">Model Validation</h5>
+                                    {% if model_status and model_status.is_trained %}
+                                    <button type="button" class="btn btn-outline-purple btn-sm" id="runValidationBtn"
+                                            onclick="runValidation('{{ selected_model.model_id }}')">
+                                        <i class="bi bi-arrow-clockwise"></i> Run Validation
+                                    </button>
+                                    {% endif %}
+                                </div>
+
+                                {% if model_status and model_status.is_trained %}
+                                    {% if validation_data %}
+                                    <!-- Overall Status Banner -->
+                                    <div class="alert
+                                        {% if validation_data.overall.status == 'PASSED' %}alert-success
+                                        {% elif validation_data.overall.status == 'PASSED_WITH_WARNINGS' %}alert-warning
+                                        {% else %}alert-danger{% endif %} mb-4">
+                                        <h5 class="alert-heading">
+                                            {% if validation_data.overall.status == 'PASSED' %}
+                                            <i class="bi bi-check-circle-fill"></i> Validation Passed
+                                            {% elif validation_data.overall.status == 'PASSED_WITH_WARNINGS' %}
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Passed with Warnings
+                                            {% else %}
+                                            <i class="bi bi-x-circle-fill"></i> Validation Failed
+                                            {% endif %}
+                                        </h5>
+                                        <p class="mb-0">{{ validation_data.overall.message }}</p>
+                                        {% if validation_data.overall.warnings %}
+                                        <hr>
+                                        <ul class="mb-0">
+                                            {% for warning in validation_data.overall.warnings %}
+                                            <li><small>{{ warning }}</small></li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Validation Cards -->
+                                    <div class="row mb-4">
+                                        <!-- Convergence Card -->
+                                        <div class="col-md-4">
+                                            <div class="card border-0 shadow-sm h-100">
+                                                <div class="card-header bg-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="bi bi-activity"></i> Convergence
+                                                        {% if validation_data.convergence.passed %}
+                                                        <span class="badge bg-success float-end">PASS</span>
+                                                        {% else %}
+                                                        <span class="badge bg-danger float-end">FAIL</span>
+                                                        {% endif %}
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <table class="table table-sm table-borderless mb-0">
+                                                        <tr>
+                                                            <td class="text-muted">R-hat (max)</td>
+                                                            <td class="text-end">
+                                                                <strong>{{ "%.4f"|format(validation_data.convergence.r_hat.max_value) }}</strong>
+                                                                {% if validation_data.convergence.r_hat.passed %}
+                                                                <i class="bi bi-check-circle text-success"></i>
+                                                                {% else %}
+                                                                <i class="bi bi-x-circle text-danger"></i>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">ESS bulk (min)</td>
+                                                            <td class="text-end">
+                                                                <strong>{{ validation_data.convergence.ess.bulk_min|int }}</strong>
+                                                                {% if validation_data.convergence.ess.passed %}
+                                                                <i class="bi bi-check-circle text-success"></i>
+                                                                {% else %}
+                                                                <i class="bi bi-exclamation-circle text-warning"></i>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">ESS tail (min)</td>
+                                                            <td class="text-end">
+                                                                <strong>{{ validation_data.convergence.ess.tail_min|int }}</strong>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Divergences</td>
+                                                            <td class="text-end">
+                                                                <strong>{{ validation_data.convergence.divergences.count }}</strong>
+                                                                {% if validation_data.convergence.divergences.passed %}
+                                                                <i class="bi bi-check-circle text-success"></i>
+                                                                {% else %}
+                                                                <i class="bi bi-x-circle text-danger"></i>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                    <small class="text-muted">{{ validation_data.convergence.recommendation }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- PPC Card -->
+                                        <div class="col-md-4">
+                                            <div class="card border-0 shadow-sm h-100">
+                                                <div class="card-header bg-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="bi bi-bullseye"></i> Posterior Predictive Check
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    {% if validation_data.posterior_predictive and 'skipped' not in validation_data.posterior_predictive %}
+                                                    <table class="table table-sm table-borderless mb-0">
+                                                        <tr>
+                                                            <td class="text-muted">Observed mean</td>
+                                                            <td class="text-end"><strong>{{ "%.4f"|format(validation_data.posterior_predictive.observed_mean) }}</strong></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Predicted mean</td>
+                                                            <td class="text-end"><strong>{{ "%.4f"|format(validation_data.posterior_predictive.predicted_mean) }}</strong></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Bayesian p-value</td>
+                                                            <td class="text-end">
+                                                                <strong>{{ "%.3f"|format(validation_data.posterior_predictive.bayesian_p_value) }}</strong>
+                                                                {% set p_val = validation_data.posterior_predictive.bayesian_p_value %}
+                                                                {% if p_val >= 0.05 and p_val <= 0.95 %}
+                                                                <i class="bi bi-check-circle text-success"></i>
+                                                                {% else %}
+                                                                <i class="bi bi-exclamation-circle text-warning"></i>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Calibration RMSE</td>
+                                                            <td class="text-end">
+                                                                <strong>{{ "%.4f"|format(validation_data.posterior_predictive.calibration.rmse) }}</strong>
+                                                                {% if validation_data.posterior_predictive.calibration.well_calibrated %}
+                                                                <i class="bi bi-check-circle text-success"></i>
+                                                                {% else %}
+                                                                <i class="bi bi-exclamation-circle text-warning"></i>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                    <small class="text-muted">{{ validation_data.posterior_predictive.interpretation }}</small>
+                                                    {% else %}
+                                                    <p class="text-muted text-center py-3">
+                                                        <i class="bi bi-info-circle"></i> PPC not available
+                                                    </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- LOO Card -->
+                                        <div class="col-md-4">
+                                            <div class="card border-0 shadow-sm h-100">
+                                                <div class="card-header bg-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="bi bi-calculator"></i> LOO Cross-Validation
+                                                        {% if validation_data.loo and 'skipped' not in validation_data.loo %}
+                                                        {% if validation_data.loo.quality == 'good' %}
+                                                        <span class="badge bg-success float-end">Good</span>
+                                                        {% elif validation_data.loo.quality == 'moderate' %}
+                                                        <span class="badge bg-warning text-dark float-end">Moderate</span>
+                                                        {% else %}
+                                                        <span class="badge bg-danger float-end">Poor</span>
+                                                        {% endif %}
+                                                        {% endif %}
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    {% if validation_data.loo and 'skipped' not in validation_data.loo %}
+                                                    <table class="table table-sm table-borderless mb-0">
+                                                        <tr>
+                                                            <td class="text-muted">ELPD LOO</td>
+                                                            <td class="text-end"><strong>{{ "%.1f"|format(validation_data.loo.elpd_loo) }}</strong></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Standard Error</td>
+                                                            <td class="text-end"><strong>{{ "%.1f"|format(validation_data.loo.se) }}</strong></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">p_loo</td>
+                                                            <td class="text-end"><strong>{{ "%.1f"|format(validation_data.loo.p_loo) }}</strong></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Pareto k (max)</td>
+                                                            <td class="text-end"><strong>{{ "%.3f"|format(validation_data.loo.pareto_k_max) }}</strong></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Bad k (>0.7)</td>
+                                                            <td class="text-end"><strong>{{ validation_data.loo.pareto_k_bad_count }}</strong></td>
+                                                        </tr>
+                                                    </table>
+                                                    <small class="text-muted">{{ validation_data.loo.recommendation }}</small>
+                                                    {% else %}
+                                                    <p class="text-muted text-center py-3">
+                                                        <i class="bi bi-info-circle"></i> LOO not computed
+                                                    </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Treatment Effects Plot (if available) -->
+                                    {% if validation_plots and validation_plots.treatment_effects %}
+                                    <div class="row mb-4">
+                                        <div class="col-12">
+                                            <div class="card border-0 shadow-sm">
+                                                <div class="card-header bg-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="bi bi-bar-chart-line"></i> Treatment Effects
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body text-center">
+                                                    <p class="text-muted small mb-3">
+                                                        Odds ratios with 89% credible intervals. Green = credibly positive,
+                                                        Red = credibly negative, Gray = inconclusive (CI crosses OR=1.0).
+                                                    </p>
+                                                    <img src="{{ validation_plots.treatment_effects }}"
+                                                         alt="Treatment Effects Forest Plot"
+                                                         class="img-fluid border rounded"
+                                                         style="max-height: 400px;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- E-Values Section (if available) -->
+                                    {% if validation_data.e_values %}
+                                    <div class="row mb-4">
+                                        <div class="col-12">
+                                            <div class="card border-0 shadow-sm">
+                                                <div class="card-header bg-white">
+                                                    <h6 class="mb-0">
+                                                        <i class="bi bi-shield-check"></i> Sensitivity Analysis (E-values)
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p class="text-muted small mb-3">
+                                                        E-value: Minimum unmeasured confounding strength needed to explain away the effect.
+                                                        Higher values indicate more robust causal findings.
+                                                    </p>
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Treatment</th>
+                                                                    <th class="text-end">Odds Ratio</th>
+                                                                    <th class="text-end">E-value</th>
+                                                                    <th>Robustness</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for name, data in validation_data.e_values.items() %}
+                                                                <tr>
+                                                                    <td><code>{{ name }}</code></td>
+                                                                    <td class="text-end">{{ "%.2f"|format(data.odds_ratio) }}</td>
+                                                                    <td class="text-end"><strong>{{ "%.2f"|format(data.e_value) }}</strong></td>
+                                                                    <td>
+                                                                        {% if data.robustness == 'highly_robust' %}
+                                                                        <span class="badge bg-success">Highly Robust</span>
+                                                                        {% elif data.robustness == 'robust' %}
+                                                                        <span class="badge bg-info">Robust</span>
+                                                                        {% elif data.robustness == 'somewhat_robust' %}
+                                                                        <span class="badge bg-warning text-dark">Somewhat Robust</span>
+                                                                        {% else %}
+                                                                        <span class="badge bg-danger">Sensitive</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Validation Timestamp -->
+                                    <div class="text-muted small">
+                                        <i class="bi bi-clock"></i> Validated: {{ validation_data.timestamp }}
+                                    </div>
+
+                                    {% else %}
+                                    <!-- No validation yet -->
+                                    <div class="text-center py-5" id="noValidationMessage">
+                                        <i class="bi bi-clipboard-check text-muted" style="font-size: 3rem;"></i>
+                                        <p class="text-muted mt-3">No validation report available.</p>
+                                        <p class="small text-muted">Click "Run Validation" to generate a comprehensive validation report.</p>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Validation Results Container (for AJAX updates) -->
+                                    <div id="validationResultsContainer" style="display: none;"></div>
+
+                                {% else %}
+                                <div class="text-center py-5">
+                                    <i class="bi bi-clipboard-check text-muted" style="font-size: 3rem;"></i>
+                                    <p class="text-muted mt-3">Model must be trained before validation.</p>
+                                    <p class="small text-muted">
+                                        Run <code>python src/bayesian_scripts/train_{{ selected_model.model_id }}.py</code>
+                                        to train the model.
+                                    </p>
+                                </div>
+                                {% endif %}
+                            </div>
+
                             <!-- Inference Panel -->
                             <div class="tab-pane fade" id="inference-panel" role="tabpanel">
                                 <h5 class="mb-3">Run Inference</h5>
@@ -460,14 +1119,55 @@
                                                     {{ param.label }}
                                                     {% if param.required %}<span class="text-danger">*</span>{% endif %}
                                                 </label>
-                                                {% if param.type == 'select' %}
+                                                {% if param.type == 'multiselect' %}
+                                                {# Multi-select dropdown with checkboxes #}
+                                                <div class="card border-1 p-2" style="max-height: 180px; overflow-y: auto;">
+                                                    {% if param.options %}
+                                                    {% for option in param.options %}
+                                                    <div class="form-check">
+                                                        <input type="checkbox" class="form-check-input"
+                                                               id="{{ param.name }}_{{ loop.index }}"
+                                                               name="{{ param.name }}"
+                                                               value="{{ option }}"
+                                                               {% if param.default and option in param.default %}checked{% endif %}>
+                                                        <label class="form-check-label" for="{{ param.name }}_{{ loop.index }}">
+                                                            {{ option.replace('_', ' ').title() }}
+                                                        </label>
+                                                    </div>
+                                                    {% endfor %}
+                                                    {% else %}
+                                                    <span class="text-muted">No options available</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% elif param.type == 'select' %}
                                                 <select class="form-select" id="{{ param.name }}" name="{{ param.name }}"
                                                         {% if param.required %}required{% endif %}>
+                                                    {% if param.options %}
                                                     {% for option in param.options %}
-                                                    <option value="{{ option }}" {% if param.default == option %}selected{% endif %}>
-                                                        {{ option }}
+                                                    {# Handle both object options {label, value} and simple string options #}
+                                                    {% if option is mapping %}
+                                                        {# Object with label/value #}
+                                                        {% set opt_value = option.value %}
+                                                        {% set display_name = option.label %}
+                                                    {% else %}
+                                                        {# Simple string option #}
+                                                        {% set opt_value = option %}
+                                                        {% set display_name = option %}
+                                                        {% if option == '__all__' %}
+                                                            {% set display_name = 'All Campaigns (Population Average)' %}
+                                                        {% elif option.startswith('campaign_') and option.count('_') >= 3 %}
+                                                            {# Format: campaign_{uuid}_{agency}_{type}_{date} -> Agency Type Date #}
+                                                            {% set parts = option.split('_') %}
+                                                            {% set display_name = parts[2:] | join('_') %}
+                                                        {% endif %}
+                                                    {% endif %}
+                                                    <option value="{{ opt_value }}" {% if param.default == opt_value or (loop.first and not param.default) %}selected{% endif %}>
+                                                        {{ display_name }}
                                                     </option>
                                                     {% endfor %}
+                                                    {% else %}
+                                                    <option value="" disabled selected>No options available</option>
+                                                    {% endif %}
                                                 </select>
                                                 {% elif param.type == 'boolean' %}
                                                 <div class="form-check">
@@ -567,6 +1267,17 @@
     background-color: #5a32a3;
     border-color: #5a32a3;
     color: white;
+}
+.btn-outline-purple {
+    color: #6f42c1;
+    border-color: #6f42c1;
+}
+.btn-outline-purple:hover {
+    background-color: #6f42c1;
+    color: white;
+}
+.bg-purple {
+    background-color: #6f42c1;
 }
 .dag-container {
     min-height: 300px;
@@ -671,6 +1382,41 @@ function formatValue(value) {
         return JSON.stringify(value, null, 2);
     }
     return value;
+}
+
+// Run validation via AJAX
+function runValidation(modelId) {
+    const btn = document.getElementById('runValidationBtn');
+    const originalText = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Validating...';
+
+    const formData = new FormData();
+    formData.append('include_plots', 'true');
+    formData.append('skip_loo', 'false');
+
+    fetch(`/inference-models/${modelId}/validate`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
+        if (data.success) {
+            // Reload the page to show updated validation results
+            window.location.reload();
+        } else {
+            alert('Validation failed: ' + data.error);
+        }
+    })
+    .catch(error => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('Error running validation: ' + error.message);
+    });
 }
 </script>
 {% endblock %}

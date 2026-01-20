@@ -31,10 +31,14 @@ def create_app():
     from app.routes.auth import auth_bp
     from app.routes.main import main_bp
     from app.routes.campaigns import campaigns_bp
+    from app.routes.explore import explore_bp
+    from app.routes.county_analysis import county_analysis_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(campaigns_bp)
+    app.register_blueprint(explore_bp)
+    app.register_blueprint(county_analysis_bp)
 
     # Create database tables
     with app.app_context():

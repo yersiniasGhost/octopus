@@ -10,18 +10,26 @@ from .singleton import Singleton
 class EnvVars(metaclass=Singleton):
 
     def __init__(self):
-        # Load .env file - check local directory first, then home directory
+        # Load .env files - home directory first (global defaults), then local (overrides)
         local_env_path = Path.cwd() / ".env"
         home_env_path = Path.home() / ".env"
 
-        if local_env_path.exists():
-            print(f"Loading .env from local directory: {local_env_path}")
-            load_dotenv(local_env_path, override=True)
-        elif home_env_path.exists():
-            print(f"Loading .env from home directory: {home_env_path}")
+        loaded_any = False
+
+        # First: Load global .env from home directory (base defaults)
+        if home_env_path.exists():
+            print(f"Loading global .env from home directory: {home_env_path}")
             load_dotenv(home_env_path, override=True)
-        else:
-            print(f"Warning: .env file not found in {local_env_path} or {home_env_path}. Using defaults and environment variables.")
+            loaded_any = True
+
+        # Second: Load local .env (overrides global values)
+        if local_env_path.exists():
+            print(f"Loading local .env (overrides global): {local_env_path}")
+            load_dotenv(local_env_path, override=True)
+            loaded_any = True
+
+        if not loaded_any:
+            print(f"Warning: .env file not found in {home_env_path} or {local_env_path}. Using defaults and environment variables.")
 
         self.env_variables = {}
         self.log_path = self.get_env("LOG_PATH", "/var/log/raptor")

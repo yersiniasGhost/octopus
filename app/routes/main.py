@@ -1,7 +1,8 @@
 """Main application routes"""
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, send_from_directory
 from flask_login import login_required, current_user
 from pymongo import MongoClient
+from pathlib import Path
 import math
 
 from app.services import EmailOctopusClient
@@ -13,6 +14,19 @@ from src.utils.log_manager import LogManager
 logger = LogManager().get_logger(__name__)
 
 main_bp = Blueprint('main', __name__)
+
+# Project root for serving inference model artifacts
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+@main_bp.route('/static/inference/<path:filepath>')
+def serve_inference_files(filepath):
+    """
+    Serve static files from data/inference directory.
+    Used for model artifacts (DAG images, trace plots, etc.)
+    """
+    inference_dir = PROJECT_ROOT / 'data' / 'inference'
+    return send_from_directory(inference_dir, filepath)
 
 
 @main_bp.route('/')
@@ -404,6 +418,13 @@ def inference_models():
     effectiveness = None
     trace_plots = []
 
+    # Validation data
+    validation_data = None
+    validation_plots = {}
+
+    # Data ingestion summary
+    data_summary = None
+
     if selected_model_id:
         metadata = registry.get_model_metadata(selected_model_id)
         if metadata:
@@ -418,30 +439,61 @@ def inference_models():
                 with open(config_path, 'r') as f:
                     model_config = yaml.safe_load(f)
 
+            # Get output directory from registry (data/inference/{model_id})
+            from src.bayesian_models.base_model import MODELS_OUTPUT_DIR
+            model_output_dir = MODELS_OUTPUT_DIR / selected_model_id
+
             # Check for DAG image in diagrams folder
-            output_dir = Path('models') / selected_model_id / 'diagrams'
-            if output_dir.exists():
-                dag_files = list(output_dir.glob('dag*.png')) + list(output_dir.glob('dag*.svg'))
+            diagrams_dir = model_output_dir / 'diagrams'
+            if diagrams_dir.exists():
+                dag_files = list(diagrams_dir.glob('dag*.png')) + list(diagrams_dir.glob('dag*.svg'))
                 if dag_files:
-                    dag_image = f'/static/models/{selected_model_id}/diagrams/{dag_files[0].name}'
+                    # Serve from static route that maps to data/inference
+                    dag_image = f'/static/inference/{selected_model_id}/diagrams/{dag_files[0].name}'
 
             # Generate text-based DAG representation if no image
             if not dag_image and model_config:
-                predictors = model_config.get('predictors', [])
-                outcome = model_config.get('outcome', 'y')
-                if predictors:
-                    dag_lines = [f"<strong>Outcome:</strong> {outcome}", "<strong>Predictors:</strong>"]
-                    for p in predictors:
-                        dag_lines.append(f"  - {p}")
-                    dag_text = "<br>".join(dag_lines)
+                # Check for model_structure in config
+                model_structure = model_config.get('model_structure', {})
+                if model_structure:
+                    priors = model_structure.get('priors', [])
+                    likelihood = model_structure.get('likelihood', {})
+                    linear_model = model_structure.get('linear_model', '')
+
+                    dag_lines = ["<strong>Model Structure:</strong>"]
+                    if priors:
+                        dag_lines.append("<br><strong>Priors:</strong>")
+                        for p in priors:
+                            dag_lines.append(f"&nbsp;&nbsp;{p['name']} ~ {p['distribution']}")
+                    if linear_model:
+                        dag_lines.append(f"<br><strong>Linear Model:</strong><br>&nbsp;&nbsp;{linear_model}")
+                    if likelihood:
+                        dag_lines.append(f"<br><strong>Likelihood:</strong><br>&nbsp;&nbsp;{likelihood['name']} ~ {likelihood['distribution']}")
+                    dag_text = "".join(dag_lines)
+                else:
+                    # Fallback to predictors if available
+                    predictors = model_config.get('predictors', [])
+                    outcome = model_config.get('outcome', 'y')
+                    if predictors:
+                        dag_lines = [f"<strong>Outcome:</strong> {outcome}", "<strong>Predictors:</strong>"]
+                        for p in predictors:
+                            dag_lines.append(f"  - {p}")
+                        dag_text = "<br>".join(dag_lines)
 
             # Load fit results if available
-            reports_dir = Path('models') / selected_model_id / 'reports'
+            reports_dir = model_output_dir / 'reports'
             if reports_dir.exists():
-                fit_file = reports_dir / 'fit_summary.json'
-                if fit_file.exists():
-                    with open(fit_file, 'r') as f:
+                # Look for the most recent results file
+                result_files = sorted(reports_dir.glob('results_*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+                if result_files:
+                    with open(result_files[0], 'r') as f:
                         fit_results = json.load(f)
+                else:
+                    # Fallback to fit_summary.json
+                    fit_file = reports_dir / 'fit_summary.json'
+                    if fit_file.exists():
+                        with open(fit_file, 'r') as f:
+                            fit_results = json.load(f)
 
                 eff_file = reports_dir / 'effectiveness.json'
                 if eff_file.exists():
@@ -449,10 +501,49 @@ def inference_models():
                         effectiveness = json.load(f)
 
             # Load trace plots
-            diagrams_dir = Path('models') / selected_model_id / 'diagrams'
             if diagrams_dir.exists():
                 for plot_file in diagrams_dir.glob('trace*.png'):
-                    trace_plots.append(f'/static/models/{selected_model_id}/diagrams/{plot_file.name}')
+                    trace_plots.append(f'/static/inference/{selected_model_id}/diagrams/{plot_file.name}')
+
+            # Load validation report if available
+            if reports_dir.exists():
+                validation_files = sorted(reports_dir.glob('validation_*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+                if validation_files:
+                    with open(validation_files[0], 'r') as f:
+                        validation_data = json.load(f)
+
+            # Load validation plots if available
+            validation_dir = diagrams_dir / 'validation'
+            if validation_dir.exists():
+                plot_names = ['treatment_effects', 'e_values', 'forest', 'ppc', 'trace']
+                for plot_name in plot_names:
+                    plot_file = validation_dir / f'{plot_name}.png'
+                    if plot_file.exists():
+                        validation_plots[plot_name] = f'/static/inference/{selected_model_id}/diagrams/validation/{plot_name}.png'
+
+            # Load data ingestion summary if available
+            from src.bayesian_models.data_summary import load_data_summary_for_model
+            try:
+                summary = load_data_summary_for_model(selected_model_id)
+                if summary:
+                    data_summary = summary.to_dict()
+            except Exception as e:
+                logger.warning(f"Could not load data summary for {selected_model_id}: {e}")
+
+            # Load dynamic options for select fields (e.g., campaign_id)
+            if model_status and model_status.get('is_trained'):
+                try:
+                    model_instance = registry.load_model_instance(selected_model_id)
+                    if model_instance and hasattr(model_instance, 'get_dynamic_options'):
+                        dynamic_options = model_instance.get_dynamic_options()
+                        # Merge dynamic options into inference_params
+                        if dynamic_options and 'inference_params' in selected_model:
+                            for param in selected_model['inference_params']:
+                                param_name = param.get('name')
+                                if param_name in dynamic_options:
+                                    param['options'] = dynamic_options[param_name]
+                except Exception as e:
+                    logger.warning(f"Could not load dynamic options for {selected_model_id}: {e}")
 
     return render_template('inference_models.html',
                           title='Inference Models',
@@ -465,7 +556,10 @@ def inference_models():
                           dag_text=dag_text,
                           fit_results=fit_results,
                           effectiveness=effectiveness,
-                          trace_plots=trace_plots)
+                          trace_plots=trace_plots,
+                          validation_data=validation_data,
+                          validation_plots=validation_plots,
+                          data_summary=data_summary)
 
 
 @main_bp.route('/inference-models/<model_id>/run', methods=['POST'])
@@ -492,9 +586,24 @@ def run_inference(model_id):
             return jsonify({'success': False, 'error': 'Could not load model'})
 
         # Get inference parameters from form
+        # Handle multiselect params (multiple values for same key)
         inference_params = {}
-        for key, value in request.form.items():
-            inference_params[key] = value
+        multiselect_params = set()
+
+        # Identify multiselect parameters from model metadata
+        metadata = registry.get_model_metadata(model_id)
+        if metadata:
+            for param in metadata.inference_params:
+                if param.param_type == 'multiselect':
+                    multiselect_params.add(param.name)
+
+        # Process form values
+        for key in request.form.keys():
+            if key in multiselect_params:
+                # Get all values for multiselect fields as list
+                inference_params[key] = request.form.getlist(key)
+            else:
+                inference_params[key] = request.form.get(key)
 
         # Validate parameters
         is_valid, error = model_instance.validate_inference_params(inference_params)
@@ -508,6 +617,83 @@ def run_inference(model_id):
 
     except Exception as e:
         logger.error(f"Error running inference for {model_id}: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@main_bp.route('/inference-models/<model_id>/validate', methods=['POST'])
+@login_required
+def run_validation(model_id):
+    """
+    Run validation on a trained model.
+
+    Returns JSON with validation report and optional base64-encoded plots.
+    """
+    from src.bayesian_models.model_registry import get_registry
+    from src.bayesian_models.validation import ModelValidator
+    import arviz as az
+    import json
+
+    registry = get_registry()
+    model_status = registry.get_model_status(model_id)
+
+    if not model_status or not model_status.get('is_trained'):
+        return jsonify({'success': False, 'error': 'Model is not trained'})
+
+    try:
+        # Load the model instance
+        model_instance = registry.load_model_instance(model_id)
+        if not model_instance:
+            return jsonify({'success': False, 'error': 'Could not load model'})
+
+        # Get latest trace
+        latest_trace = model_instance.get_latest_trace()
+        if not latest_trace:
+            return jsonify({'success': False, 'error': 'No trained model trace found'})
+
+        trace = az.from_netcdf(latest_trace)
+
+        # Load treatment effects if available
+        treatment_effects = None
+        if model_instance.reports_dir.exists():
+            results_files = sorted(model_instance.reports_dir.glob('results_*.json'))
+            if results_files:
+                with open(results_files[-1], 'r') as f:
+                    results = json.load(f)
+                    treatment_effects = results.get('treatment_effects')
+
+        # Create validator and run
+        validator = ModelValidator(
+            trace,
+            model_name=model_instance.metadata.name,
+            treatment_effects=treatment_effects
+        )
+
+        # Check if plots are requested
+        include_plots = request.form.get('include_plots', 'false').lower() == 'true'
+        skip_loo = request.form.get('skip_loo', 'false').lower() == 'true'
+
+        report = validator.full_validation(include_loo=not skip_loo)
+
+        # Generate plots if requested
+        plots = {}
+        if include_plots:
+            output_dir = model_instance.diagrams_dir / 'validation'
+            plots = validator.generate_all_plots(output_dir, return_base64=True)
+
+        # Save validation report
+        from datetime import datetime
+        report_path = model_instance.reports_dir / f"validation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        validator.save_report(report_path)
+
+        return jsonify({
+            'success': True,
+            'report': report,
+            'plots': plots,
+            'report_path': str(report_path)
+        })
+
+    except Exception as e:
+        logger.error(f"Error running validation for {model_id}: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -540,3 +726,19 @@ def modeling_dashboard():
                           models=models,
                           selected_model=selected_model,
                           selected_model_id=selected_model_id)
+
+
+@main_bp.route('/analysis')
+@login_required
+def analysis():
+    """
+    Analysis page - tools for creating participant lists based on selection criteria.
+
+    Provides functionality to:
+    - Filter participants by county, demographics, engagement metrics
+    - Create targeted lists for campaigns
+    - Export filtered participant data
+    """
+    return render_template('analysis.html',
+                          title='Participant Analysis',
+                          user=current_user)
