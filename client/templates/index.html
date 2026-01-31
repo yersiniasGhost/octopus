@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Conservation Client Portal</title>
+
+    <!-- Bootstrap 5 Dark Theme -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Custom Styles -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Header with Search -->
+    <header class="header">
+        <h1><i class="fas fa-leaf"></i> Energy Conservation Advisor</h1>
+        <div class="search-container">
+            <div style="position: relative; flex: 1; min-width: 250px;">
+                <input type="text"
+                       id="searchInput"
+                       class="search-input"
+                       placeholder="Search by name..."
+                       autocomplete="off">
+                <div id="searchResults" class="search-results"></div>
+            </div>
+
+            <select id="countySelect" class="filter-select">
+                {% for county in counties %}
+                <option value="{{ county }}">{{ county }} County</option>
+                {% endfor %}
+            </select>
+
+            <label class="filter-checkbox">
+                <input type="checkbox" id="participantsOnly">
+                <span>Participants Only</span>
+            </label>
+
+            <button id="searchBtn" class="btn-search">
+                <i class="fas fa-search"></i> Search
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Profile Panel (Left) -->
+        <aside class="profile-panel" id="profilePanel">
+            <div class="profile-placeholder" id="profilePlaceholder">
+                <i class="fas fa-user-circle"></i>
+                <p>Search for a resident to view their energy profile</p>
+            </div>
+
+            <div id="profileContent" style="display: none;">
+                <!-- Profile Header -->
+                <div class="profile-header">
+                    <h2 id="profileName">-</h2>
+                    <div class="address" id="profileAddress">-</div>
+                    <span id="participantBadge" class="participant-badge" style="display: none;">
+                        <i class="fas fa-check-circle"></i> Campaign Participant
+                    </span>
+                </div>
+
+                <!-- Energy Percentile Card -->
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-chart-line"></i> Energy Percentile
+                    </div>
+                    <div class="percentile-container">
+                        <div class="percentile-gauge">
+                            <canvas id="percentileChart"></canvas>
+                        </div>
+                        <div class="percentile-text" id="percentileValue">-</div>
+                        <div class="percentile-label" id="percentileLabel">-</div>
+                    </div>
+                </div>
+
+                <!-- Demographics Card -->
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-users"></i> Household Info
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="householdSize">-</div>
+                            <div class="stat-label">People in Home</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="estimatedIncome">-</div>
+                            <div class="stat-label">Est. Income</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="homeSqft">-</div>
+                            <div class="stat-label">Sq Ft</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="homeAge">-</div>
+                            <div class="stat-label">Home Age (yrs)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Energy Costs Card -->
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-bolt"></i> Annual Energy Costs
+                    </div>
+                    <div class="cost-comparison">
+                        <div class="comparison-row">
+                            <span class="comparison-label">Electric</span>
+                            <div class="comparison-values">
+                                <span class="your-value" id="electricCost">$-</span>
+                                <span class="comparable-value">vs <span id="compElectric">$-</span> avg</span>
+                            </div>
+                        </div>
+                        <div class="comparison-row">
+                            <span class="comparison-label">Gas</span>
+                            <div class="comparison-values">
+                                <span class="your-value" id="gasCost">$-</span>
+                                <span class="comparable-value">vs <span id="compGas">$-</span> avg</span>
+                            </div>
+                        </div>
+                        <div class="comparison-row">
+                            <span class="comparison-label"><strong>Total</strong></span>
+                            <div class="comparison-values">
+                                <span class="your-value" id="totalCost">$-</span>
+                                <span class="comparable-value">vs <span id="compTotal">$-</span> avg</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-item" style="margin-top: 1rem;">
+                        <div class="stat-value" id="energyBurden">-</div>
+                        <div class="stat-label">Energy Burden (% of Income)</div>
+                    </div>
+                </div>
+
+                <!-- Potential Savings Card -->
+                <div class="card savings-highlight">
+                    <div class="savings-amount" id="potentialSavings">$0</div>
+                    <div class="savings-label">Potential Annual Savings<br>(if reduced to median)</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Chat & Opportunities Area -->
+        <div class="chat-area">
+            <!-- Chat Panel -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <i class="fas fa-robot"></i>
+                    <h3>Energy Conservation Advisor</h3>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message assistant">
+                        Welcome! I'm your Energy Conservation Advisor. Search for a resident above,
+                        and I'll help identify opportunities to reduce energy costs and improve comfort.
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <textarea id="chatInput"
+                              class="chat-input"
+                              placeholder="Type your message..."
+                              rows="1"
+                              disabled></textarea>
+                    <button id="sendBtn" class="btn-send" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Opportunities Panel -->
+            <div class="opportunities-panel">
+                <div class="opportunities-header">
+                    <h3><i class="fas fa-clipboard-check"></i> Opportunities</h3>
+                    <span class="opportunities-count" id="opportunitiesCount">0</span>
+                </div>
+
+                <div class="opportunities-list" id="opportunitiesList">
+                    <div class="opportunities-empty">
+                        <i class="fas fa-lightbulb" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.5;"></i>
+                        <p>Energy-saving opportunities will appear here as we chat.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Main Application JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
