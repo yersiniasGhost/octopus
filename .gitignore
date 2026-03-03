@@ -65,6 +65,6 @@ package-lock.json
 .swarm/
 
 # Generated outputs
+data/
 data/processed/
 reports/
-models/
