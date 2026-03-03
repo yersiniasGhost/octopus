@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Ingest text campaigns from RumbleUp/texting platform into campaign_data database.
+Ingest text campaigns from RumbleUp/texting platform into empower_development database.
 
 Reads from: data/campaign_texting/compact/campaigns.csv
-Writes to: campaign_data.campaigns collection
+Writes to: empower_development campaigns collection
 
 Usage:
     python scripts/ingest_text_campaigns.py [--dry-run]
@@ -63,7 +63,7 @@ def build_campaign_doc(row: pd.Series) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Ingest text campaigns into campaign_data')
+    parser = argparse.ArgumentParser(description='Ingest text campaigns into empower_development')
     parser.add_argument('--dry-run', action='store_true', help='Preview without writing to database')
     args = parser.parse_args()
 
@@ -78,7 +78,7 @@ def main():
 
     # Connect to database
     client = MongoClient('localhost', 27017)
-    db = client['campaign_data']
+    db = client['empower_development']
 
     # Check existing text campaigns
     existing_text = db.campaigns.count_documents({'channel': 'text'})

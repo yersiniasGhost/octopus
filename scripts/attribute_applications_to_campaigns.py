@@ -45,12 +45,12 @@ class CampaignAttributor:
         'mailer': 'mailer'
     }
 
-    def __init__(self, mongo_uri: str = "mongodb://localhost:27017", db_name: str = "campaign_data"):
+    def __init__(self, mongo_uri: str = "mongodb://localhost:27017", db_name: str = "empower_development"):
         self.client = MongoClient(mongo_uri)
         self.db = self.client[db_name]
         self.applications: Collection = self.db.applications
         self.campaigns: Collection = self.db.campaigns
-        self.exposures: Collection = self.db.campaign_exposures
+        self.exposures: Collection = self.db.exposures
 
     def get_channel_from_utm(self, utm_medium: Optional[str]) -> Optional[str]:
         """Map UTM medium to campaign channel."""

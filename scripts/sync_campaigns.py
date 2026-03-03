@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+DEPRECATED: This sync script has been superseded by the empower_development unification.
+Preserved for reference only.
+
 EmailOctopus Campaign Data Sync Tool
 
 Standalone CLI tool to download all campaign data from EmailOctopus,

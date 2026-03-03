@@ -3,7 +3,7 @@
 Enrich participants with thermal load data from county-specific collections.
 
 This script joins participant data with thermal load analysis results:
-- Reads participants from campaign_data.participants (with linkage.parcel_id)
+- Reads participants from empower_development participants (with linkage.parcel_id)
 - Matches to {County}ThermalLoads collections in empower_development
 - Updates participants with heating/cooling load regression coefficients
 

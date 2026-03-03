@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ingest text campaign exposures and participants into campaign_data database.
+Ingest text campaign exposures and participants into empower_development database.
 
 This script:
 1. Matches contacts to existing participants (by email, phone, address)
@@ -9,7 +9,7 @@ This script:
 4. Updates participant engagement summaries
 
 Reads from: data/campaign_texting/compact/messages.csv
-Writes to: campaign_data.participants, campaign_data.campaign_exposures
+Writes to: empower_development participants, exposures
 
 Usage:
     python scripts/ingest_text_exposures.py [--dry-run] [--batch-size N]
@@ -223,7 +223,7 @@ def build_exposure_doc(row: pd.Series, participant_id: str, campaign_id: str,
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Ingest text exposures into campaign_data')
+    parser = argparse.ArgumentParser(description='Ingest text exposures into empower_development')
     parser.add_argument('--dry-run', action='store_true', help='Preview without writing to database')
     parser.add_argument('--batch-size', type=int, default=1000, help='Batch size for database operations')
     args = parser.parse_args()
@@ -234,7 +234,7 @@ def main():
 
     # Connect to database
     client = MongoClient('localhost', 27017)
-    db = client['campaign_data']
+    db = client['empower_development']
 
     # Build action -> campaign_id mapping
     print("\n📥 Building campaign mapping...")
@@ -416,7 +416,7 @@ def main():
         # Batch insert
         if len(batch) >= args.batch_size:
             try:
-                db.campaign_exposures.insert_many(batch, ordered=False)
+                db.exposures.insert_many(batch, ordered=False)
                 exposures_created += len(batch)
             except Exception as e:
                 # Handle duplicates gracefully
@@ -433,7 +433,7 @@ def main():
     # Final batch
     if batch:
         try:
-            db.campaign_exposures.insert_many(batch, ordered=False)
+            db.exposures.insert_many(batch, ordered=False)
             exposures_created += len(batch)
         except Exception as e:
             if 'duplicate' in str(e).lower():
@@ -504,8 +504,8 @@ def main():
     print("=" * 80)
 
     total_participants = db.participants.count_documents({})
-    total_exposures = db.campaign_exposures.count_documents({})
-    text_exposures = db.campaign_exposures.count_documents({'channel': 'text'})
+    total_exposures = db.exposures.count_documents({})
+    text_exposures = db.exposures.count_documents({'channel': 'text'})
 
     print(f"\n  Total participants: {total_participants}")
     print(f"  Total exposures: {total_exposures}")

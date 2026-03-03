@@ -69,7 +69,7 @@ class CampaignTreatmentEffectsModel(BaseBayesianModel):
         """
         Load and prepare data for model training.
 
-        Uses campaign_exposures collection joined with participants to create
+        Uses exposures collection joined with participants to create
         observation-level dataset with treatment (message_types) and confounders.
 
         Returns:
@@ -118,12 +118,12 @@ class CampaignTreatmentEffectsModel(BaseBayesianModel):
                 }
         logger.info(f"Built lookup for {len(participant_lookup)} participants with demographics")
 
-        # Step 3: Load campaign_exposures and join with participant data
+        # Step 3: Load exposures and join with participant data
         logger.info("Loading campaign exposures...")
         data_rows = []
         exposures_checked = 0
 
-        for exposure in db.campaign_exposures.find(
+        for exposure in db.exposures.find(
             {'channel': 'email'},  # Focus on email campaigns for now
             {'participant_id': 1, 'campaign_id': 1, 'email_clicked': 1}
         ):

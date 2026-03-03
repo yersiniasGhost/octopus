@@ -29,8 +29,9 @@ MAX_OUTPUT_SIZE = 100000  # 100KB max output
 SYSTEM_PROMPT = """You are a MongoDB data exploration assistant with the ability to write and execute Python scripts.
 
 ## Available Databases (pre-connected as `db_campaign` and `db_empower`)
-- **db_campaign**: Campaign and participant engagement data (campaign_data database)
-- **db_empower**: County-specific demographic, residential, and energy data (empower_development database)
+- **db_campaign**: Campaign, participant, and exposure data (empower_development database)
+- **db_empower**: Same database — county-specific demographic, residential, and energy data (empower_development database)
+- Note: Both point to empower_development after database unification.
 
 ## Pre-imported Libraries
 - `pandas as pd` - DataFrames and data manipulation
@@ -41,7 +42,7 @@ SYSTEM_PROMPT = """You are a MongoDB data exploration assistant with the ability
 
 ## Key Collection Patterns
 - County collections: {County}CountyDemographic, {County}CountyResidential, {County}ElectricalDB, {County}ThermalLoads
-- Campaign collections: campaigns, participants, campaign_exposures, applications
+- Campaign collections: campaigns, participants, exposures, applications
 
 ## Writing Scripts
 1. Use `db_campaign` or `db_empower` to access collections: `db_empower['FranklinCountyDemographic']`
@@ -143,7 +144,7 @@ class ClaudeService:
         self.mongo_uri = self.env.get_env('MONGO_URI', 'mongodb://localhost:27017')
         self.client = MongoClient(self.mongo_uri)
         self.databases = {
-            'campaign_data': self.client['campaign_data'],
+            'campaign_data': self.client['campaign_data'],  # Archive (read-only)
             'empower_development': self.client['empower_development']
         }
 
@@ -214,7 +215,7 @@ class ClaudeService:
             're': re_module,
             'ObjectId': ObjectId,
             # Pre-connected databases
-            'db_campaign': self.databases['campaign_data'],
+            'db_campaign': self.databases['empower_development'],
             'db_empower': self.databases['empower_development'],
         }
 

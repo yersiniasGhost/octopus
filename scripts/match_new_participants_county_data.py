@@ -5,8 +5,8 @@ Match new text campaign participants to county residential/demographic data.
 Uses the existing ResidenceMatcher tool with 8-strategy matching logic to find
 matching records in empower_development database county collections.
 
-Reads from: campaign_data.participants (phone-based participant_ids)
-Writes to: campaign_data.participants (updates linkage, demographics, residence)
+Reads from: empower_development participants (phone-based participant_ids)
+Writes to: empower_development participants (updates linkage, demographics, residence)
 
 Usage:
     python scripts/match_new_participants_county_data.py [--dry-run] [--limit N]
@@ -122,7 +122,7 @@ def main():
 
     # Connect to databases
     client = MongoClient('localhost', 27017)
-    campaign_db = client['campaign_data']
+    campaign_db = client['empower_development']
     county_db = client['empower_development']
 
     # Find new participants (phone-based participant_id = 10 digits)

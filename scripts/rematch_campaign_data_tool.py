@@ -3,7 +3,7 @@
 Tool: Rematch Unmatched Participants in campaign_data
 
 This script fixes unmatched participants by:
-1. Pulling phone/address from their campaign_exposures (contact_snapshot)
+1. Pulling phone/address from their exposures (contact_snapshot)
 2. Re-running the 8-strategy ResidenceMatcher
 3. Updating participant records with demographics/residence data
 
@@ -50,7 +50,7 @@ class CampaignDataRematcher:
 
         # campaign_data database
         self.client = MongoClient('localhost', 27017)
-        self.db = self.client['campaign_data']
+        self.db = self.client['empower_development']
 
         # County database
         county_host = os.getenv('MONGODB_HOST_RM', '192.168.1.156')
@@ -105,11 +105,11 @@ class CampaignDataRematcher:
 
     def get_best_contact_data(self, participant_id: str) -> Dict:
         """
-        Get the best contact data from campaign_exposures.
+        Get the best contact data from exposures.
 
         Returns the most complete contact_snapshot (preferring ones with phone AND address).
         """
-        exposures = self.db.campaign_exposures.find({"participant_id": participant_id})
+        exposures = self.db.exposures.find({"participant_id": participant_id})
 
         best = {'phone': None, 'address': None, 'city': None, 'zip': None}
         best_score = 0

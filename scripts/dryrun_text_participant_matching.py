@@ -4,7 +4,7 @@ Dry-run script to analyze participant matching for text campaign ingestion.
 
 This script:
 1. Loads unique contacts from text campaign data
-2. Attempts to match against existing participants in campaign_data database
+2. Attempts to match against existing participants in empower_development database
 3. Reports match rates by method (email, phone, address)
 4. Identifies new participants that need to be created
 5. Analyzes county distribution for residential/demographic data lookup
@@ -49,9 +49,9 @@ def main():
     print("TEXT CAMPAIGN PARTICIPANT MATCHING DRY-RUN")
     print("=" * 80)
 
-    # Connect to campaign_data database
+    # Connect to empower_development database
     client = MongoClient('localhost', 27017)
-    db = client['campaign_data']
+    db = client['empower_development']
 
     # Load text campaign data
     print("\n📥 Loading text campaign data...")

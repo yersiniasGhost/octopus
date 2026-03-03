@@ -27,8 +27,8 @@ class Config:
     MONGODB_PORT = int(env.get_env('MONGODB_PORT', '27017'))
     MONGODB_EMPOWER_DB = env.get_env('MONGODB_DATABASE', 'empower_development')
 
-    # MongoDB - Campaign Data (participant tracking)
-    MONGODB_CAMPAIGN_DB = env.get_env('MONGODB_CAMPAIGN', 'campaign_data')
+    # MongoDB - Campaign & Participant Data (unified in empower_development)
+    MONGODB_CAMPAIGN_DB = env.get_env('MONGODB_CAMPAIGN', 'empower_development')
 
     # Anthropic Claude API
     ANTHROPIC_API_KEY = env.get_env('ANTHROPIC_API_KEY', '')

@@ -3,7 +3,7 @@
 Visualize campaigns grouped by their message classification types.
 
 Creates a graphic showing how each campaign belongs to different classification categories.
-Database: campaign_data, Collection: campaigns
+Database: empower_development, Collection: campaigns
 """
 import sys
 from pathlib import Path
@@ -44,7 +44,7 @@ def fetch_campaigns():
     """Fetch all campaigns with their message_types from MongoDB."""
     env = EnvVars()
     client = MongoClient(env.get_env('MONGODB_URI'))
-    db = client['campaign_data']
+    db = client['empower_development']
     campaigns_collection = db.campaigns
 
     # Get campaigns with message_types
@@ -137,7 +137,7 @@ def create_classification_matrix_view(campaigns):
     ax.set_ylim(-1, current_y + 1)
     ax.axis('off')
 
-    plt.title('Campaign Message Classification Mapping\n(campaign_data.campaigns collection)',
+    plt.title('Campaign Message Classification Mapping\n(empower_development.campaigns collection)',
               fontsize=14, fontweight='bold', pad=20)
 
     return fig
@@ -277,7 +277,7 @@ def create_summary_bar_chart(campaigns):
                 str(count), va='center', fontsize=10, fontweight='bold')
 
     ax.set_xlabel('Number of Campaigns', fontsize=12)
-    ax.set_title('Campaigns by Message Classification Type\n(campaign_data.campaigns collection)',
+    ax.set_title('Campaigns by Message Classification Type\n(empower_development.campaigns collection)',
                  fontsize=14, fontweight='bold')
     ax.set_xlim(0, max(counts) * 1.15)
 
@@ -345,7 +345,7 @@ def main():
     """Generate all visualizations."""
     print("=" * 60)
     print("Campaign Classification Visualization")
-    print(f"Database: campaign_data | Collection: campaigns")
+    print(f"Database: empower_development | Collection: campaigns")
     print("=" * 60)
 
     # Fetch data

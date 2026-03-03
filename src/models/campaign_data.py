@@ -1,10 +1,10 @@
 """
-Pydantic models for the campaign_data database schema.
+Pydantic models for the empower_development unified database schema.
 
 This module defines the data models for:
 - Participant: Unique person with demographics, residence, and engagement summary
 - Campaign: Campaign metadata with aggregate statistics
-- CampaignExposure: Individual participant × campaign engagement event
+- Exposure: Individual participant × campaign engagement event
 """
 from datetime import datetime
 from typing import Optional, Dict, List
@@ -29,13 +29,18 @@ class UnifiedEngagement(str, Enum):
     """Unified engagement status across all channels"""
     NO_ENGAGEMENT = "no_engagement"
     RECEIVED = "received"
+    CLICKED = "clicked"
     ENGAGED = "engaged"
+    CONVERTED = "converted"
+    OPTED_OUT = "opted_out"
+    UNDELIVERABLE = "undeliverable"
 
 
 class Address(BaseModel):
     """Normalized address"""
     street: Optional[str] = None
     city: Optional[str] = None
+    state: Optional[str] = None
     zip: Optional[str] = None
     county: Optional[str] = None
     raw: Optional[str] = None
@@ -212,6 +217,61 @@ class Residence(BaseModel):
         )
 
 
+class SourceIds(BaseModel):
+    """Original IDs from source systems for traceability"""
+    campaign_data_id: Optional[str] = None
+    empower_dev_id: Optional[str] = None
+
+
+class MigrationMetadata(BaseModel):
+    """Migration provenance tracking"""
+    source_db: Optional[str] = None
+    source: Optional[str] = None
+    source_id: Optional[str] = None
+    migrated_at: Optional[datetime] = None
+    reconciled: Optional[bool] = None
+    empower_dev_contact_ids: Optional[List[str]] = None
+
+
+class EmailEngagement(BaseModel):
+    """Email channel engagement data"""
+    opened: Optional[bool] = None
+    opened_at: Optional[datetime] = None
+    clicked: Optional[bool] = None
+    clicked_at: Optional[datetime] = None
+    bounced: Optional[bool] = None
+    complained: Optional[bool] = None
+    unsubscribed: Optional[bool] = None
+
+
+class TextEngagement(BaseModel):
+    """Text/SMS channel engagement data"""
+    delivered: Optional[bool] = None
+    read: Optional[bool] = None
+    replied: Optional[bool] = None
+    opted_out: Optional[bool] = None
+    failed: Optional[bool] = None
+
+
+class PostalEngagement(BaseModel):
+    """Postal/mail channel engagement data"""
+    delivered: Optional[bool] = None
+    response: Optional[str] = None
+
+
+class ThermalProfile(BaseModel):
+    """Thermal load analysis data from county ThermalLoads collection"""
+    county: Optional[str] = None
+    kwh_cl_intercept: Optional[float] = None
+    kwh_cl_r2: Optional[float] = None
+    kwh_cl_slope: Optional[float] = None
+    kwh_hl_intercept: Optional[float] = None
+    kwh_hl_r2: Optional[float] = None
+    kwh_hl_slope: Optional[float] = None
+    source_collection: Optional[str] = None
+    enriched_at: Optional[datetime] = None
+
+
 class EnergySnapshot(BaseModel):
     """Energy data snapshot from campaign CSV"""
     kwh_annual: Optional[float] = None
@@ -291,10 +351,16 @@ class Participant(BaseModel):
     # Quality flags
     data_quality: DataQuality = Field(default_factory=DataQuality)
 
+    # Thermal analysis
+    thermal: Optional[ThermalProfile] = Field(None)
+
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     source_campaigns: List[str] = Field(default_factory=list)
+
+    # Migration metadata
+    migration: Optional[MigrationMetadata] = Field(None, alias="_migration")
 
     class Config:
         populate_by_name = True
@@ -304,10 +370,13 @@ class Participant(BaseModel):
 class CampaignStatistics(BaseModel):
     """Campaign aggregate statistics"""
     total_sent: int = 0
+    delivered: int = 0
     opened: int = 0
     clicked: int = 0
     bounced: int = 0
+    failed: int = 0
     unsubscribed: int = 0
+    opted_out: int = 0
     complained: int = 0
     received: int = 0
     engaged: int = 0
@@ -316,32 +385,60 @@ class CampaignStatistics(BaseModel):
 
 
 class Campaign(BaseModel):
-    """Campaign metadata"""
+    """Campaign metadata — unified across all channels and sources."""
     id: Optional[PyObjectId] = Field(None, alias="_id")
-    campaign_id: str = Field(..., description="UUID from source system")
+    campaign_id: str = Field(..., description="Canonical UUID")
+
+    # Source traceability
+    source_ids: SourceIds = Field(default_factory=SourceIds)
 
     # Identity
     name: str
+    name_variants: List[str] = Field(default_factory=list)
     agency: Optional[str] = None
     channel: str = Channel.EMAIL.value
-
-    # Content
-    subject: Optional[str] = None
+    campaign_type: Optional[str] = None
     message_type: Optional[str] = None
+    message_types: Optional[List[str]] = None
+    message_body: Optional[str] = None
+    target_audience: Optional[str] = None
+    status: Optional[str] = None
 
-    # Timing
-    sent_at: Optional[datetime] = None
+    # Delivery — email
+    subject: Optional[str] = None
+    from_name: Optional[str] = None
+    from_email_address: Optional[str] = None
+    template_id: Optional[str] = None
+
+    # Delivery — text/SMS
+    sender_phone: Optional[str] = None
+    sms_provider: Optional[str] = None
+
+    # Delivery — print/postal
+    print_vendor: Optional[str] = None
+    postage_class: Optional[str] = None
+    envelope_type: Optional[str] = None
+    color_printing: Optional[bool] = None
+    double_sided: Optional[bool] = None
+
+    # Cost tracking
+    cost_per_send: Optional[float] = None
+    total_cost: Optional[float] = None
+
+    # Statistics
+    statistics: CampaignStatistics = Field(default_factory=CampaignStatistics)
 
     # Source
     source_system: str = "emailoctopus"
     source_file: Optional[str] = None
 
-    # Statistics
-    statistics: CampaignStatistics = Field(default_factory=CampaignStatistics)
-
-    # Metadata
+    # Timestamps
+    sent_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     synced_at: Optional[datetime] = None
+
+    # Migration metadata
+    migration: Optional[MigrationMetadata] = Field(None, alias="_migration")
 
     class Config:
         populate_by_name = True
@@ -366,11 +463,12 @@ class EnergyAtSend(BaseModel):
     daily_cost: Optional[float] = None
 
 
-class CampaignExposure(BaseModel):
+class Exposure(BaseModel):
     """
     Individual participant × campaign engagement event.
 
     One document per (participant_id, campaign_id) pair.
+    Replaces the old CampaignExposure model.
     """
     id: Optional[PyObjectId] = Field(None, alias="_id")
 
@@ -383,23 +481,10 @@ class CampaignExposure(BaseModel):
     channel: str = Channel.EMAIL.value
     sent_at: Optional[datetime] = None
 
-    # Email engagement
-    email_opened: bool = False
-    email_opened_at: Optional[datetime] = None
-    email_clicked: bool = False
-    email_clicked_at: Optional[datetime] = None
-    email_bounced: bool = False
-    email_complained: bool = False
-    email_unsubscribed: bool = False
-
-    # Text engagement (nullable for email)
-    text_delivered: Optional[bool] = None
-    text_read: Optional[bool] = None
-    text_replied: Optional[bool] = None
-
-    # Postal engagement (nullable for digital)
-    postal_delivered: Optional[bool] = None
-    postal_response: Optional[bool] = None
+    # Channel-specific engagement (nested)
+    email_engagement: EmailEngagement = Field(default_factory=EmailEngagement)
+    text_engagement: TextEngagement = Field(default_factory=TextEngagement)
+    postal_engagement: PostalEngagement = Field(default_factory=PostalEngagement)
 
     # Unified status
     unified_status: str = UnifiedEngagement.NO_ENGAGEMENT.value
@@ -410,35 +495,44 @@ class CampaignExposure(BaseModel):
 
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    migration: Optional[MigrationMetadata] = Field(None, alias="_migration")
 
     class Config:
         populate_by_name = True
         json_encoders = {PyObjectId: str}
 
     def compute_unified_status(self) -> str:
-        """Compute unified engagement status based on channel-specific engagement"""
+        """Compute unified engagement status based on channel-specific engagement."""
         if self.channel == Channel.EMAIL.value:
-            if self.email_clicked:
+            if self.email_engagement.clicked:
                 return UnifiedEngagement.ENGAGED.value
-            elif self.email_opened:
+            elif self.email_engagement.opened:
                 return UnifiedEngagement.RECEIVED.value
             else:
                 return UnifiedEngagement.NO_ENGAGEMENT.value
 
         elif self.channel in (Channel.TEXT.value, Channel.TEXT_MORNING.value, Channel.TEXT_EVENING.value):
-            if self.text_replied:
+            if self.text_engagement.replied:
                 return UnifiedEngagement.ENGAGED.value
-            elif self.text_read or self.text_delivered:
+            elif self.text_engagement.read or self.text_engagement.delivered:
                 return UnifiedEngagement.RECEIVED.value
+            elif self.text_engagement.opted_out:
+                return UnifiedEngagement.OPTED_OUT.value
+            elif self.text_engagement.failed:
+                return UnifiedEngagement.UNDELIVERABLE.value
             else:
                 return UnifiedEngagement.NO_ENGAGEMENT.value
 
         elif self.channel in (Channel.MAILER.value, Channel.LETTER.value):
-            if self.postal_response:
+            if self.postal_engagement.response:
                 return UnifiedEngagement.ENGAGED.value
-            elif self.postal_delivered:
+            elif self.postal_engagement.delivered:
                 return UnifiedEngagement.RECEIVED.value
             else:
                 return UnifiedEngagement.NO_ENGAGEMENT.value
 
         return UnifiedEngagement.NO_ENGAGEMENT.value
+
+
+# Backward compatibility alias
+CampaignExposure = Exposure

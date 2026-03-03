@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+DEPRECATED: This migration script has been superseded by the empower_development unification.
+Preserved for reference only.
+
 Migration Tool: Create campaign_data Database from CSV Exports
 
 This tool migrates data from CSV exports and emailoctopus_db to a new
@@ -153,7 +156,7 @@ class CampaignDataMigrator:
         # Target database (campaign_data)
         self.mongo_host = os.getenv('MONGODB_HOST', 'localhost')
         self.mongo_port = int(os.getenv('MONGODB_PORT', '27017'))
-        self.target_db_name = 'campaign_data'
+        self.target_db_name = 'empower_development'
 
         # Source county database (empower_development)
         self.county_host = os.getenv('MONGODB_HOST_RM', 'localhost')
@@ -236,18 +239,18 @@ class CampaignDataMigrator:
         ])
 
         # Campaign exposures indexes
-        self.db.campaign_exposures.create_index([("participant_id", ASCENDING)])
-        self.db.campaign_exposures.create_index([("campaign_id", ASCENDING)])
-        self.db.campaign_exposures.create_index([
+        self.db.exposures.create_index([("participant_id", ASCENDING)])
+        self.db.exposures.create_index([("campaign_id", ASCENDING)])
+        self.db.exposures.create_index([
             ("participant_id", ASCENDING),
             ("campaign_id", ASCENDING)
         ], unique=True)
-        self.db.campaign_exposures.create_index([("unified_status", ASCENDING)])
-        self.db.campaign_exposures.create_index([
+        self.db.exposures.create_index([("unified_status", ASCENDING)])
+        self.db.exposures.create_index([
             ("channel", ASCENDING),
             ("unified_status", ASCENDING)
         ])
-        self.db.campaign_exposures.create_index([("sent_at", DESCENDING)])
+        self.db.exposures.create_index([("sent_at", DESCENDING)])
 
         logger.info("Database setup complete")
 
@@ -507,7 +510,7 @@ class CampaignDataMigrator:
         campaign_id = campaign['campaign_id']
 
         # Check if exposure already exists
-        existing = self.db.campaign_exposures.find_one({
+        existing = self.db.exposures.find_one({
             "participant_id": participant_id,
             "campaign_id": campaign_id
         })
@@ -581,7 +584,7 @@ class CampaignDataMigrator:
 
         if not self.dry_run:
             try:
-                self.db.campaign_exposures.insert_one(exposure_doc)
+                self.db.exposures.insert_one(exposure_doc)
             except DuplicateKeyError:
                 self.stats.exposures_skipped += 1
                 return
@@ -744,7 +747,7 @@ class CampaignDataMigrator:
             }}
         ]
 
-        results = list(self.db.campaign_exposures.aggregate(pipeline))
+        results = list(self.db.exposures.aggregate(pipeline))
 
         # Build summary
         by_channel = {
@@ -790,7 +793,7 @@ class CampaignDataMigrator:
             unified_status = UnifiedEngagement.NO_ENGAGEMENT.value
 
         # Count unique campaigns
-        campaign_count = self.db.campaign_exposures.count_documents(
+        campaign_count = self.db.exposures.count_documents(
             {"participant_id": participant_id}
         )
 
@@ -885,7 +888,7 @@ class CampaignDataMigrator:
             }}
         ]
 
-        results = list(self.db.campaign_exposures.aggregate(pipeline))
+        results = list(self.db.exposures.aggregate(pipeline))
 
         if not results:
             return

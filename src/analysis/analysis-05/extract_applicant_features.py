@@ -29,7 +29,7 @@ logger = LogManager().get_logger(__name__)
 class ApplicantFeatureExtractor:
     """Extract participant-level features with applicant outcome for clustering."""
 
-    def __init__(self, mongo_uri: str = "mongodb://localhost:27017", db_name: str = "campaign_data"):
+    def __init__(self, mongo_uri: str = "mongodb://localhost:27017", db_name: str = "empower_development"):
         self.client = MongoClient(mongo_uri)
         self.db = self.client[db_name]
         self.message_types: List[str] = []
@@ -163,7 +163,7 @@ class ApplicantFeatureExtractor:
         logger.info(f"Extracted {len(df)} participants with demographics")
         return df
 
-    def extract_campaign_exposures(self) -> pd.DataFrame:
+    def extract_exposures(self) -> pd.DataFrame:
         """Aggregate campaign exposure data to participant level."""
         logger.info("Aggregating campaign exposures...")
 
@@ -232,7 +232,7 @@ class ApplicantFeatureExtractor:
             }
         ]
 
-        results = list(self.db.campaign_exposures.aggregate(pipeline))
+        results = list(self.db.exposures.aggregate(pipeline))
         df = pd.DataFrame(results)
 
         if len(df) > 0:
@@ -307,7 +307,7 @@ class ApplicantFeatureExtractor:
 
         # Extract all components
         participants_df = self.extract_participant_demographics()
-        exposures_df = self.extract_campaign_exposures()
+        exposures_df = self.extract_exposures()
         applications_df = self.extract_applications()
 
         # Merge participant demographics with campaign exposures

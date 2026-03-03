@@ -29,9 +29,9 @@ logger = LogManager().get_logger(__name__)
 
 
 class ParticipantFeatureExtractor:
-    """Extract participant-level features from campaign_data database."""
+    """Extract participant-level features from empower_development database."""
 
-    def __init__(self, mongo_uri: str = "mongodb://localhost:27017", db_name: str = "campaign_data"):
+    def __init__(self, mongo_uri: str = "mongodb://localhost:27017", db_name: str = "empower_development"):
         self.client = MongoClient(mongo_uri)
         self.db = self.client[db_name]
 
@@ -179,7 +179,7 @@ class ParticipantFeatureExtractor:
             }
         ]
 
-        results = list(self.db.campaign_exposures.aggregate(pipeline))
+        results = list(self.db.exposures.aggregate(pipeline))
         df = pd.DataFrame(results)
 
         # Compute message type exposure counts for each participant

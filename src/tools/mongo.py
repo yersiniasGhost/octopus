@@ -10,7 +10,7 @@ Environment Variables:
     MONGODB_HOST: MongoDB host (default: localhost)
     MONGODB_PORT: MongoDB port (default: 27017)
     MONGODB_DATABASE: Default database name (empower_development)
-    MONGODB_CAMPAIGN: Campaign data database (campaign_data)
+    MONGODB_CAMPAIGN: Campaign data database (empower_development)
 """
 from typing import Optional
 import pymongo.errors
@@ -36,7 +36,7 @@ class Mongo(metaclass=Singleton):
         db = Mongo().database
 
         # Get named database
-        campaign_db = Mongo().get_database('campaign_data')
+        campaign_db = Mongo().get_database('empower_development')
 
         # Or use helper functions
         from src.tools.mongo import get_campaign_db
@@ -131,20 +131,29 @@ class Mongo(metaclass=Singleton):
         return self.get_database(db_name)
 
     def ensure_indexes(self):
-        """Create required indexes for campaigns and participants collections"""
+        """Create required indexes for campaign collections."""
         logger.info("Creating database indexes...")
 
         # Campaigns indexes
         self.database.campaigns.create_index("campaign_id", unique=True)
+        self.database.campaigns.create_index("channel")
+        self.database.campaigns.create_index("agency")
+        self.database.campaigns.create_index("sent_at")
         self.database.campaigns.create_index("status")
-        self.database.campaigns.create_index("synced_at")
 
         # Participants indexes
-        self.database.participants.create_index(
-            [("campaign_id", 1), ("contact_id", 1)], unique=True
+        self.database.participants.create_index("participant_id", unique=True)
+        self.database.participants.create_index("email")
+        self.database.participants.create_index("address.county")
+        self.database.participants.create_index("linkage.parcel_id")
+
+        # Exposures indexes
+        self.database.exposures.create_index(
+            [("participant_id", 1), ("campaign_id", 1)]
         )
-        self.database.participants.create_index("campaign_id")
-        self.database.participants.create_index("email_address")
+        self.database.exposures.create_index("campaign_id")
+        self.database.exposures.create_index("unified_status")
+        self.database.exposures.create_index("channel")
 
         logger.info("Indexes created successfully")
 
@@ -160,15 +169,15 @@ def get_mongo() -> Mongo:
 
 def get_campaign_db() -> Database:
     """
-    Get the campaign_data database.
+    Get the campaign database (empower_development).
 
-    Uses MONGODB_CAMPAIGN env var, defaults to 'campaign_data'.
+    Uses MONGODB_CAMPAIGN env var, defaults to 'empower_development'.
 
     Returns:
         MongoDB Database for campaign data
     """
     mongo = Mongo()
-    db_name = mongo._env.get_env('MONGODB_CAMPAIGN', 'campaign_data')
+    db_name = mongo._env.get_env('MONGODB_CAMPAIGN', 'empower_development')
     return mongo.get_database(db_name)
 
 
@@ -184,13 +193,13 @@ def get_empower_db() -> Database:
     return Mongo().database
 
 
-def get_collection(collection_name: str, database: str = 'campaign_data'):
+def get_collection(collection_name: str, database: str = 'empower_development'):
     """
     Get a specific collection from a database.
 
     Args:
         collection_name: Name of the collection
-        database: Database name (default: campaign_data)
+        database: Database name (default: empower_development)
 
     Returns:
         MongoDB Collection instance

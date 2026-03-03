@@ -61,7 +61,7 @@ def update_database(campaign_id_to_types, dry_run=True):
     """Update campaigns in MongoDB with message_types."""
     env = EnvVars()
     client = MongoClient(env.get_env('MONGODB_URI'))
-    db = client['campaign_data']  # Correct database name
+    db = client['empower_development']
     campaigns_collection = db.campaigns
 
     print(f"\n{'DRY RUN - ' if dry_run else ''}Updating {len(campaign_id_to_types)} campaigns...")

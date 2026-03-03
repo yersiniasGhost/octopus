@@ -153,7 +153,7 @@ def generate_summary_for_model_04() -> DataIngestionSummary:
             ))
 
     # Build campaign summaries from database data
-    # Count exposures per campaign from campaign_exposures collection
+    # Count exposures per campaign from exposures collection
     logger.info("Counting campaign exposures...")
     pipeline = [
         {'$match': {'campaign_id': {'$in': list(campaign_data.keys())}}},
@@ -163,7 +163,7 @@ def generate_summary_for_model_04() -> DataIngestionSummary:
             'click_count': {'$sum': {'$cond': ['$email_clicked', 1, 0]}}
         }}
     ]
-    exposure_stats = {doc['_id']: doc for doc in db.campaign_exposures.aggregate(pipeline)}
+    exposure_stats = {doc['_id']: doc for doc in db.exposures.aggregate(pipeline)}
 
     campaigns = []
     for campaign_id, cdata in campaign_data.items():
@@ -230,7 +230,7 @@ def generate_summary_for_model_04() -> DataIngestionSummary:
         campaigns=campaigns,
         missing_data=missing,
         model_id='model_04_campaign_effects',
-        data_sources=['participants', 'campaign_exposures', 'campaigns'],
+        data_sources=['participants', 'exposures', 'campaigns'],
         treatment_summary=treatment_summary
     )
 

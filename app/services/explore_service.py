@@ -23,8 +23,8 @@ SYSTEM_PROMPT = """You are a MongoDB data exploration assistant for an energy ef
 You have access to tools to explore the database. Use them to answer user questions thoroughly.
 
 ## Available Databases
-- **campaign_data**: Campaign and participant engagement data
-- **empower_development**: County-specific demographic, residential, and energy data
+- **campaign_data**: Read-only archive of raw campaign data (deprecated — use empower_development)
+- **empower_development**: Primary database with all unified campaign, participant, and county data
 
 ## Key Patterns
 - County collections are named: {County}CountyDemographic, {County}CountyResidential, {County}ElectricalDB, {County}ThermalLoads
@@ -39,6 +39,7 @@ You have access to tools to explore the database. Use them to answer user questi
 5. Use run_aggregation for complex queries (grouping, statistics)
 
 ## Important
+- Campaign collections: campaigns, participants, exposures, applications
 - Always verify collection names exist before querying
 - If a query returns no results, consider trying alternative approaches
 - Provide clear, helpful summaries of what you found
@@ -668,15 +669,15 @@ class ExploreService:
 
     def get_collection_stats(self) -> dict:
         """Get basic stats about available collections."""
-        stats = {"campaign_data": {}, "empower_development": {}}
+        stats = {"empower_development": {}}
 
-        # Campaign data collections
-        for coll_name in ['campaigns', 'participants', 'applicants']:
+        # Campaign data collections (now in empower_development)
+        for coll_name in ['campaigns', 'participants', 'exposures', 'applications', 'applicants']:
             try:
-                count = self.databases['campaign_data'][coll_name].estimated_document_count()
-                stats["campaign_data"][coll_name] = count
+                count = self.databases['empower_development'][coll_name].estimated_document_count()
+                stats["empower_development"][coll_name] = count
             except Exception:
-                stats["campaign_data"][coll_name] = 0
+                stats["empower_development"][coll_name] = 0
 
         # County collections
         counties = self.get_available_counties()

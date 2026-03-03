@@ -29,7 +29,7 @@ class MongoService:
         self.mongo_host = env.get_env('MONGODB_HOST', 'localhost')
         self.mongo_port = int(env.get_env('MONGODB_PORT', '27017'))
         self.empower_db_name = env.get_env('MONGODB_DATABASE', 'empower_development')
-        self.campaign_db_name = env.get_env('MONGODB_CAMPAIGN', 'campaign_data')
+        self.campaign_db_name = env.get_env('MONGODB_CAMPAIGN', 'empower_development')
 
         self.client = MongoClient(f"mongodb://{self.mongo_host}:{self.mongo_port}")
         self.db_empower = self.client[self.empower_db_name]
@@ -99,8 +99,8 @@ class MongoService:
 
         # If filtering by participants, get the participant list first
         if participants_only:
-            participant_cursor = self.db_campaign["participants"].find({}, {"parcel_id": 1})
-            participant_ids = {p.get("parcel_id") for p in participant_cursor if p.get("parcel_id")}
+            participant_cursor = self.db_campaign["participants"].find({}, {"linkage.parcel_id": 1})
+            participant_ids = {p.get("linkage", {}).get("parcel_id") for p in participant_cursor if p.get("linkage", {}).get("parcel_id")}
             logger.debug(f"Found {len(participant_ids)} participants in campaign database")
 
         for doc in cursor:
@@ -154,7 +154,7 @@ class MongoService:
             logger.warning(f"No residential data for parcel_id: {parcel_id} in {county}County")
 
         # Check if participant
-        participant_doc = self.db_campaign["participants"].find_one({"parcel_id": parcel_id})
+        participant_doc = self.db_campaign["participants"].find_one({"linkage.parcel_id": parcel_id})
         is_participant = participant_doc is not None
 
         # Build profile - handle -1 as "no data available"
@@ -345,5 +345,5 @@ class MongoService:
 
     def is_participant(self, parcel_id: str) -> bool:
         """Check if a parcel_id is in the participants collection."""
-        doc = self.db_campaign["participants"].find_one({"parcel_id": parcel_id})
+        doc = self.db_campaign["participants"].find_one({"linkage.parcel_id": parcel_id})
         return doc is not None
