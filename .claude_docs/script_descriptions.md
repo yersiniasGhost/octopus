@@ -1243,3 +1243,358 @@ python scripts/calculate_missing_thermal_loads_tool.py --county Franklin --weath
 - Processing statistics: parcels found, successfully processed, failed, inserted
 
 **Dependencies**: sklearn, pandas, pymongo, numpy
+
+### ingest_franklin_demographics_tool.py
+**Purpose**: Ingest Franklin County demographic data from Melissa Data enriched CSV into the `empower_development.FranklinCountyDemographic` MongoDB collection.
+
+Converts string-based income brackets (e.g., "$30,001-$40,000") to numeric values and maps CSV fields to the existing demographic schema. Preserves additional Melissa Data (MD_) enrichment fields.
+
+**Income Conversion**:
+| CSV Bracket | estimated_income | income_level |
+|-------------|------------------|--------------|
+| $0-$15,000 | 10,000 | 1 |
+| $15,001-$20,000 | 17,500 | 2 |
+| $20,001-$30,000 | 25,000 | 3 |
+| $30,001-$40,000 | 35,000 | 4 |
+| $40,001-$50,000 | 45,000 | 5 |
+| $50,001-$60,000 | 55,000 | 5 |
+| $60,001-$75,000 | 62,500 | 6 |
+| $75,001-$100,000 | 87,500 | 7 |
+| $100,001-$125,000 | 112,500 | 8 |
+| $125,001+ | 150,000 | 9 |
+
+**Field Mappings**:
+- `First Name` + `Last Name` → `customer_name`
+- `Address` → `address` (normalized uppercase)
+- `City` → `service_city`
+- `Zipcode` → `parcel_zip` (5-digit extracted)
+- `MD_EMAIL` → `email`
+- `MD_MOBILE` → `mobile`
+- `MD_HouseholdIncome` → `estimated_income`, `income_level`
+- `MD_HouseholdSize` → `md_householdsize`
+- Additional MD_ fields preserved: own_rent, education, marital_status, gender, occupation, etc.
+
+**Features**:
+- Duplicate detection by address + zipcode (skips existing records)
+- Dry-run mode for validation before insertion
+- Preserves source metadata (`source`, `ingested_at`)
+- Progress reporting every 5,000 records
+- Handles missing/null values gracefully with -1 sentinel
+
+**Usage**:
+```bash
+# Dry run - preview without inserting
+python scripts/ingest_franklin_demographics_tool.py --dry-run
+
+# Test with limit
+python scripts/ingest_franklin_demographics_tool.py --dry-run --limit 100 --verbose
+
+# Full ingestion
+python scripts/ingest_franklin_demographics_tool.py
+
+# Custom CSV file
+python scripts/ingest_franklin_demographics_tool.py --csv /path/to/data.csv
+```
+
+**Output**: Inserts ~20,785 new records into FranklinCountyDemographic collection (after duplicate detection).
+
+### enrich_franklin_age_data_tool.py
+**Purpose**: Enrich existing FranklinCountyDemographic records with age data calculated from Melissa Data `MD_DateOfBirth` field.
+
+Updates existing demographic records (no new inserts) by matching on normalized address. Calculates `owner_age` from YYYYMM birth date format and enriches with additional demographic fields.
+
+**Age Calculation**:
+- Input: `MD_DateOfBirth` in YYYYMM format (e.g., 197607 = July 1976)
+- Output: `owner_age` calculated as current_year - birth_year, adjusted for month
+- Validation: Years must be 1900-2020, months 1-12
+
+**Fields Enriched**:
+- `owner_age`: Calculated from MD_DateOfBirth
+- `date_of_birth`: YYYYMM string for storage
+- `presence_of_senior`: Normalized Yes/No
+- `children_age_range`: MD_ChildrenAgeRange value
+- `marital_status`: Normalized Single/Married
+- `number_of_adults`: Estimated from household size and children presence
+- `length_of_residence`: MD_LengthOfResidence value
+- `estimated_home_value`: Parsed numeric from dollar string
+- `enriched_at`: Timestamp of enrichment
+- `enriched_from`: Source CSV filename
+
+**Matching Strategy** (consistent with existing scripts):
+- Primary: Normalized address + parcel_zip
+- Fallback: Normalized address only (if ZIP doesn't match)
+- Uses same `normalize_address()` function as other ingestion scripts
+
+**Features**:
+- Only updates EXISTING documents (no new inserts)
+- Skips records already enriched with owner_age (unless --force)
+- Dry-run mode for validation before updates
+- Age distribution preview in dry-run output
+- Progress reporting every 5,000 records
+
+**Usage**:
+```bash
+# Dry run - preview without updating
+python scripts/enrich_franklin_age_data_tool.py --dry-run
+
+# Test with limit
+python scripts/enrich_franklin_age_data_tool.py --dry-run --limit 500 --verbose
+
+# Full enrichment
+python scripts/enrich_franklin_age_data_tool.py
+
+# Force update (re-enrich even if owner_age exists)
+python scripts/enrich_franklin_age_data_tool.py --force
+
+# Custom CSV file
+python scripts/enrich_franklin_age_data_tool.py --csv /path/to/data.csv
+```
+
+**Output**: Updates ~13,000 records with owner_age data (mean age ~49, 16% seniors 65+).
+
+### backfill_demographic_parcel_ids_tool.py
+**Purpose**: Backfill missing `parcel_id` values in FranklinCountyDemographic by matching addresses to FranklinCountyResidential.
+
+The `ingest_franklin_demographics_tool.py` script creates records without parcel_id (the Melissa Data CSV doesn't include it). This script fills in the missing parcel_ids by address matching, enabling parcel_id-based joins.
+
+**Address Normalization**:
+- Handles suffix variations: AV→AVE, ST→ST, DR→DR, etc.
+- Uppercase, whitespace normalization
+- Same algorithm used across all demographic scripts
+
+**Fields Updated**:
+- `parcel_id`: The matched parcel ID from Residential
+- `parcel_id_source`: 'backfill_from_residential'
+- `parcel_id_backfilled_at`: Timestamp of backfill
+
+**Features**:
+- Only updates records with empty/missing parcel_id
+- Dry-run mode for validation
+- Progress reporting every 5,000 records
+- Reports match statistics and remaining gaps
+
+**Usage**:
+```bash
+# Dry run - preview without updating
+python scripts/backfill_demographic_parcel_ids_tool.py --dry-run
+
+# Test with limit
+python scripts/backfill_demographic_parcel_ids_tool.py --dry-run --limit 500 --verbose
+
+# Full backfill
+python scripts/backfill_demographic_parcel_ids_tool.py
+```
+
+**Output**: Updates ~20,750 records (99.8% match rate). Enables parcel_id joins from 56% to 100% coverage.
+
+## ingest_impact_winter_campaign_tool.py
+**Purpose**: Ingest IMPACT Winter 2026-01 text campaign data from color-coded Excel files into campaign_data database.
+
+Creates campaigns, matches/creates participants, and records engagement data with rich tracking (clicked, form_completed, opted_out).
+
+**Color Code Mapping**:
+| Color | Hex Code | Meaning | unified_status |
+|-------|----------|---------|----------------|
+| Blank | - | Received, no action | `received` |
+| Yellow | FFFFFF00 | Clicked link, no form | `clicked` |
+| Green | FF92D050 | Completed form | `converted` |
+| Orange | FFFFC000 | Negative reply (no stop) | `negative_response` |
+| Red | FFFF0000 | Replied STOP | `opted_out` |
+| Blue | theme_4 | Bad number/undeliverable | `undeliverable` |
+
+**Extended Schema Fields** (beyond standard text exposure):
+- `text_clicked`: Boolean - did they click the link?
+- `text_form_completed`: Boolean - did they complete the signup form?
+- `text_opted_out`: Boolean - did they reply STOP?
+- `do_not_contact`: Global participant flag for TCPA compliance
+
+**Participant Matching**: Phone → Email → Parcel ID cascade
+
+**Campaigns Created**:
+- `text_impact_winter_75`: Section 1 (~3,800 contacts)
+- `text_impact_winter_76`: Section 2 (~3,800 contacts)
+
+**Usage**:
+```bash
+# Dry run - preview changes
+python scripts/ingest_impact_winter_campaign_tool.py --dry-run
+
+# Full ingestion
+python scripts/ingest_impact_winter_campaign_tool.py
+```
+
+**Output**: Campaign records with rich statistics (clicked, converted, opted_out counts), participant records with engagement tracking, exposure records with color-based status.
+
+## ingest_impact_20260110_campaign_tool.py
+**Purpose**: Ingest IMPACT 2026-01-10 text campaign data from color-coded Excel files into campaign_data database.
+
+Same pipeline as `ingest_impact_winter_campaign_tool.py` but for the January 10, 2026 campaign send. Key difference: undeliverable rows use `theme_3` (blue/gray) instead of `theme_4`.
+
+**Color Code Mapping**:
+| Color | Hex Code | Meaning | unified_status |
+|-------|----------|---------|----------------|
+| Blank | - | Received, no action | `received` |
+| Yellow | FFFFFF00 | Clicked link, no form | `clicked` |
+| Green | FF92D050 | Completed form | `converted` |
+| Orange | FFFFC000 | Negative reply (no stop) | `negative_response` |
+| Red | FFFF0000 | Replied STOP | `opted_out` |
+| Blue/Gray | theme_3 | Bad number/undeliverable | `undeliverable` |
+
+**Campaigns Created**:
+- `text_impact_20260110_s1`: Section 1 (~3,701 contacts)
+- `text_impact_20260110_s2`: Section 2 (~3,700 contacts)
+
+**Usage**:
+```bash
+# Dry run - preview changes
+python scripts/ingest_impact_20260110_campaign_tool.py --dry-run
+
+# Full ingestion
+python scripts/ingest_impact_20260110_campaign_tool.py
+```
+
+**Output**: 7,401 total records. 29.4% click rate, 0.73% conversion, 1.6% opt-out, 0.4% undeliverable.
+
+## export_impact_20260110_csvs_tool.py
+**Purpose**: Export IMPACT 2026-01-10 campaign data as 6 color-coded CSV files and verify database linkage.
+
+Same pipeline as `export_campaign_color_csvs_tool.py` but for the January 10, 2026 campaign. Uses `theme_3` for undeliverable color detection.
+
+**Output CSVs** (in `data/campaign-IMPACT-20260110/`):
+| File | Color | Meaning |
+|------|-------|---------|
+| `impact_20260110_blank_received.csv` | Blank | Received, no click |
+| `impact_20260110_yellow_clicked.csv` | Yellow | Clicked link, no form |
+| `impact_20260110_green_converted.csv` | Green | Filled out form |
+| `impact_20260110_orange_negative.csv` | Orange | Nasty/uninterested |
+| `impact_20260110_red_opted_out.csv` | Red | Opted out (STOP) |
+| `impact_20260110_blue_undeliverable.csv` | Blue/Gray | Bad number/undeliverable |
+
+**Usage**:
+```bash
+# Dry run - preview without changes
+python scripts/export_impact_20260110_csvs_tool.py --dry-run
+
+# Full run - export CSVs + fix DB
+python scripts/export_impact_20260110_csvs_tool.py
+
+# CSV export only, skip DB operations
+python scripts/export_impact_20260110_csvs_tool.py --skip-db
+```
+
+## export_campaign_color_csvs_tool.py
+**Purpose**: Export IMPACT Winter 2026-01 campaign data as 6 color-coded CSV files and verify database linkage.
+
+Reads both color-coded Excel files (Text75 + Text76, 7,642 records), classifies each row by cell background color, and writes separate CSVs. Also fixes Application → Campaign linkage for GREEN (converted) rows and verifies `do_not_contact` flags for RED (opted-out) participants.
+
+**Output CSVs** (in `data/campaign-IMPACT-202601/`):
+| File | Rows | Color | Meaning |
+|------|------|-------|---------|
+| `impact_winter_blank_received.csv` | 4,363 | Blank | Received, no click |
+| `impact_winter_yellow_clicked.csv` | 2,005 | Yellow | Clicked link, no form |
+| `impact_winter_blue_undeliverable.csv` | 1,038 | Blue | Bad number/undeliverable |
+| `impact_winter_red_opted_out.csv` | 154 | Red | Opted out (STOP) |
+| `impact_winter_green_converted.csv` | 63 | Green | Filled out form |
+| `impact_winter_orange_negative.csv` | 19 | Orange | Nasty/uninterested |
+
+**DB Operations**:
+- Updates `applications.attribution.likely_campaigns` for GREEN rows (confidence: 1.0, method: `excel_color_verified`)
+- Verifies `participants.do_not_contact` is True for RED rows
+
+**Usage**:
+```bash
+# Dry run - preview without changes
+python scripts/export_campaign_color_csvs_tool.py --dry-run
+
+# Full run - export CSVs + fix DB
+python scripts/export_campaign_color_csvs_tool.py
+
+# CSV export only, skip DB operations
+python scripts/export_campaign_color_csvs_tool.py --skip-db
+```
+
+## reformat_campaign_list_tool.py
+**Purpose**: Reformat campaign_list.csv to match BOLT analysis format with 53 columns.
+**Location**: `scripts/reformat_campaign_list_tool.py`
+**Data Sources**:
+- FranklinCountyResidential: property data (year built, sqft, stories)
+- FranklinCountyDemographic: contact info (cell, email) and demographics
+- FranklinElectricalDB: monthly energy readings (time_series_elec)
+**Usage**:
+```bash
+python scripts/reformat_campaign_list_tool.py --dry-run     # Preview
+python scripts/reformat_campaign_list_tool.py --limit 100   # Test with subset
+python scripts/reformat_campaign_list_tool.py               # Full run
+```
+
+## ingest_green_applications_tool.py
+**Purpose**: Ingest GREEN (converted) rows from IMPACT 20260110 campaign as Application documents in the `applications` collection.
+
+The text_impact_20260110 campaign has 54 GREEN rows (form completed) but only 4 matched existing application records. This script creates Application documents for the remaining unmatched conversions with pre-linked campaign attribution.
+
+**Key Features**:
+- Reads `data/campaign-IMPACT-20260110/impact_20260110_green_converted.csv` (54 rows)
+- Deterministic `application_id`: `green_{campaign_id}_{phone}` for idempotent re-runs
+- Participant matching: parcel_id first (confidence 0.90), phone fallback (0.85)
+- Phone-level duplicate detection against existing applications
+- Pre-linked attribution: `likely_campaigns` with confidence 1.0, method `excel_color_verified`
+- Handles bracket income format (e.g. "$15,001-$20,000") and numeric format
+- Dry-run mode for validation
+
+**Usage**:
+```bash
+# Dry run - preview without inserting
+python scripts/ingest_green_applications_tool.py --dry-run
+
+# Full ingestion
+python scripts/ingest_green_applications_tool.py
+```
+
+**Output**: ~50 new Application documents (54 total minus ~4 already existing by phone match).
+
+## Energy Conservation Client Portal (client/)
+
+### client/app.py
+**Purpose**: Standalone Flask application serving the Energy Conservation Client Portal - a single-page demo app for viewing energy profiles and chatting with an AI advisor.
+
+**Features**:
+- Separate Flask app on port 5001 (independent from main `app/`)
+- User search by name with county and participant filters
+- Energy profile display with comparables analysis
+- AI chat interface (Phase 3: Claude API integration)
+- Opportunities checklist sidebar
+- Dark theme Bootstrap 5 UI with Chart.js visualizations
+
+**Architecture**:
+- `app.py`: Flask routes and entry point
+- `config.py`: Configuration using shared `src/utils/EnvVars`
+- `services/mongo_service.py`: MongoDB data access layer
+- `services/programs.py`: Hardcoded Ohio energy programs and savings estimates
+- `templates/index.html`: Single-page template
+- `static/css/style.css`: Dark theme styles
+- `static/js/main.js`: Frontend logic
+
+**API Endpoints**:
+- `GET /`: Serve main page
+- `GET /api/counties`: List available counties
+- `POST /api/search`: Search users by name
+- `GET /api/user/<parcel_id>`: Get full profile with comparables
+- `POST /api/programs`: Look up eligible programs by income
+- `POST /api/savings`: Calculate savings for improvements
+- `POST /api/chat`: Chat with AI advisor (Phase 3)
+
+**Usage**:
+```bash
+# Activate venv and run
+source venv/bin/activate
+python client/app.py
+
+# Access at http://localhost:5001
+```
+
+**Implementation Phases**:
+- Phase 1 (Complete): Flask structure, MongoDB service, base UI
+- Phase 2: Search & profile display with charts
+- Phase 3: AI advisor with Claude API tools
+- Phase 4: Opportunities sidebar
+- Phase 5: Polish and testing
