@@ -517,3 +517,18 @@ class CampaignDataService:
             'utm_campaign': utm_campaign,
             'channel_conversion': channel_conversion,
         }
+
+    def get_applicant_dashboard_data(self) -> Dict[str, Any]:
+        """Orchestrate the three per-tab builders. One failing tab does not crash the page."""
+        result = {}
+        for tab, builder in (
+            ('overview', self._build_applicant_overview),
+            ('demographics', self._build_applicant_demographics),
+            ('attribution', self._build_applicant_attribution),
+        ):
+            try:
+                result[tab] = builder()
+            except Exception as e:
+                logger.error(f"Applicant dashboard builder '{tab}' failed: {e}", exc_info=True)
+                result[tab] = {}
+        return result

@@ -354,3 +354,34 @@ def test_attribution_utm_source_and_campaign_buckets_null_as_none():
     assert result['utm_source']['counts'] == [5, 2]
     assert result['utm_campaign']['labels'] == ['spring', '(none)']
     assert result['utm_campaign']['counts'] == [8, 3]
+
+
+# ===========================
+# Orchestrator tests
+# ===========================
+
+def test_get_applicant_dashboard_data_returns_three_tabs():
+    service = _make_service()
+    service._build_applicant_overview = MagicMock(return_value={'kpis': 'OV'})
+    service._build_applicant_demographics = MagicMock(return_value={'age': 'DEMO'})
+    service._build_applicant_attribution = MagicMock(return_value={'utm_medium': 'ATTR'})
+
+    result = service.get_applicant_dashboard_data()
+    assert result == {
+        'overview': {'kpis': 'OV'},
+        'demographics': {'age': 'DEMO'},
+        'attribution': {'utm_medium': 'ATTR'},
+    }
+
+
+def test_get_applicant_dashboard_data_isolates_builder_failures():
+    """One failing builder must not crash the page; it returns empty dict and logs."""
+    service = _make_service()
+    service._build_applicant_overview = MagicMock(side_effect=RuntimeError('boom'))
+    service._build_applicant_demographics = MagicMock(return_value={'age': 'DEMO'})
+    service._build_applicant_attribution = MagicMock(return_value={'utm_medium': 'ATTR'})
+
+    result = service.get_applicant_dashboard_data()
+    assert result['overview'] == {}
+    assert result['demographics'] == {'age': 'DEMO'}
+    assert result['attribution'] == {'utm_medium': 'ATTR'}
