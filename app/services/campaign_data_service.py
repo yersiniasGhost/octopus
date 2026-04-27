@@ -455,3 +455,63 @@ class CampaignDataService:
                 'series': [{'county': c, 'points': series_map[c]} for c in top_counties + ['Other']],
             },
         }
+
+    _CHANNELS = ['text', 'email', 'mailer', 'letter']
+
+    def _build_applicant_attribution(self) -> Dict[str, Any]:
+        """Attribution tab: utm bars + per-channel exposures→applications conversion table."""
+        match_filter = {'is_test': {'$ne': True}}
+
+        def _utm_pipeline(field, top_n=None):
+            pipe = [
+                {'$match': match_filter},
+                {'$group': {'_id': f'${field}', 'count': {'$sum': 1}}},
+                {'$sort': {'count': -1}},
+            ]
+            if top_n:
+                pipe.append({'$limit': top_n})
+            return pipe
+
+        def _format_utm(results, null_label):
+            labels, counts = [], []
+            for r in results:
+                labels.append(r['_id'] if r['_id'] else null_label)
+                counts.append(r['count'])
+            return {'labels': labels, 'counts': counts}
+
+        utm_medium = _format_utm(
+            list(self.db.applications.aggregate(_utm_pipeline('attribution.utm.utm_medium'))),
+            'Direct/Unknown',
+        )
+        utm_source = _format_utm(
+            list(self.db.applications.aggregate(_utm_pipeline('attribution.utm.utm_source', top_n=10))),
+            '(none)',
+        )
+        utm_campaign = _format_utm(
+            list(self.db.applications.aggregate(_utm_pipeline('attribution.utm.utm_campaign', top_n=10))),
+            '(none)',
+        )
+
+        # Channel conversion table — applications grouped by utm_medium (case-insensitive)
+        # mapped to the same channel taxonomy used by exposures.
+        channel_conversion = []
+        for channel in self._CHANNELS:
+            apps = self.db.applications.count_documents({
+                **match_filter,
+                'attribution.utm.utm_medium': {'$regex': f'^{channel}$', '$options': 'i'},
+            })
+            exposures = self.db.exposures.count_documents({'channel': channel})
+            rate = round((apps / exposures * 100), 2) if exposures > 0 else 0.0
+            channel_conversion.append({
+                'channel': channel,
+                'exposures': exposures,
+                'applications': apps,
+                'conversion_rate': rate,
+            })
+
+        return {
+            'utm_medium': utm_medium,
+            'utm_source': utm_source,
+            'utm_campaign': utm_campaign,
+            'channel_conversion': channel_conversion,
+        }

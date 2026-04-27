@@ -279,3 +279,60 @@ def test_demographics_scatter_groups_top_3_counties_plus_other():
     assert set(series.keys()) >= {'Franklin', 'Delaware', 'Fairfield', 'Other'}
     assert {'x': 35, 'y': 40000} in series['Other']
     assert {'x': 45, 'y': 50000} in series['Franklin']
+
+
+# ===========================
+# Attribution tab tests
+# ===========================
+
+def test_attribution_returns_required_keys():
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(return_value=iter([]))
+    service.db.applications.count_documents = MagicMock(return_value=0)
+    service.db.exposures.count_documents = MagicMock(return_value=0)
+    result = service._build_applicant_attribution()
+    assert set(result.keys()) == {'utm_medium', 'utm_source', 'utm_campaign', 'channel_conversion'}
+
+
+def test_attribution_utm_medium_buckets_null_as_direct_unknown():
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(side_effect=[
+        iter([{'_id': 'text', 'count': 30}, {'_id': None, 'count': 10}]),  # utm_medium
+        iter([]),  # utm_source
+        iter([]),  # utm_campaign
+        iter([]), iter([]), iter([]), iter([]),  # 4× per-channel application counts
+    ])
+    service.db.applications.count_documents = MagicMock(return_value=0)
+    service.db.exposures.count_documents = MagicMock(return_value=0)
+
+    result = service._build_applicant_attribution()
+    assert result['utm_medium']['labels'] == ['text', 'Direct/Unknown']
+    assert result['utm_medium']['counts'] == [30, 10]
+
+
+def test_attribution_channel_conversion_table_computes_rate():
+    """Conversion rate = applications / exposures * 100, per channel."""
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(side_effect=[
+        iter([]),  # utm_medium
+        iter([]),  # utm_source
+        iter([]),  # utm_campaign
+    ])
+    # 4 channels: text, email, mailer, letter — each has its own count_documents call
+    service.db.applications.count_documents = MagicMock(side_effect=[100, 50, 5, 2])
+    service.db.exposures.count_documents = MagicMock(side_effect=[1000, 2000, 100, 50])
+
+    result = service._build_applicant_attribution()
+    by_channel = {row['channel']: row for row in result['channel_conversion']}
+    assert by_channel['text']['exposures'] == 1000
+    assert by_channel['text']['applications'] == 100
+    assert by_channel['text']['conversion_rate'] == 10.0
+    assert by_channel['email']['conversion_rate'] == 2.5
+    # Zero exposures → 0.0 rate, no division error
+    service2 = _make_service()
+    service2.db.applications.aggregate = MagicMock(return_value=iter([]))
+    service2.db.applications.count_documents = MagicMock(return_value=0)
+    service2.db.exposures.count_documents = MagicMock(return_value=0)
+    result2 = service2._build_applicant_attribution()
+    for row in result2['channel_conversion']:
+        assert row['conversion_rate'] == 0.0
