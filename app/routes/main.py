@@ -180,12 +180,14 @@ def email_dashboard():
     try:
         env = EnvVars()
         mongo_uri = env.get_env('MONGO_URI', 'mongodb://localhost:27017')
+        db_name = env.get_env('MONGODB_OCTOPUS') or env.get_env('MONGODB_DATABASE') or 'empower_development'
         client = MongoClient(mongo_uri)
-        db = client['emailoctopus_db']
+        db = client[db_name]
 
-        # Get ONLY email campaigns with statistics, sorted by name, limit to 20 most recent
+        # Filter to email-channel campaigns. Unified docs use either
+        # `channel` or `campaign_type` inconsistently across import sources.
         campaigns = list(db.campaigns.find(
-            {'campaign_type': 'email'},  # Filter to only email campaigns
+            {'$or': [{'channel': 'email'}, {'campaign_type': 'email'}]},
             {'name': 1, 'campaign_id': 1, 'statistics': 1, '_id': 0}
         ).sort('sent_at', -1).limit(20))
 
