@@ -1,0 +1,328 @@
+# Model 04: Campaign Treatment Effects Model
+# Estimates causal effects of campaign message types on click behavior
+
+name: "Campaign Treatment Effects Model (04)"
+description: |
+  Hierarchical Bayesian model estimating causal effects of campaign messaging
+  strategies on click behavior. This is a Level 4 model in our causal progression,
+  designed for campaign optimization.
+
+  Key Features:
+  - Treatment variable: message_types (6 categories, multi-label)
+  - Confounding control: income, energy_burden, county
+  - Random effects: county intercepts (partial pooling)
+  - Campaign-level clustering for proper variance estimation
+
+  Research Questions:
+  1. Which message types drive highest click-through rates?
+  2. What are the relative effect sizes of different messaging strategies?
+  3. How do message type effects vary by county/region?
+
+  Causal Identification Strategy:
+  - Adjust for selection mechanism (campaigns target high-burden, low-income)
+  - Block backdoor paths via: {income, energy_burden, county}
+  - Use E-values for sensitivity analysis
+
+  Message Types (from campaign classifications):
+  1. urgency_deadline - Time-sensitive messaging
+  2. savings_financial - Cost reduction focus
+  3. relief_reassurance - Emotional comfort messaging
+  4. informational - Educational content
+  5. personalized_qualified - Individual qualification-based
+  6. motivational_struggle - Empathy for burden challenges
+
+version: "1.0"
+author: "EmpowerSaves Analytics Team"
+status: "beta"
+
+tags:
+  - "campaign"
+  - "treatment-effects"
+  - "click-rate"
+  - "hierarchical"
+  - "causal-inference"
+  - "logistic-regression"
+  - "multi-label"
+
+# Model structure for DAG visualization
+model_structure:
+  dag_description: |
+    Treatment effects with confounding control.
+
+    CAMPAIGN SELECTION MECHANISM
+           |
+           v
+    message_types ──────────────────────────────> CLICKED
+       (T)                                          (Y)
+                                                    ^
+                    ┌── CONFOUNDERS ────────────────|
+                    |                               |
+    income ─────────┼───────────────────────────────|
+                    |                               |
+    energy_burden ──┼───────────────────────────────|
+                    |                               |
+    county ─────────┘───────────────────────────────┘
+
+  priors:
+    - name: "intercept"
+      distribution: "Normal(-3.0, 1.0)"
+      description: "Baseline log-odds of click (~5% base rate)"
+
+    # Message type effects (multi-label, additive)
+    - name: "beta_urgency"
+      distribution: "Normal(0.3, 0.3)"
+      description: "Effect of urgency/deadline framing (expected positive)"
+    - name: "beta_savings"
+      distribution: "Normal(0.2, 0.3)"
+      description: "Effect of savings/financial framing (expected positive)"
+    - name: "beta_relief"
+      distribution: "Normal(0.1, 0.3)"
+      description: "Effect of relief/reassurance framing"
+    - name: "beta_informational"
+      distribution: "Normal(0, 0.3)"
+      description: "Effect of informational content (reference-like)"
+    - name: "beta_personalized"
+      distribution: "Normal(0.4, 0.3)"
+      description: "Effect of personalization (expected strongest)"
+    - name: "beta_motivational"
+      distribution: "Normal(0.2, 0.3)"
+      description: "Effect of motivational/struggle framing"
+
+    # Confounding control
+    - name: "beta_income"
+      distribution: "Normal(0, 0.5)"
+      description: "Effect of income (direction ambiguous)"
+    - name: "beta_burden"
+      distribution: "Normal(0.3, 0.3)"
+      description: "Effect of energy burden (expected positive - motivation)"
+
+    # County random effects
+    - name: "sigma_county"
+      distribution: "HalfNormal(0.5)"
+      description: "Between-county variation in baseline click rates"
+    - name: "gamma_county"
+      distribution: "Normal(0, sigma_county)"
+      description: "County-level random intercepts (partial pooling)"
+
+  likelihood:
+    name: "y_clicked"
+    distribution: "Bernoulli(logit_p)"
+    description: "Binary outcome - clicked (1) or not (0)"
+
+  linear_model: |
+    logit_p = intercept +
+              beta_urgency * has_urgency +
+              beta_savings * has_savings +
+              beta_relief * has_relief +
+              beta_informational * has_informational +
+              beta_personalized * has_personalized +
+              beta_motivational * has_motivational +
+              beta_income * income +
+              beta_burden * energy_burden +
+              gamma_county[county_idx]
+
+# Causal identification
+causal_identification:
+  treatment: "message_types"
+  treatment_type: "multi-label categorical"
+  outcome: "clicked"
+
+  adjustment_set:
+    minimal: ["income", "energy_burden", "county"]
+    extended: ["income", "energy_burden", "county", "house_age", "sqft"]
+
+  backdoor_paths:
+    - path: "message_types <- selection <- income -> clicked"
+      blocked_by: "income"
+    - path: "message_types <- selection <- energy_burden -> clicked"
+      blocked_by: "energy_burden"
+    - path: "message_types <- organization <- county -> clicked"
+      blocked_by: "county"
+
+  assumptions:
+    - name: "Positivity"
+      description: "All message type combinations have non-zero probability"
+      testable: true
+    - name: "Consistency"
+      description: "Well-defined treatment (message types are coded consistently)"
+      satisfied: true
+    - name: "No unmeasured confounding"
+      potential_violations:
+        - "Digital literacy (unmeasured)"
+        - "Prior HEAP enrollment history"
+        - "Time-varying income changes"
+
+  sensitivity_analysis:
+    methods: ["E-value calculation", "Prior sensitivity", "Subset analysis"]
+
+# Inference parameters for single-record prediction
+inference_params:
+  - name: "message_types"
+    type: "multiselect"
+    label: "Message Types"
+    required: true
+    options:
+      - "urgency_deadline"
+      - "savings_financial"
+      - "relief_reassurance"
+      - "informational"
+      - "personalized_qualified"
+      - "motivational_struggle"
+    default: ["informational"]
+    help_text: "Select one or more message types used in the campaign"
+
+  - name: "energy_burden"
+    type: "float"
+    label: "Energy Burden (%)"
+    required: true
+    min_value: 0
+    max_value: 100
+    default: 15
+    help_text: "Energy burden as percentage of income"
+
+  - name: "income"
+    type: "select"
+    label: "Income Level"
+    required: true
+    options:
+      - label: "1 - Very Low (≤50% AMI)"
+        value: "1"
+      - label: "2 - Very Low"
+        value: "2"
+      - label: "3 - Low (51-80% AMI)"
+        value: "3"
+      - label: "4 - Low-Moderate"
+        value: "4"
+      - label: "5 - Moderate (81-100% AMI)"
+        value: "5"
+      - label: "6 - Moderate-Middle"
+        value: "6"
+      - label: "7 - Middle (101-120% AMI)"
+        value: "7"
+      - label: "8 - Middle-Upper"
+        value: "8"
+      - label: "9 - Upper (>120% AMI)"
+        value: "9"
+    default: "3"
+    help_text: "Income level (1-9 scale based on Area Median Income brackets)"
+
+  - name: "county"
+    type: "select"
+    label: "County"
+    required: true
+    options: []  # Populated dynamically from training data
+    help_text: "Ohio county (options loaded from training data)"
+
+  - name: "credible_interval"
+    type: "float"
+    label: "Credible Interval"
+    default: 0.89
+    required: false
+    min_value: 0.5
+    max_value: 0.99
+    help_text: "Width of credible interval (default 0.89 for PyMC convention)"
+
+# Training configuration
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
+  max_treedepth: 10
+
+  # Hierarchical model configuration
+  random_effects:
+    county:
+      type: "intercept"
+      parameterization: "non-centered"
+      shrinkage: "adaptive"
+
+# Data requirements
+data_requirements:
+  source: "campaign_data collections"
+  collections:
+    - name: "campaigns"
+      fields: ["campaign_id", "message_types"]
+    - name: "participants"
+      fields:
+        - "demographics.income_level"
+        - "demographics.total_energy_burden"
+        - "linkage.county"
+        - "engagement_summary"
+
+  required_fields:
+    - "campaign_id"
+    - "message_types"
+    - "income"
+    - "energy_burden"
+    - "county"
+    - "clicked"
+
+  preprocessing:
+    - "Standardize income and energy_burden to z-scores"
+    - "One-hot encode message_types (multi-label)"
+    - "Filter to records with non-null required fields"
+    - "Create county index mapping"
+
+  expected_sample_size:
+    campaigns: 143
+    participants: 7000
+    observations: 130000
+    counties: 16
+
+# Model outputs
+outputs:
+  - name: "click_probability"
+    description: "Predicted probability of click"
+  - name: "credible_interval"
+    description: "Credible interval bounds for prediction"
+  - name: "message_type_effects"
+    description: "Effect estimates for each message type (log-odds and odds ratios)"
+  - name: "county_effects"
+    description: "County-level random effect estimates"
+  - name: "effect_ranking"
+    description: "Ranked list of message types by effect size"
+  - name: "e_values"
+    description: "E-values for sensitivity to unmeasured confounding"
+
+# Validation requirements
+validation:
+  convergence_checks:
+    - name: "r_hat"
+      threshold: 1.01
+      description: "Gelman-Rubin diagnostic < 1.01"
+    - name: "ess_bulk"
+      threshold: 400
+      description: "Effective sample size (bulk) > 400"
+    - name: "ess_tail"
+      threshold: 400
+      description: "Effective sample size (tail) > 400"
+    - name: "divergences"
+      threshold: 0
+      description: "No divergent transitions"
+
+  posterior_predictive_checks:
+    - name: "calibration"
+      description: "Predicted probabilities calibrated to observed rates"
+    - name: "separation"
+      description: "Model distinguishes high/low click probability cases"
+
+  causal_checks:
+    - name: "e_value"
+      description: "E-values for treatment effects"
+    - name: "subset_comparison"
+      description: "Effects consistent across county subsets"
+
+# UI display configuration
+ui_config:
+  primary_output: "effect_ranking"
+  visualizations:
+    - type: "forest_plot"
+      title: "Message Type Effects"
+      description: "Forest plot of treatment effects with 89% credible intervals"
+    - type: "county_map"
+      title: "Geographic Variation"
+      description: "Map of county random effects"
+    - type: "posterior_density"
+      title: "Posterior Distributions"
+      description: "Density plots for key parameters"

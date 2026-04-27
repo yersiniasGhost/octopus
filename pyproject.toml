@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "octopus"
 version = "0.1.0"
 description = "EmailOctopus Campaign Analytics & Reporting Dashboard"
-readme = "README.md"
+#readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [

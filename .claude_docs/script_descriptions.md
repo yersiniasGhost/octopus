@@ -1598,3 +1598,18 @@ python client/app.py
 - Phase 3: AI advisor with Claude API tools
 - Phase 4: Opportunities sidebar
 - Phase 5: Polish and testing
+
+## ingest_impact_leads_20260414_tool.py
+**Purpose**: Ingest the hand-tracked `data/EMPOWER-IMPACT LEADS_20260414.xlsx` lead sheet (209 rows) into the `applications` collection.
+
+Differs from `ingest_applications.py` (GravityForms CSV): no Entry Id, no UTM, no Date column. Generates a deterministic `application_id = "impact_lead_20260414_<email|phone>"` for safe re-runs (upsert), stamps synthetic IMPACT attribution, and stores IMPACT-specific extras (`fpl_percent`, `impact_zip`, `called`, `notes`) under a `lead_tracking` sub-document. Reuses participant matching from `ApplicationIngester`. Subclasses the parent ingester to skip the unique-index recreation that conflicts with the existing non-unique `application_id` index.
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/ingest_impact_leads_20260414_tool.py --dry-run    # parse + report only
+python scripts/ingest_impact_leads_20260414_tool.py              # live ingest
+python scripts/ingest_impact_leads_20260414_tool.py --no-match   # skip participant matching
+```
+
+**Output (initial run)**: 207 inserted, 2 updated (two duplicate-email rows collide on the deterministic id), 0 errors, 193/209 (92%) matched to existing participants (93 email, 35 phone, 65 address+zip). CSV mirror written to `data/applications/EMPOWER-IMPACT_LEADS_20260414.csv`.

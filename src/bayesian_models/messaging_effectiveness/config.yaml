@@ -1,0 +1,244 @@
+# Messaging Effectiveness Model
+# 2-stage hierarchical Bayesian logistic regression for email campaign effectiveness
+
+name: "Messaging Effectiveness Model"
+description: |
+  2-stage hierarchical Bayesian model for email campaign funnel:
+  - Stage 1: P(Open | features) - Logistic regression with campaign random effects
+  - Stage 2: P(Click | Open, features) - Conditional logistic regression
+
+  Features:
+  - Campaign-level random effects (partial pooling via non-centered parameterization)
+  - Message type effects (cost, savings, urgency, personalization, improvement, event)
+  - Geographic effects (city/zip)
+  - Temporal effects (month)
+  - Offer characteristics (savings amount, monthly cost, kwh)
+
+  Research Questions:
+  1. Which message types drive highest open/click rates?
+  2. How do offer characteristics affect engagement?
+  3. Are there location or seasonal effects on campaign performance?
+
+version: "1.0"
+author: "EmpowerSaves Analytics Team"
+status: "active"
+
+tags:
+  - "email"
+  - "campaign"
+  - "open-rate"
+  - "click-rate"
+  - "hierarchical"
+  - "logistic-regression"
+
+# Model structure for DAG visualization
+model_structure:
+  stages:
+    - name: "open"
+      description: "P(Open | features) - Initial engagement"
+      priors:
+        - name: "mu_alpha_open"
+          distribution: "Normal(-3.0, 1.0)"
+          description: "Population-level intercept (~5% baseline open rate)"
+        - name: "sigma_alpha_open"
+          distribution: "HalfNormal(0.5)"
+          description: "Between-campaign variation in intercepts"
+        - name: "msg_type_effect_open"
+          distribution: "Normal(0, 0.5)"
+          shape: "n_msg_types"
+          description: "Message type effects on open rate"
+        - name: "location_effect_open"
+          distribution: "Normal(0, 0.3)"
+          shape: "n_locations"
+          description: "Location effects on open rate"
+        - name: "month_effect_open"
+          distribution: "Normal(0, 0.2)"
+          shape: 12
+          description: "Monthly seasonal effects"
+        - name: "beta_savings_open"
+          distribution: "Normal(0, 0.3)"
+          description: "Effect of savings amount"
+        - name: "beta_cost_open"
+          distribution: "Normal(0, 0.3)"
+          description: "Effect of monthly cost"
+        - name: "beta_kwh_open"
+          distribution: "Normal(0, 0.3)"
+          description: "Effect of kWh usage"
+      likelihood:
+        name: "opened_obs"
+        distribution: "Bernoulli(logit_p_open)"
+
+    - name: "click"
+      description: "P(Click | Open, features) - Conditional on opening"
+      priors:
+        - name: "mu_alpha_click"
+          distribution: "Normal(-2.5, 1.0)"
+          description: "Population-level intercept (~8% baseline click rate)"
+        - name: "sigma_alpha_click"
+          distribution: "HalfNormal(0.5)"
+          description: "Between-campaign variation in click intercepts"
+        - name: "msg_type_effect_click"
+          distribution: "Normal(0, 0.5)"
+          shape: "n_msg_types"
+          description: "Message type effects on click rate"
+        - name: "location_effect_click"
+          distribution: "Normal(0, 0.3)"
+          shape: "n_locations"
+          description: "Location effects on click rate"
+        - name: "beta_savings_click"
+          distribution: "Normal(0, 0.3)"
+          description: "Effect of savings amount on clicks"
+        - name: "beta_cost_click"
+          distribution: "Normal(0, 0.3)"
+          description: "Effect of monthly cost on clicks"
+        - name: "beta_kwh_click"
+          distribution: "Normal(0, 0.3)"
+          description: "Effect of kWh usage on clicks"
+      likelihood:
+        name: "clicked_obs"
+        distribution: "Bernoulli(logit_p_click)"
+
+# Prior configuration
+prior_config:
+  # Stage 1: Open rate priors (expecting low rates: ~3-5%)
+  mu_alpha_open:
+    mu: -3.0
+    sigma: 1.0
+  sigma_alpha_open:
+    sigma: 0.5
+
+  # Stage 2: Click rate priors (given open: ~5-10%)
+  mu_alpha_click:
+    mu: -2.5
+    sigma: 1.0
+  sigma_alpha_click:
+    sigma: 0.5
+
+  # Message type effects (can vary +/- 50%)
+  msg_type_effect:
+    sigma: 0.5
+
+  # Location effects (smaller variation)
+  location_effect:
+    sigma: 0.3
+
+  # Temporal effects (seasonal variation)
+  month_effect:
+    sigma: 0.2
+
+  # Offer sensitivity (weak to moderate effects)
+  offer_effect:
+    sigma: 0.3
+
+# Inference parameters (for single-record prediction)
+inference_params:
+  - name: "campaign_id"
+    type: "select"
+    label: "Campaign"
+    required: true
+    options: []  # Populated dynamically from trained model data
+    help_text: "Select a campaign to predict performance for (options loaded from training data)"
+
+  - name: "message_type"
+    type: "select"
+    label: "Message Type"
+    required: true
+    options:
+      - "cost_framing"
+      - "savings_framing"
+      - "urgency"
+      - "personalization"
+      - "improvement"
+      - "event"
+      - "other"
+    default: "cost_framing"
+    help_text: "Type of messaging used in the campaign"
+
+  - name: "savings_amount"
+    type: "float"
+    label: "Annual Savings ($)"
+    required: false
+    min_value: 0
+    max_value: 5000
+    default: 200
+    help_text: "Projected annual savings from the offer"
+
+  - name: "monthly_cost"
+    type: "float"
+    label: "Monthly Cost ($)"
+    required: false
+    min_value: 0
+    max_value: 1000
+    default: 100
+    help_text: "Participant's estimated monthly energy cost"
+
+  - name: "kwh_usage"
+    type: "float"
+    label: "kWh Usage"
+    required: false
+    min_value: 0
+    max_value: 100000
+    default: 12000
+    help_text: "Annual kWh usage"
+
+  - name: "month"
+    type: "integer"
+    label: "Month (1-12)"
+    required: false
+    min_value: 1
+    max_value: 12
+    default: 6
+    help_text: "Month of campaign send (1=Jan, 12=Dec)"
+
+  - name: "credible_interval"
+    type: "float"
+    label: "Credible Interval"
+    required: false
+    default: 0.89
+    min_value: 0.5
+    max_value: 0.99
+    help_text: "Width of credible interval (default 0.89 for PyMC convention)"
+
+# Training configuration
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.95
+  max_treedepth: 10
+  parameterization: "non-centered"  # For campaign random effects
+
+# Data requirements
+data_requirements:
+  source: "pickle file from prepare_messaging_data.py"
+  data_file: "data/processed/messaging_poc_data.pkl"
+  required_fields:
+    - "n_campaigns"
+    - "n_msg_types"
+    - "n_locations"
+    - "campaign_idx"
+    - "msg_type_idx"
+    - "location_idx"
+    - "month_idx"
+    - "opened"
+    - "clicked"
+    - "savings_std"
+    - "monthly_cost_std"
+    - "kwh_std"
+  preprocessing:
+    - "Data prepared by src/bayesian_scripts_orig/prepare_messaging_data.py"
+    - "Features standardized to z-scores"
+    - "Bounced records excluded"
+
+# Model outputs
+outputs:
+  - name: "p_open"
+    description: "Probability of email being opened"
+  - name: "p_click"
+    description: "Probability of click given open"
+  - name: "conversion_rate"
+    description: "End-to-end conversion rate (open * click|open)"
+  - name: "campaign_rankings"
+    description: "Relative campaign performance with credible intervals"
+  - name: "message_type_effects"
+    description: "Odds ratios for each message type"

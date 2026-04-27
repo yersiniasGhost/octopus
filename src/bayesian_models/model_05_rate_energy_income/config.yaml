@@ -1,0 +1,105 @@
+# Model 05: Click Rate by Energy Cost × Income Category
+# Hierarchical model with varying slopes for energy cost effect by income category
+
+name: "Click Rate: Energy Cost × Income"
+description: |
+  Bayesian hierarchical model for predicting click-through rates using
+  energy cost and income category as separate predictors with interaction.
+
+  Key Design Decision: Rather than using a derived energy burden ratio
+  (which loses information due to categorical income), this model keeps
+  components separate and uses varying slopes to capture the burden effect.
+
+  Model Structure:
+    logit(p) = α + β·energy_cost + γ[income_cat] + δ[income_cat]·energy_cost
+
+  The interaction term δ[k]·energy_cost captures how the effect of energy
+  cost varies by income category - this IS the energy burden effect modeled
+  more flexibly.
+
+version: "1.0"
+author: "EmpowerSaves Analytics Team"
+status: "active"
+
+tags:
+  - "click-through"
+  - "hierarchical"
+  - "energy-cost"
+  - "income"
+  - "varying-slopes"
+
+# Parameters for inference/prediction
+inference_params:
+  - name: "income_category"
+    type: "select"
+    label: "Income Category"
+    required: true
+    help_text: "Select the income bracket for prediction"
+    options:
+      - label: "< $15,000"
+        value: "0"
+      - label: "$15,000 - $25,000"
+        value: "1"
+      - label: "$25,000 - $35,000"
+        value: "2"
+      - label: "$35,000 - $50,000"
+        value: "3"
+      - label: "$50,000 - $65,000"
+        value: "4"
+      - label: "$65,000 - $80,000"
+        value: "5"
+      - label: "$80,000 - $100,000"
+        value: "6"
+      - label: "$100,000 - $125,000"
+        value: "7"
+      - label: "$125,000 - $150,000"
+        value: "8"
+      - label: "> $150,000"
+        value: "9"
+
+  - name: "energy_cost"
+    type: "float"
+    label: "Monthly Energy Cost ($)"
+    default: 150
+    required: true
+    min_value: 0
+    max_value: 1000
+    help_text: "Average monthly energy cost in dollars"
+
+  - name: "credible_interval"
+    type: "float"
+    label: "Credible Interval"
+    default: 0.94
+    required: false
+    min_value: 0.5
+    max_value: 0.99
+    help_text: "Width of the credible interval (e.g., 0.94 for 94% HDI)"
+
+# Training configuration
+training:
+  default_iterations: 2000
+  chains: 4
+  warmup: 1000
+  target_accept: 0.9
+  max_treedepth: 10
+
+# Model outputs
+outputs:
+  - name: "click_probability"
+    description: "Predicted probability of click"
+  - name: "credible_interval"
+    description: "HDI bounds for the prediction"
+  - name: "income_category_effects"
+    description: "Estimated effects for each income category"
+  - name: "varying_slopes"
+    description: "Energy cost slope by income category"
+
+# Prior specifications (for documentation)
+priors:
+  alpha: "Normal(-3.7, 0.5)  # Centered on 2.5% base rate"
+  beta_energy: "Normal(0, 0.5)  # Effect per SD of energy cost"
+  gamma_income: "Normal(0, sigma_gamma)  # Hierarchical income effects"
+  delta_slope: "Normal(mu_delta, sigma_delta)  # Hierarchical varying slopes"
+  sigma_gamma: "HalfNormal(0.5)  # Between-category variation"
+  mu_delta: "Normal(0, 0.25)  # Population mean slope modifier"
+  sigma_delta: "HalfNormal(0.25)  # Between-category slope variation"
