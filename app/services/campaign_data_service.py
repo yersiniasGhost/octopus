@@ -244,3 +244,102 @@ class CampaignDataService:
                 'ratio': f"{total_applicants}/{total_participants}",
             },
         }
+
+    # ========================================
+    # APPLICANT DASHBOARD (per-tab builders)
+    # ========================================
+
+    def _build_applicant_overview(self) -> Dict[str, Any]:
+        """Overview tab data: KPIs, weekly time series, match quality donut, recent applicants."""
+        from datetime import datetime, timezone
+
+        match_filter = {'is_test': {'$ne': True}}
+        total = self.db.applications.count_documents(match_filter)
+
+        # This-month count
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        this_month = self.db.applications.count_documents({
+            **match_filter, 'entry_date': {'$gte': month_start}
+        })
+
+        # Match rate
+        matched = self.db.applications.count_documents({
+            **match_filter, 'participant_match.match_method': {'$ne': None}
+        })
+        match_rate_pct = round((matched / total * 100), 1) if total > 0 else 0.0
+
+        # Top county
+        top_county_results = list(self.db.applications.aggregate([
+            {'$match': {**match_filter, 'address.county': {'$ne': None}}},
+            {'$group': {'_id': '$address.county', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}}, {'$limit': 1},
+        ]))
+        top_county = top_county_results[0]['_id'] if top_county_results else None
+
+        # Top channel
+        top_channel_results = list(self.db.applications.aggregate([
+            {'$match': {**match_filter, 'attribution.utm.utm_medium': {'$ne': None}}},
+            {'$group': {'_id': '$attribution.utm.utm_medium', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}}, {'$limit': 1},
+        ]))
+        top_channel = top_channel_results[0]['_id'] if top_channel_results else None
+
+        # Weekly time series, last 6 months
+        six_months_ago = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        six_months_ago = six_months_ago.replace(month=((now.month - 6 - 1) % 12) + 1,
+                                                 year=now.year - (1 if now.month <= 6 else 0))
+        ts_results = list(self.db.applications.aggregate([
+            {'$match': {**match_filter, 'entry_date': {'$gte': six_months_ago}}},
+            {'$group': {
+                '_id': {'$dateTrunc': {'date': '$entry_date', 'unit': 'week'}},
+                'count': {'$sum': 1},
+            }},
+            {'$sort': {'_id': 1}},
+        ]))
+        time_series = {
+            'labels': [r['_id'].strftime('%Y-%m-%d') for r in ts_results if r['_id']],
+            'counts': [r['count'] for r in ts_results if r['_id']],
+        }
+
+        # Match quality donut (null bucketed as 'unmatched')
+        mq_results = list(self.db.applications.aggregate([
+            {'$match': match_filter},
+            {'$group': {'_id': '$participant_match.match_method', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}},
+        ]))
+        match_quality = {
+            'labels': [(r['_id'] if r['_id'] else 'unmatched') for r in mq_results],
+            'counts': [r['count'] for r in mq_results],
+        }
+
+        # Recent 25 applicants (flat shape, JSON-safe)
+        recent_cursor = self.db.applications.find(match_filter).sort('entry_date', -1).limit(25)
+        recent_applicants = []
+        for a in recent_cursor:
+            applicant = a.get('applicant') or {}
+            address = a.get('address') or {}
+            utm = (a.get('attribution') or {}).get('utm') or {}
+            pm = a.get('participant_match') or {}
+            entry_date = a.get('entry_date')
+            recent_applicants.append({
+                'name': f"{applicant.get('first_name','')} {applicant.get('last_name','')}".strip() or '(unknown)',
+                'county': address.get('county'),
+                'zip': address.get('zip'),
+                'channel': utm.get('utm_medium'),
+                'entry_date': entry_date.isoformat() if hasattr(entry_date, 'isoformat') else (entry_date or ''),
+                'match_method': pm.get('match_method'),
+            })
+
+        return {
+            'kpis': {
+                'total_applicants': total,
+                'this_month': this_month,
+                'match_rate_pct': match_rate_pct,
+                'top_county': top_county,
+                'top_channel': top_channel,
+            },
+            'time_series': time_series,
+            'match_quality': match_quality,
+            'recent_applicants': recent_applicants,
+        }
