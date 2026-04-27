@@ -355,6 +355,8 @@ class CampaignDataService:
     _HH_LABELS = ['1', '2', '3', '4', '5+']
     _BURDEN_BOUNDARIES = [0, 0.06, 0.10, 0.15, 100]
     _BURDEN_LABELS = ['<6%', '6-10%', '10-15%', '15%+']
+    # Attribution channel taxonomy.
+    _CHANNELS = ['text', 'email', 'mailer', 'letter']
 
     @staticmethod
     def _bucket_results_to_histogram(results, boundaries, labels):
@@ -368,6 +370,15 @@ class CampaignDataService:
         by_lower = {r['_id']: r['count'] for r in results}
         counts = [by_lower.get(boundaries[i], 0) for i in range(len(labels))]
         return {'labels': labels, 'counts': counts, 'n': sum(counts)}
+
+    @staticmethod
+    def _format_utm(results, null_label):
+        """Convert Mongo group-by-UTM results to {labels, counts}, replacing None with null_label."""
+        labels, counts = [], []
+        for r in results:
+            labels.append(r['_id'] if r['_id'] else null_label)
+            counts.append(r['count'])
+        return {'labels': labels, 'counts': counts}
 
     def _build_applicant_demographics(self) -> Dict[str, Any]:
         """Demographics tab: age/income/household-size histograms, energy burden, income-age scatter."""
@@ -456,8 +467,6 @@ class CampaignDataService:
             },
         }
 
-    _CHANNELS = ['text', 'email', 'mailer', 'letter']
-
     def _build_applicant_attribution(self) -> Dict[str, Any]:
         """Attribution tab: utm bars + per-channel exposures→applications conversion table."""
         match_filter = {'is_test': {'$ne': True}}
@@ -472,22 +481,15 @@ class CampaignDataService:
                 pipe.append({'$limit': top_n})
             return pipe
 
-        def _format_utm(results, null_label):
-            labels, counts = [], []
-            for r in results:
-                labels.append(r['_id'] if r['_id'] else null_label)
-                counts.append(r['count'])
-            return {'labels': labels, 'counts': counts}
-
-        utm_medium = _format_utm(
+        utm_medium = self._format_utm(
             list(self.db.applications.aggregate(_utm_pipeline('attribution.utm.utm_medium'))),
             'Direct/Unknown',
         )
-        utm_source = _format_utm(
+        utm_source = self._format_utm(
             list(self.db.applications.aggregate(_utm_pipeline('attribution.utm.utm_source', top_n=10))),
             '(none)',
         )
-        utm_campaign = _format_utm(
+        utm_campaign = self._format_utm(
             list(self.db.applications.aggregate(_utm_pipeline('attribution.utm.utm_campaign', top_n=10))),
             '(none)',
         )

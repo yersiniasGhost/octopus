@@ -336,3 +336,21 @@ def test_attribution_channel_conversion_table_computes_rate():
     result2 = service2._build_applicant_attribution()
     for row in result2['channel_conversion']:
         assert row['conversion_rate'] == 0.0
+
+
+def test_attribution_utm_source_and_campaign_buckets_null_as_none():
+    """utm_source and utm_campaign use '(none)' as the null label, not 'Direct/Unknown'."""
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(side_effect=[
+        iter([]),  # utm_medium
+        iter([{'_id': 'google', 'count': 5}, {'_id': None, 'count': 2}]),   # utm_source
+        iter([{'_id': 'spring', 'count': 8}, {'_id': None, 'count': 3}]),   # utm_campaign
+    ])
+    service.db.applications.count_documents = MagicMock(return_value=0)
+    service.db.exposures.count_documents = MagicMock(return_value=0)
+
+    result = service._build_applicant_attribution()
+    assert result['utm_source']['labels'] == ['google', '(none)']
+    assert result['utm_source']['counts'] == [5, 2]
+    assert result['utm_campaign']['labels'] == ['spring', '(none)']
+    assert result['utm_campaign']['counts'] == [8, 3]
