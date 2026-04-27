@@ -419,6 +419,7 @@ def applicants_dashboard():
         service = CampaignDataService()
         data = service.get_applicant_dashboard_data()
         # Backfill any missing tab with empty defaults so the template never KeyErrors.
+        # The orchestrator sets failed tabs to {} (per-builder isolation), which is falsy.
         for tab, default in empty_data.items():
             if not data.get(tab):
                 data[tab] = default
