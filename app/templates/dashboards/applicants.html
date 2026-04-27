@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+.bg-purple { background-color: #6f42c1; color: white; }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="dashboard-section py-5">
     <div class="container">
@@ -238,10 +244,6 @@
         </div>
     </div>
 </section>
-
-<style>
-.bg-purple { background-color: #6f42c1; color: white; }
-</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -308,5 +310,13 @@ if (scCtx && data.demographics.income_age_scatter.series.length) {
 barChart('utmMediumChart', data.attribution.utm_medium.labels, data.attribution.utm_medium.counts, 'Applicants', 'rgba(111,66,193,0.8)');
 barChart('utmSourceChart', data.attribution.utm_source.labels, data.attribution.utm_source.counts, 'Applicants', 'rgba(13,202,240,0.8)');
 barChart('utmCampaignChart', data.attribution.utm_campaign.labels, data.attribution.utm_campaign.counts, 'Applicants', 'rgba(220,53,69,0.8)');
+
+// Charts on hidden tabs are instantiated against 0px-wide canvases. Resize them
+// when the user reveals the tab so Chart.js picks up the now-visible dimensions.
+document.querySelectorAll('#applicantTabs button[data-bs-toggle="tab"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', () => {
+        Object.values(Chart.instances).forEach(c => c.resize());
+    });
+});
 </script>
 {% endblock %}
