@@ -192,3 +192,90 @@ def test_overview_six_months_ago_uses_first_of_month_to_avoid_invalid_day():
         gte_value = ts_pipeline[0]['$match']['entry_date']['$gte']
         assert isinstance(gte_value, real_datetime)
         assert gte_value.day == 1, f"expected day=1, got {gte_value.day} for now={fake_now}"
+
+
+# ===========================
+# Demographics tab tests
+# ===========================
+
+def test_demographics_returns_required_keys():
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(return_value=iter([]))
+    service.db.applications.count_documents = MagicMock(return_value=0)
+    result = service._build_applicant_demographics()
+    assert set(result.keys()) == {'age', 'income', 'household_size', 'energy_burden', 'income_age_scatter'}
+    for key in ('age', 'income', 'household_size'):
+        assert set(result[key].keys()) == {'labels', 'counts', 'n'}
+
+
+def test_demographics_age_bins_match_spec():
+    """Spec bins: <30, 30-44, 45-59, 60-74, 75+."""
+    service = _make_service()
+    # Mongo $bucket returns _id = lower bound and a count per bucket.
+    service.db.applications.aggregate = MagicMock(side_effect=[
+        iter([
+            {'_id': 0, 'count': 5},   # <30
+            {'_id': 30, 'count': 12}, # 30-44
+            {'_id': 45, 'count': 20}, # 45-59
+            {'_id': 60, 'count': 8},  # 60-74
+            {'_id': 75, 'count': 3},  # 75+
+        ]),
+        iter([]),  # income
+        iter([]),  # household_size
+        iter([]),  # top counties
+        iter([]),  # scatter
+    ])
+    service.db.applicants.aggregate = MagicMock(return_value=iter([]))
+    service.db.applications.count_documents = MagicMock(return_value=616)
+
+    result = service._build_applicant_demographics()
+    assert result['age']['labels'] == ['<30', '30-44', '45-59', '60-74', '75+']
+    assert result['age']['counts'] == [5, 12, 20, 8, 3]
+    assert result['age']['n'] == 48
+
+
+def test_demographics_energy_burden_caption_includes_total_applications():
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(return_value=iter([]))
+    service.db.applicants.aggregate = MagicMock(return_value=iter([
+        {'_id': 0, 'count': 10},
+        {'_id': 0.06, 'count': 20},
+        {'_id': 0.10, 'count': 15},
+        {'_id': 0.15, 'count': 5},
+    ]))
+    service.db.applications.count_documents = MagicMock(return_value=616)
+
+    result = service._build_applicant_demographics()
+    assert result['energy_burden']['labels'] == ['<6%', '6-10%', '10-15%', '15%+']
+    assert result['energy_burden']['counts'] == [10, 20, 15, 5]
+    assert result['energy_burden']['n'] == 50
+    assert result['energy_burden']['total'] == 616
+
+
+def test_demographics_scatter_groups_top_3_counties_plus_other():
+    service = _make_service()
+    # First 3 aggregates: age, income, household_size (all empty)
+    # Then top-counties aggregate, then scatter aggregate
+    service.db.applications.aggregate = MagicMock(side_effect=[
+        iter([]),  # age
+        iter([]),  # income
+        iter([]),  # household_size
+        iter([     # top counties
+            {'_id': 'Franklin', 'count': 100},
+            {'_id': 'Delaware', 'count': 50},
+            {'_id': 'Fairfield', 'count': 30},
+        ]),
+        iter([     # scatter points
+            {'county': 'Franklin', 'age': 45, 'income': 50000},
+            {'county': 'Delaware', 'age': 60, 'income': 70000},
+            {'county': 'Madison', 'age': 35, 'income': 40000},  # not top-3 → 'Other'
+        ]),
+    ])
+    service.db.applicants.aggregate = MagicMock(return_value=iter([]))
+    service.db.applications.count_documents = MagicMock(return_value=616)
+
+    result = service._build_applicant_demographics()
+    series = {s['county']: s['points'] for s in result['income_age_scatter']['series']}
+    assert set(series.keys()) >= {'Franklin', 'Delaware', 'Fairfield', 'Other'}
+    assert {'x': 35, 'y': 40000} in series['Other']
+    assert {'x': 45, 'y': 50000} in series['Franklin']

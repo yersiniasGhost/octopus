@@ -345,3 +345,107 @@ class CampaignDataService:
             'match_quality': match_quality,
             'recent_applicants': recent_applicants,
         }
+
+    # Bin specifications shared by histogram builders.
+    _AGE_BOUNDARIES = [0, 30, 45, 60, 75, 200]
+    _AGE_LABELS = ['<30', '30-44', '45-59', '60-74', '75+']
+    _INCOME_BOUNDARIES = [0, 20000, 40000, 60000, 80000, 10**9]
+    _INCOME_LABELS = ['<20k', '20-40k', '40-60k', '60-80k', '80k+']
+    _HH_BOUNDARIES = [1, 2, 3, 4, 5, 100]
+    _HH_LABELS = ['1', '2', '3', '4', '5+']
+    _BURDEN_BOUNDARIES = [0, 0.06, 0.10, 0.15, 100]
+    _BURDEN_LABELS = ['<6%', '6-10%', '10-15%', '15%+']
+
+    @staticmethod
+    def _bucket_results_to_histogram(results, boundaries, labels):
+        """Convert Mongo $bucket output to {labels, counts, n} dict in boundary order."""
+        by_lower = {r['_id']: r['count'] for r in results}
+        counts = [by_lower.get(boundaries[i], 0) for i in range(len(labels))]
+        return {'labels': labels, 'counts': counts, 'n': sum(counts)}
+
+    def _build_applicant_demographics(self) -> Dict[str, Any]:
+        """Demographics tab: age/income/household-size histograms, energy burden, income-age scatter."""
+        match_filter = {'is_test': {'$ne': True}}
+
+        def _bucket_pipeline(field, boundaries):
+            return [
+                {'$match': {**match_filter, field: {'$ne': None, '$exists': True}}},
+                {'$bucket': {
+                    'groupBy': f'${field}',
+                    'boundaries': boundaries,
+                    'default': boundaries[-1],
+                    'output': {'count': {'$sum': 1}},
+                }},
+            ]
+
+        age_results = list(self.db.applications.aggregate(
+            _bucket_pipeline('self_reported.age', self._AGE_BOUNDARIES)
+        ))
+        income_results = list(self.db.applications.aggregate(
+            _bucket_pipeline('self_reported.household_income', self._INCOME_BOUNDARIES)
+        ))
+        hh_results = list(self.db.applications.aggregate(
+            _bucket_pipeline('self_reported.household_members', self._HH_BOUNDARIES)
+        ))
+
+        # Energy burden — joined on email from applicants collection.
+        burden_results = list(self.db.applicants.aggregate([
+            {'$match': {'demographic_ref.total_energy_burden': {'$ne': None}}},
+            # Inner join: keep only applicants whose email exists in applications.
+            {'$lookup': {
+                'from': 'applications',
+                'localField': 'email',
+                'foreignField': 'applicant.email',
+                'as': '_match',
+            }},
+            {'$match': {'_match.0': {'$exists': True}}},
+            {'$bucket': {
+                'groupBy': '$demographic_ref.total_energy_burden',
+                'boundaries': self._BURDEN_BOUNDARIES,
+                'default': self._BURDEN_BOUNDARIES[-1],
+                'output': {'count': {'$sum': 1}},
+            }},
+        ]))
+
+        # Top 3 counties for scatter color coding.
+        top_counties_results = list(self.db.applications.aggregate([
+            {'$match': {**match_filter, 'address.county': {'$ne': None}}},
+            {'$group': {'_id': '$address.county', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}}, {'$limit': 3},
+        ]))
+        top_counties = [r['_id'] for r in top_counties_results]
+
+        # Scatter points (income vs age), grouped client-side by county.
+        scatter_points = list(self.db.applications.aggregate([
+            {'$match': {
+                **match_filter,
+                'self_reported.age': {'$ne': None},
+                'self_reported.household_income': {'$ne': None},
+            }},
+            {'$project': {
+                'county': '$address.county',
+                'age': '$self_reported.age',
+                'income': '$self_reported.household_income',
+                '_id': 0,
+            }},
+        ]))
+        series_map = {c: [] for c in top_counties}
+        series_map['Other'] = []
+        for p in scatter_points:
+            bucket = p['county'] if p['county'] in top_counties else 'Other'
+            series_map[bucket].append({'x': p['age'], 'y': p['income']})
+
+        burden = self._bucket_results_to_histogram(
+            burden_results, self._BURDEN_BOUNDARIES, self._BURDEN_LABELS
+        )
+        burden['total'] = self.db.applications.count_documents(match_filter)
+
+        return {
+            'age': self._bucket_results_to_histogram(age_results, self._AGE_BOUNDARIES, self._AGE_LABELS),
+            'income': self._bucket_results_to_histogram(income_results, self._INCOME_BOUNDARIES, self._INCOME_LABELS),
+            'household_size': self._bucket_results_to_histogram(hh_results, self._HH_BOUNDARIES, self._HH_LABELS),
+            'energy_burden': burden,
+            'income_age_scatter': {
+                'series': [{'county': c, 'points': series_map[c]} for c in top_counties + ['Other']],
+            },
+        }
