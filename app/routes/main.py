@@ -389,6 +389,52 @@ def letter_dashboard():
                           user=current_user)
 
 
+@main_bp.route('/dashboard/applicants')
+@login_required
+def applicants_dashboard():
+    """Applicant visualization dashboard — Overview / Demographics / Attribution tabs."""
+    empty_data = {
+        'overview': {
+            'kpis': {'total_applicants': 0, 'this_month': 0, 'match_rate_pct': 0.0,
+                     'top_county': None, 'top_channel': None},
+            'time_series': {'labels': [], 'counts': []},
+            'match_quality': {'labels': [], 'counts': []},
+            'recent_applicants': [],
+        },
+        'demographics': {
+            'age': {'labels': [], 'counts': [], 'n': 0},
+            'income': {'labels': [], 'counts': [], 'n': 0},
+            'household_size': {'labels': [], 'counts': [], 'n': 0},
+            'energy_burden': {'labels': [], 'counts': [], 'n': 0, 'total': 0},
+            'income_age_scatter': {'series': []},
+        },
+        'attribution': {
+            'utm_medium': {'labels': [], 'counts': []},
+            'utm_source': {'labels': [], 'counts': []},
+            'utm_campaign': {'labels': [], 'counts': []},
+            'channel_conversion': [],
+        },
+    }
+    try:
+        service = CampaignDataService()
+        data = service.get_applicant_dashboard_data()
+        # Backfill any missing tab with empty defaults so the template never KeyErrors.
+        for tab, default in empty_data.items():
+            if not data.get(tab):
+                data[tab] = default
+        logger.info(f"Applicants dashboard loaded — {data['overview']['kpis']}")
+        return render_template('dashboards/applicants.html',
+                              title='Applicant Dashboard',
+                              user=current_user,
+                              data=data)
+    except Exception as e:
+        logger.error(f"Error loading applicants dashboard: {str(e)}", exc_info=True)
+        return render_template('dashboards/applicants.html',
+                              title='Applicant Dashboard',
+                              user=current_user,
+                              data=empty_data)
+
+
 @main_bp.route('/inference-models')
 @login_required
 def inference_models():
