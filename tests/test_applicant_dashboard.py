@@ -29,11 +29,7 @@ def _make_service(applications_docs=None, applicants_docs=None, exposures_docs=N
     db.applicants.count_documents = MagicMock(return_value=len(applicants_docs or []))
     db.exposures.count_documents = MagicMock(return_value=len(exposures_docs or []))
 
-    # `find()` chains: .sort(...).limit(...) → iterable cursor. Make a chainable mock.
-    _app_cursor = MagicMock()
-    _app_cursor.sort.return_value = _app_cursor
-    _app_cursor.limit.return_value = iter(applications_docs or [])
-    db.applications.find = MagicMock(return_value=_app_cursor)
+    db.applications.find = _chainable_find(applications_docs or [])
     db.applications.aggregate = MagicMock(return_value=iter(applications_aggregate or []))
     db.applicants.aggregate = MagicMock(return_value=iter(applicants_aggregate or []))
     db.exposures.aggregate = MagicMock(return_value=iter(exposures_aggregate or []))
@@ -136,3 +132,63 @@ def test_overview_match_quality_buckets_null_as_unmatched():
     result = service._build_applicant_overview()
     assert result['match_quality']['labels'] == ['email', 'unmatched']
     assert result['match_quality']['counts'] == [6, 4]
+
+
+def test_overview_six_months_ago_uses_first_of_month_to_avoid_invalid_day():
+    """Regression: six_months_ago must snap to day=1.
+
+    Previously the impl did `now.replace(month=X)` keeping `now.day`, which
+    raised ValueError on day-31 months when the target month was shorter
+    (Mar 31 → Sep, May 31 → Nov, Aug 31 → Feb, Oct 31 → Apr, Dec 31 → Jun).
+
+    We patch `datetime.datetime` on the stdlib `datetime` module — the impl
+    does `from datetime import datetime, timezone` *inside* the function,
+    so the patch resolves on each call. We then sweep across each historically
+    failing day-31 month and (a) confirm no ValueError, (b) confirm the
+    time-series $match $gte is anchored to day=1.
+    """
+    import datetime as _dt_mod
+    from datetime import datetime as _dt, timezone as _tz
+    from unittest.mock import patch as _patch
+
+    real_datetime = _dt_mod.datetime
+
+    class _FakeDatetime(real_datetime):
+        _frozen_now = None
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls._frozen_now
+
+    captured_pipelines = []
+
+    def _capture(pipeline):
+        captured_pipelines.append(pipeline)
+        return iter([])
+
+    failing_dates = [
+        _dt(2026, 3, 31, 12, 0, 0, tzinfo=_tz.utc),
+        _dt(2026, 5, 31, 12, 0, 0, tzinfo=_tz.utc),
+        _dt(2026, 8, 31, 12, 0, 0, tzinfo=_tz.utc),
+        _dt(2026, 10, 31, 12, 0, 0, tzinfo=_tz.utc),
+        _dt(2026, 12, 31, 12, 0, 0, tzinfo=_tz.utc),
+    ]
+
+    for fake_now in failing_dates:
+        captured_pipelines.clear()
+        _FakeDatetime._frozen_now = fake_now
+
+        service = _make_service()
+        service.db.applications.count_documents = MagicMock(return_value=0)
+        service.db.applications.aggregate = MagicMock(side_effect=_capture)
+        service.db.applications.find = _chainable_find([])
+
+        with _patch('datetime.datetime', _FakeDatetime):
+            # Must not raise ValueError("day is out of range for month").
+            service._build_applicant_overview()
+
+        # Third aggregate call is the time-series pipeline.
+        ts_pipeline = captured_pipelines[2]
+        gte_value = ts_pipeline[0]['$match']['entry_date']['$gte']
+        assert isinstance(gte_value, real_datetime)
+        assert gte_value.day == 1, f"expected day=1, got {gte_value.day} for now={fake_now}"

@@ -285,10 +285,12 @@ class CampaignDataService:
         ]))
         top_channel = top_channel_results[0]['_id'] if top_channel_results else None
 
-        # Weekly time series, last 6 months
-        six_months_ago = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        six_months_ago = six_months_ago.replace(month=((now.month - 6 - 1) % 12) + 1,
-                                                 year=now.year - (1 if now.month <= 6 else 0))
+        # Weekly time series, last 6 months. Snap to day=1 so we don't blow up
+        # on day-31 months when the target month has fewer days (e.g. Mar 31 → Sep).
+        target_month = ((now.month - 6 - 1) % 12) + 1
+        target_year = now.year - (1 if now.month <= 6 else 0)
+        six_months_ago = now.replace(year=target_year, month=target_month, day=1,
+                                     hour=0, minute=0, second=0, microsecond=0)
         ts_results = list(self.db.applications.aggregate([
             {'$match': {**match_filter, 'entry_date': {'$gte': six_months_ago}}},
             {'$group': {
