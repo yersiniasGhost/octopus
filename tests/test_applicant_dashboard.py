@@ -381,7 +381,13 @@ def test_get_applicant_dashboard_data_isolates_builder_failures():
     service._build_applicant_demographics = MagicMock(return_value={'age': 'DEMO'})
     service._build_applicant_attribution = MagicMock(return_value={'utm_medium': 'ATTR'})
 
-    result = service.get_applicant_dashboard_data()
+    with patch('app.services.campaign_data_service.logger') as mock_log:
+        result = service.get_applicant_dashboard_data()
+
     assert result['overview'] == {}
     assert result['demographics'] == {'age': 'DEMO'}
     assert result['attribution'] == {'utm_medium': 'ATTR'}
+    mock_log.error.assert_called_once()
+    call_args = mock_log.error.call_args
+    assert 'overview' in call_args[0][0]
+    assert call_args[1].get('exc_info') is True
