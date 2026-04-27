@@ -239,9 +239,9 @@ def test_demographics_energy_burden_caption_includes_total_applications():
     service.db.applications.aggregate = MagicMock(return_value=iter([]))
     service.db.applicants.aggregate = MagicMock(return_value=iter([
         {'_id': 0, 'count': 10},
-        {'_id': 0.06, 'count': 20},
-        {'_id': 0.10, 'count': 15},
-        {'_id': 0.15, 'count': 5},
+        {'_id': 6, 'count': 20},
+        {'_id': 10, 'count': 15},
+        {'_id': 15, 'count': 5},
     ]))
     service.db.applications.count_documents = MagicMock(return_value=616)
 

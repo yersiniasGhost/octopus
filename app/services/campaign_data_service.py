@@ -353,7 +353,9 @@ class CampaignDataService:
     _INCOME_LABELS = ['<20k', '20-40k', '40-60k', '60-80k', '80k+']
     _HH_BOUNDARIES = [1, 2, 3, 4, 5, 100]
     _HH_LABELS = ['1', '2', '3', '4', '5+']
-    _BURDEN_BOUNDARIES = [0, 0.06, 0.10, 0.15, 100]
+    # total_energy_burden is stored as a percentage (e.g. 10.09 means 10.09% of income),
+    # not a fraction. Boundaries match that scale; 200 caps observed outliers (max ~101).
+    _BURDEN_BOUNDARIES = [0, 6, 10, 15, 200]
     _BURDEN_LABELS = ['<6%', '6-10%', '10-15%', '15%+']
     # Attribution channel taxonomy.
     _CHANNELS = ['text', 'email', 'mailer', 'letter']
