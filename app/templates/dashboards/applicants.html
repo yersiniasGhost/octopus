@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dashboard-section py-5">
+    <div class="container">
+
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Applicants</li>
+            </ol>
+        </nav>
+
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-5 fw-bold">
+                    <span class="badge bg-purple me-2"><i class="bi bi-person-fill"></i> APPLICANTS</span>
+                    Applicant Dashboard
+                </h1>
+                <p class="lead text-muted">Welcome back, {{ user.full_name or user.username }}!</p>
+            </div>
+        </div>
+
+        <!-- KPI strip -->
+        <div class="row g-3 mb-4">
+            <div class="col-md col-6">
+                <div class="card border-0 shadow-sm bg-primary text-white">
+                    <div class="card-body text-center">
+                        <h3 class="display-6 mb-0">{{ "{:,}".format(data.overview.kpis.total_applicants) }}</h3>
+                        <p class="mb-0 small">Total Applicants</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md col-6">
+                <div class="card border-0 shadow-sm bg-info text-white">
+                    <div class="card-body text-center">
+                        <h3 class="display-6 mb-0">{{ "{:,}".format(data.overview.kpis.this_month) }}</h3>
+                        <p class="mb-0 small">This Month</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md col-6">
+                <div class="card border-0 shadow-sm bg-success text-white">
+                    <div class="card-body text-center">
+                        <h3 class="display-6 mb-0">{{ data.overview.kpis.match_rate_pct }}%</h3>
+                        <p class="mb-0 small">Match Rate</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md col-6">
+                <div class="card border-0 shadow-sm bg-secondary text-white">
+                    <div class="card-body text-center">
+                        <h3 class="h4 mb-0">{{ data.overview.kpis.top_county or '—' }}</h3>
+                        <p class="mb-0 small">Top County</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md col-12">
+                <div class="card border-0 shadow-sm bg-warning text-dark">
+                    <div class="card-body text-center">
+                        <h3 class="h4 mb-0">{{ data.overview.kpis.top_channel or '—' }}</h3>
+                        <p class="mb-0 small">Top Channel</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="applicantTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-overview-btn" data-bs-toggle="tab"
+                        data-bs-target="#tab-overview" type="button">Overview</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-demographics-btn" data-bs-toggle="tab"
+                        data-bs-target="#tab-demographics" type="button">Demographics</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-attribution-btn" data-bs-toggle="tab"
+                        data-bs-target="#tab-attribution" type="button">Attribution</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+
+            <!-- Overview tab -->
+            <div class="tab-pane fade show active" id="tab-overview" role="tabpanel">
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">Applications per Week (last 6 months)</h5>
+                                {% if data.overview.time_series.labels %}
+                                <canvas id="timeSeriesChart"></canvas>
+                                {% else %}
+                                <p class="text-muted text-center py-3">No data</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">Match Quality</h5>
+                                {% if data.overview.match_quality.labels %}
+                                <canvas id="matchQualityChart"></canvas>
+                                {% else %}
+                                <p class="text-muted text-center py-3">No data</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Recent Applicants (last 25)</h5>
+                        {% if data.overview.recent_applicants %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr><th>Name</th><th>County</th><th>ZIP</th><th>Channel</th><th>Entry Date</th><th>Match</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for r in data.overview.recent_applicants %}
+                                    <tr>
+                                        <td>{{ r.name }}</td>
+                                        <td>{{ r.county or '—' }}</td>
+                                        <td>{{ r.zip or '—' }}</td>
+                                        <td>{{ r.channel or '—' }}</td>
+                                        <td>{{ r.entry_date[:10] if r.entry_date else '—' }}</td>
+                                        <td>
+                                            {% if r.match_method %}
+                                            <span class="badge bg-success">{{ r.match_method }}</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">unmatched</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center py-3">No applicants yet</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Demographics tab -->
+            <div class="tab-pane fade" id="tab-demographics" role="tabpanel">
+                <div class="row g-3 mb-3">
+                    {% for chart_id, title, payload in [
+                        ('ageChart', 'Age Distribution', data.demographics.age),
+                        ('incomeChart', 'Household Income', data.demographics.income),
+                        ('hhChart', 'Household Size', data.demographics.household_size),
+                        ('burdenChart', 'Energy Burden', data.demographics.energy_burden),
+                    ] %}
+                    <div class="col-md-6">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-1">{{ title }}</h5>
+                                {% if chart_id == 'burdenChart' %}
+                                <p class="text-muted small mb-2">based on n={{ payload.n }} demographic-matched records (out of {{ payload.total }})</p>
+                                {% else %}
+                                <p class="text-muted small mb-2">n={{ payload.n }}</p>
+                                {% endif %}
+                                {% if payload.labels %}
+                                <canvas id="{{ chart_id }}"></canvas>
+                                {% else %}
+                                <p class="text-muted text-center py-3">No data</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Income vs Age (by county)</h5>
+                        {% if data.demographics.income_age_scatter.series %}
+                        <canvas id="scatterChart"></canvas>
+                        {% else %}
+                        <p class="text-muted text-center py-3">No data</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attribution tab -->
+            <div class="tab-pane fade" id="tab-attribution" role="tabpanel">
+                <div class="row g-3 mb-3">
+                    {% for chart_id, title, payload in [
+                        ('utmMediumChart', 'UTM Medium', data.attribution.utm_medium),
+                        ('utmSourceChart', 'UTM Source (top 10)', data.attribution.utm_source),
+                        ('utmCampaignChart', 'UTM Campaign (top 10)', data.attribution.utm_campaign),
+                    ] %}
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">{{ title }}</h5>
+                                {% if payload.labels %}
+                                <canvas id="{{ chart_id }}"></canvas>
+                                {% else %}
+                                <p class="text-muted text-center py-3">No data</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Channel Conversion</h5>
+                        <p class="text-muted small mb-3">utm_medium "letter" → letter channel, etc. (case-insensitive)</p>
+                        {% if data.attribution.channel_conversion %}
+                        <table class="table table-sm">
+                            <thead><tr><th>Channel</th><th class="text-end">Exposures</th><th class="text-end">Applications</th><th class="text-end">Conversion %</th></tr></thead>
+                            <tbody>
+                                {% for row in data.attribution.channel_conversion %}
+                                <tr>
+                                    <td><span class="text-capitalize">{{ row.channel }}</span></td>
+                                    <td class="text-end">{{ "{:,}".format(row.exposures) }}</td>
+                                    <td class="text-end">{{ "{:,}".format(row.applications) }}</td>
+                                    <td class="text-end">{{ row.conversion_rate }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted text-center py-3">No data</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<style>
+.bg-purple { background-color: #6f42c1; color: white; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const data = {{ data | tojson }};
+
+function barChart(id, labels, counts, label, color) {
+    const ctx = document.getElementById(id);
+    if (!ctx || !labels.length) return;
+    new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: label, data: counts,
+            backgroundColor: color, borderColor: color, borderWidth: 1 }] },
+        options: { responsive: true, maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+}
+
+// Overview
+const tsCtx = document.getElementById('timeSeriesChart');
+if (tsCtx && data.overview.time_series.labels.length) {
+    new Chart(tsCtx, {
+        type: 'line',
+        data: { labels: data.overview.time_series.labels, datasets: [{
+            label: 'Applications', data: data.overview.time_series.counts,
+            borderColor: 'rgba(13,110,253,1)', backgroundColor: 'rgba(13,110,253,0.2)',
+            tension: 0.3, fill: true }] },
+        options: { responsive: true, maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+}
+const mqCtx = document.getElementById('matchQualityChart');
+if (mqCtx && data.overview.match_quality.labels.length) {
+    new Chart(mqCtx, {
+        type: 'doughnut',
+        data: { labels: data.overview.match_quality.labels, datasets: [{
+            data: data.overview.match_quality.counts,
+            backgroundColor: ['#198754','#0dcaf0','#ffc107','#6c757d','#dc3545','#6f42c1'] }] },
+        options: { responsive: true, maintainAspectRatio: true } });
+}
+
+// Demographics
+barChart('ageChart', data.demographics.age.labels, data.demographics.age.counts, 'Applicants', 'rgba(13,110,253,0.8)');
+barChart('incomeChart', data.demographics.income.labels, data.demographics.income.counts, 'Applicants', 'rgba(25,135,84,0.8)');
+barChart('hhChart', data.demographics.household_size.labels, data.demographics.household_size.counts, 'Applicants', 'rgba(255,193,7,0.8)');
+barChart('burdenChart', data.demographics.energy_burden.labels, data.demographics.energy_burden.counts, 'Households', 'rgba(220,53,69,0.8)');
+
+const scCtx = document.getElementById('scatterChart');
+if (scCtx && data.demographics.income_age_scatter.series.length) {
+    const palette = ['rgba(13,110,253,0.7)','rgba(25,135,84,0.7)','rgba(255,193,7,0.7)','rgba(108,117,125,0.5)'];
+    const datasets = data.demographics.income_age_scatter.series.map((s, i) => ({
+        label: s.county, data: s.points, backgroundColor: palette[i % palette.length] }));
+    new Chart(scCtx, {
+        type: 'scatter', data: { datasets: datasets },
+        options: { responsive: true, maintainAspectRatio: true,
+            scales: {
+                x: { title: { display: true, text: 'Age' } },
+                y: { title: { display: true, text: 'Household Income ($)' }, beginAtZero: true } } } });
+}
+
+// Attribution
+barChart('utmMediumChart', data.attribution.utm_medium.labels, data.attribution.utm_medium.counts, 'Applicants', 'rgba(111,66,193,0.8)');
+barChart('utmSourceChart', data.attribution.utm_source.labels, data.attribution.utm_source.counts, 'Applicants', 'rgba(13,202,240,0.8)');
+barChart('utmCampaignChart', data.attribution.utm_campaign.labels, data.attribution.utm_campaign.counts, 'Applicants', 'rgba(220,53,69,0.8)');
+</script>
+{% endblock %}
