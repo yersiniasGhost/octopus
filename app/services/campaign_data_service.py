@@ -358,7 +358,13 @@ class CampaignDataService:
 
     @staticmethod
     def _bucket_results_to_histogram(results, boundaries, labels):
-        """Convert Mongo $bucket output to {labels, counts, n} dict in boundary order."""
+        """Convert Mongo $bucket output to {labels, counts, n} dict in boundary order.
+
+        Contract: caller picks `boundaries[-1]` wide enough that no real value
+        overflows; pipelines below set `default: boundaries[-1]`, so any (currently
+        impossible) overflow would land in a synthetic bucket whose `_id` is not
+        among `boundaries[:-1]` and would be silently dropped from the histogram.
+        """
         by_lower = {r['_id']: r['count'] for r in results}
         counts = [by_lower.get(boundaries[i], 0) for i in range(len(labels))]
         return {'labels': labels, 'counts': counts, 'n': sum(counts)}
