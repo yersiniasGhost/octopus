@@ -276,9 +276,28 @@ def test_demographics_scatter_groups_top_3_counties_plus_other():
 
     result = service._build_applicant_demographics()
     series = {s['county']: s['points'] for s in result['income_age_scatter']['series']}
-    assert set(series.keys()) >= {'Franklin', 'Delaware', 'Fairfield', 'Other'}
+    # Empty series are dropped so the template's empty-state guard works correctly.
+    # Fairfield is in top-3 counties but has zero scatter points → omitted.
+    assert set(series.keys()) == {'Franklin', 'Delaware', 'Other'}
     assert {'x': 35, 'y': 40000} in series['Other']
     assert {'x': 45, 'y': 50000} in series['Franklin']
+
+
+def test_demographics_scatter_returns_empty_series_when_no_points():
+    """When no applications have age+income data, scatter.series must be [] (not [{'Other', []}])."""
+    service = _make_service()
+    service.db.applications.aggregate = MagicMock(side_effect=[
+        iter([]),  # age
+        iter([]),  # income
+        iter([]),  # household_size
+        iter([]),  # top counties (none)
+        iter([]),  # scatter points (none)
+    ])
+    service.db.applicants.aggregate = MagicMock(return_value=iter([]))
+    service.db.applications.count_documents = MagicMock(return_value=0)
+
+    result = service._build_applicant_demographics()
+    assert result['income_age_scatter']['series'] == []
 
 
 # ===========================

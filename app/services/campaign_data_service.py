@@ -465,7 +465,12 @@ class CampaignDataService:
             'household_size': self._bucket_results_to_histogram(hh_results, self._HH_BOUNDARIES, self._HH_LABELS),
             'energy_burden': burden,
             'income_age_scatter': {
-                'series': [{'county': c, 'points': series_map[c]} for c in top_counties + ['Other']],
+                # Drop empty series so the template's {% if series %} guard
+                # correctly falls back to "No data" when there are no points.
+                'series': [
+                    {'county': c, 'points': series_map[c]}
+                    for c in top_counties + ['Other'] if series_map[c]
+                ],
             },
         }
 
