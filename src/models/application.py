@@ -75,7 +75,8 @@ class Attribution(BaseModel):
 
 class ParticipantMatch(BaseModel):
     """Link to existing participant record"""
-    participant_id: Optional[str] = None
+    participant_id: Optional[str] = None             # natural key: email or 10-digit phone
+    participant_oid: Optional[PyObjectId] = None     # surrogate FK: participants._id
     match_method: Optional[str] = None  # "email" | "phone" | "address"
     match_confidence: float = 0.0
     matched_at: Optional[datetime] = None

@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 from pymongo import MongoClient
 
+from src.utils.engagement import attach_engagement_summaries
 from src.utils.log_manager import LogManager
 
 logger = LogManager().get_logger(__name__)
@@ -36,8 +37,8 @@ class ParticipantFeatureExtractor:
             'demographics': 1,
             'residence': 1,
             'data_quality': 1,
-            'engagement_summary': 1
         }))
+        attach_engagement_summaries(self.db, participants)
 
         records = []
         for p in participants:

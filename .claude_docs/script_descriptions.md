@@ -2,7 +2,20 @@
 
 Brief descriptions of utility scripts in the `scripts/` directory.
 
+> See also: [`20260513_1508_database_schema.md`](20260513_1508_database_schema.md) — current MongoDB schema reference for `empower_development`.
+
 ## Campaign Management
+
+### populate_participant_oid_tool.py
+**Reusable Tool**: Backfills `exposures.participant_oid` (ObjectId reference to `participants._id`) from the existing `participant_id` natural key. Adds a denormalized FK alongside the natural key — does NOT modify `participant_id`. Idempotent: re-runs only touch exposures missing the field. Default is dry-run; pass `--apply` to write. Reports orphan participant_ids (exposures whose participant_id doesn't match any participant) so referential integrity issues surface before writes.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/populate_participant_oid_tool.py --dry-run                # default
+python scripts/populate_participant_oid_tool.py --apply
+python scripts/populate_participant_oid_tool.py --apply --batch-size 500
+```
 
 ### extract_text_campaigns.py
 Extracts text/SMS campaign data from Excel file (`Empower_Saves_Texts_All.xlsx`) and imports into MongoDB `text_campaigns` collection. Parses campaign metadata from shortened names (format: `Text#_MessageKey_Agency_Time`), validates data, and provides options for dry-run mode, JSON export, or direct MongoDB insertion. Supports verbose logging for debugging and data validation.
@@ -1613,3 +1626,17 @@ python scripts/ingest_impact_leads_20260414_tool.py --no-match   # skip particip
 ```
 
 **Output (initial run)**: 207 inserted, 2 updated (two duplicate-email rows collide on the deterministic id), 0 errors, 193/209 (92%) matched to existing participants (93 email, 35 phone, 65 address+zip). CSV mirror written to `data/applications/EMPOWER-IMPACT_LEADS_20260414.csv`.
+
+## ingest_impact_endssoon_lastday_20260406_campaign_tool.py
+**Purpose**: Ingest the IMPACT EndsSoon/LastDay text-campaign batch (Text81-84) from `data/campaign-IMPACT-20260406/*.xlsx` into `empower_development` (campaigns, participants, exposures).
+
+DRY: imports all conversation-format helpers (`read_stats_sheet`, `read_conversations`, `aggregate_contacts`, `classify_engagement`, `build_*_doc`, `parse_sent_date`, `normalize_*`) from `ingest_impact_cold_20260310_campaign_tool.py` and only supplies a new `CAMPAIGN_CONFIG`, `DATA_DIR`, and `CAMPAIGN_GROUP='IMPACT-EndsSoon-LastDay-202604'`. Same tag-based engagement classification (STOP/dnd → opted_out, bad/err → undeliverable, inbound reply → negative_response, default → received). Surfaces existing-campaign warnings before re-ingesting.
+
+**Usage**:
+```bash
+source venv/bin/activate
+PYTHONPATH=scripts python scripts/ingest_impact_endssoon_lastday_20260406_campaign_tool.py --dry-run
+PYTHONPATH=scripts python scripts/ingest_impact_endssoon_lastday_20260406_campaign_tool.py
+```
+
+**Output (initial run, 2026-04-27)**: 4 campaigns created (`text_impact_endssoon_81`, `_82`, `text_impact_lastday_83`, `_84`), 11,765 exposures inserted, 0 new participants (all 11,765 contacts matched existing — same audience as Cold/Winter waves), 107 opt-outs flagged, 14 testers skipped. Per-campaign exposures: 2977 / 2974 / 2908 / 2906.

@@ -345,8 +345,8 @@ class Participant(BaseModel):
     # Energy snapshot from CSV
     energy_snapshot: EnergySnapshot = Field(default_factory=EnergySnapshot)
 
-    # Pre-computed engagement
-    engagement_summary: EngagementSummary = Field(default_factory=EngagementSummary)
+    # Engagement is computed on demand from `exposures` via
+    # src.utils.engagement.attach_engagement_summaries — no denormalized field.
 
     # Quality flags
     data_quality: DataQuality = Field(default_factory=DataQuality)
@@ -473,7 +473,8 @@ class Exposure(BaseModel):
     id: Optional[PyObjectId] = Field(None, alias="_id")
 
     # Foreign keys
-    participant_id: str
+    participant_id: str                                 # natural key: email or 10-digit phone
+    participant_oid: Optional[PyObjectId] = None        # surrogate FK: participants._id
     campaign_id: str
 
     # Denormalized for convenience

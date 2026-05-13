@@ -24,6 +24,7 @@ import arviz as az
 import matplotlib.pyplot as plt
 
 from src.bayesian_models.base_model import BaseBayesianModel
+from src.utils.engagement import attach_engagement_summaries
 from src.utils.log_manager import LogManager
 
 logger = LogManager().get_logger(__name__)
@@ -64,12 +65,11 @@ class BaselineOpenModel(BaseBayesianModel):
             'participant_id': 1,
             'energy_snapshot.annual_cost': 1,
             'demographics.total_energy_burden': 1,
-            'engagement_summary.ever_engaged': 1,
-            'engagement_summary.by_channel.email.engaged': 1
         }
 
         cursor = db[collection_name].find(query, projection)
         records = list(cursor)
+        attach_engagement_summaries(db, records)
         logger.info(f"Loaded {len(records)} records from {collection_name}")
 
         # Extract and flatten relevant fields

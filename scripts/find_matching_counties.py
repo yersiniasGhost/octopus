@@ -17,7 +17,7 @@ print('=' * 80)
 # Get all demographic/residential collections
 demo_collections = [
     ('CuyahogaCountyResidential', 'parcel_zip'),
-    ('OttawaResidential', 'zip_code')
+    ('OttawaCountyResidential', 'zip_code')
 ]
 
 for coll_name, zip_field in demo_collections:

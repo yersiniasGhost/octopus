@@ -45,8 +45,8 @@ class ZipcodeCountyMapper:
     def extract_county_from_collection(self, collection_name: str) -> str:
         """
         Extract county name from collection name.
-        Examples: 'OttawaResidential' -> 'Ottawa'
-                  'OttawaDemographic' -> 'Ottawa'
+        Examples: 'OttawaCountyResidential' -> 'OttawaCounty'
+                  'FranklinCountyDemographic' -> 'FranklinCounty'
         """
         # Remove common suffixes
         for suffix in ['Residential', 'Demographic', 'Loads', 'Gas', 'Electrical']:
