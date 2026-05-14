@@ -367,6 +367,49 @@ def text_dashboard():
                               pagination={'page': 1, 'total_pages': 1, 'has_prev': False, 'has_next': False})
 
 
+@main_bp.route('/dashboard/text/<campaign_id>')
+@login_required
+def text_campaign_detail(campaign_id):
+    """Detail view for a single text campaign."""
+    try:
+        ex_page = request.args.get('ex_page', 1, type=int)
+        per_page = request.args.get('per_page', 25, type=int)
+        search = (request.args.get('q') or '').strip() or None
+        status_filter = (request.args.get('status') or '').strip() or None
+
+        service = CampaignDataService()
+        detail = service.get_text_campaign_detail(
+            campaign_id,
+            exposures_page=ex_page,
+            exposures_per_page=per_page,
+            search=search,
+            status_filter=status_filter,
+        )
+
+        if not detail:
+            logger.warning(f"Text campaign not found: {campaign_id}")
+            return render_template('dashboards/text_detail.html',
+                                  title='Campaign Not Found',
+                                  user=current_user,
+                                  detail=None,
+                                  campaign_id=campaign_id), 404
+
+        logger.info(f"Text campaign detail loaded: {campaign_id} ({detail['total_exposures']} exposures)")
+        return render_template('dashboards/text_detail.html',
+                              title=detail['campaign'].get('name', 'Text Campaign'),
+                              user=current_user,
+                              detail=detail)
+
+    except Exception as e:
+        logger.error(f"Error loading text campaign detail {campaign_id}: {e}", exc_info=True)
+        return render_template('dashboards/text_detail.html',
+                              title='Error',
+                              user=current_user,
+                              detail=None,
+                              campaign_id=campaign_id,
+                              error=str(e)), 500
+
+
 @main_bp.route('/dashboard/mailer')
 @login_required
 def mailer_dashboard():

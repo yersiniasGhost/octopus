@@ -6,6 +6,21 @@ Brief descriptions of utility scripts in the `scripts/` directory.
 
 ## Campaign Management
 
+### backfill_text_campaign_message_body_tool.py
+**One-shot tool** (2026-05-13). Populates `campaigns.message_body` with the actual SMS template per text campaign so detail pages can show what was sent. Two sources:
+1. **Primary** — `data/campaign_texting/Empower_Saves_Texts_All.csv` (per-send rendered bodies). Joins stats CSV's `action` → contacts CSV's `Contacted in Project`, normalizes per-recipient tokens (address, first name, dollar amounts) to placeholders, picks the modal form per campaign. Covers Text1-Text74 (74 updated).
+2. **Fallback** — `data/campaign_texting/text_content.txt` (campaign-brief templates). Applied to Text75-84 + WCP IMPACT campaigns by mapping slot keywords (`LastDay`→Final Day, `EndsSoon`→Time running out, etc.). Covers 12 campaigns.
+
+Only overwrites null/empty values or the legacy `"<slot> message campaign"` placeholder; pass `--force` to overwrite real content. Idempotent. Default dry-run; `--apply` to write.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/backfill_text_campaign_message_body_tool.py
+python scripts/backfill_text_campaign_message_body_tool.py --apply
+python scripts/backfill_text_campaign_message_body_tool.py --verbose
+```
+
 ### apply_cross_file_text_clicks_tool.py
 **One-shot Fix #4 tool** (ran 2026-05-13). Aggregates cross-file `click_<slug>` evidence from all 10 Text75-84 vendor xlsx files and applies it to the corresponding owning campaign's exposures. Reverses the Stage-4 "stay in lane" policy for remediation, after the Stage 4b audit revealed ~0.5% of cross-file click signals were being lost. Same per-doc precedence as Stage 4 (received→clicked, engaged/opted_out→audit-only, undeliverable→skip). Idempotent. Default dry-run; `--apply` to write.
 
@@ -1727,3 +1742,18 @@ PYTHONPATH=scripts python scripts/ingest_impact_endssoon_lastday_20260406_campai
 ```
 
 **Output (initial run, 2026-04-27)**: 4 campaigns created (`text_impact_endssoon_81`, `_82`, `text_impact_lastday_83`, `_84`), 11,765 exposures inserted, 0 new participants (all 11,765 contacts matched existing — same audience as Cold/Winter waves), 107 opt-outs flagged, 14 testers skipped. Per-campaign exposures: 2977 / 2974 / 2908 / 2906.
+
+## backfill_participant_customer_name_tool.py
+**Purpose**: Backfill `participants.demographics.customer_name` from the per-county `<County>CountyDemographic` source-of-truth collections, using `linkage.parcel_id` + `linkage.county_key` as the join key.
+
+The participants collection is a denormalized snapshot of county demographics, but the original import left `demographics.customer_name` null for ~50% of records system-wide and ~92% within Franklin County. The county collections themselves DO have the names — this tool copies them across. Resolves the demographic collection name via `CountyKeys` (the authoritative registry), so it works uniformly across all 25 counties. Idempotent: only touches participants whose `customer_name` is null/empty.
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/backfill_participant_customer_name_tool.py              # dry-run
+python scripts/backfill_participant_customer_name_tool.py --county Franklin  # one county
+python scripts/backfill_participant_customer_name_tool.py --apply      # write
+```
+
+**Output (initial run, 2026-05-13)**: 6,872 / 6,890 nameless-but-parcel-linked participants matched a `customer_name` in `FranklinCountyDemographic` and were updated. The 18 unmatched parcels either don't exist in the county collection or have county_key values that don't normalize cleanly. Effect on Text81 detail page: from 1/25 names visible per page → 25/25.

@@ -77,6 +77,21 @@ main {
     color: var(--text-light-primary);
 }
 
+/* When a card header uses Bootstrap's bg-light, the dark theme's light text
+   becomes invisible on the near-white background. Force readable dark text. */
+.card-header.bg-light,
+.card-header.bg-light h1,
+.card-header.bg-light h2,
+.card-header.bg-light h3,
+.card-header.bg-light h4,
+.card-header.bg-light h5,
+.card-header.bg-light h6 {
+    color: var(--bg-dark-primary) !important;
+}
+.card-header.bg-light .text-muted {
+    color: #5a6268 !important;
+}
+
 .card-body {
     color: var(--text-light-primary);
 }

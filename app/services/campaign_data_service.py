@@ -13,8 +13,9 @@ Collections used:
 - participants: unified person records
 """
 
+import re
 from pymongo import MongoClient
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from src.utils.envvars import EnvVars
 from src.utils.log_manager import LogManager
 
@@ -129,6 +130,216 @@ class CampaignDataService:
 
     def get_text_participants_count(self) -> int:
         return len(self.db.exposures.distinct('participant_id', {'channel': 'text'}))
+
+    # Canonical unified_status values produced for text exposures.
+    _TEXT_STATUS_ORDER = [
+        'received', 'clicked', 'engaged', 'opted_out',
+        'undeliverable', 'negative_response', 'converted', 'no_engagement',
+    ]
+
+    def get_text_campaign_detail(
+        self,
+        campaign_id: str,
+        *,
+        exposures_page: int = 1,
+        exposures_per_page: int = 25,
+        search: Optional[str] = None,
+        status_filter: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Detail bundle for one text campaign: metadata, live engagement breakdown,
+        top zip codes, attributed applications, and a paginated/searchable slice of
+        exposures (joined to participants for customer_name display).
+
+        Live counts come from `exposures` aggregations rather than the cached
+        `campaigns.statistics` block (which the schema doc explicitly flags as
+        drift-prone). Schema-tolerant aggregation handles both flat
+        (`text_replied`) and nested (`text_engagement.replied`) exposure shapes.
+
+        `search` matches case-insensitively against participant name, participant_id,
+        zip, and city. Pagination is server-side via $facet (count + slice in one
+        round-trip).
+        """
+        campaign = self.db.campaigns.find_one({'campaign_id': campaign_id})
+        if not campaign:
+            return {}
+
+        exposures_match = {'campaign_id': campaign_id}
+
+        # Unified status counts — the indexed, schema-agnostic source of truth.
+        status_counts: Dict[str, int] = {s: 0 for s in self._TEXT_STATUS_ORDER}
+        for r in self.db.exposures.aggregate([
+            {'$match': exposures_match},
+            {'$group': {'_id': '$unified_status', 'n': {'$sum': 1}}},
+        ]):
+            status_counts[r['_id'] or 'no_engagement'] = r['n']
+
+        total_exposures = sum(status_counts.values())
+
+        # Engagement event counts across both schema variants.
+        # $ifNull falls back from nested to flat path so a single agg covers both.
+        engagement_pipeline = [
+            {'$match': exposures_match},
+            {'$group': {
+                '_id': None,
+                'delivered': {'$sum': {'$cond': [
+                    {'$ifNull': ['$text_engagement.delivered', '$text_delivered']}, 1, 0]}},
+                'replied': {'$sum': {'$cond': [
+                    {'$ifNull': ['$text_engagement.replied', '$text_replied']}, 1, 0]}},
+                'opted_out': {'$sum': {'$cond': [
+                    {'$ifNull': ['$text_engagement.opted_out', '$text_opted_out']}, 1, 0]}},
+                'failed': {'$sum': {'$cond': [
+                    {'$ifNull': ['$text_engagement.failed', '$text_failed']}, 1, 0]}},
+                'clicked': {'$sum': {'$cond': [
+                    {'$ifNull': ['$text_engagement.clicked', '$text_clicked']}, 1, 0]}},
+            }},
+        ]
+        eng = next(iter(self.db.exposures.aggregate(engagement_pipeline)), {}) or {}
+        eng.pop('_id', None)
+
+        sent = total_exposures
+        delivered = eng.get('delivered', 0)
+        clicked = eng.get('clicked', 0)
+        replied = eng.get('replied', 0)
+        opted_out = eng.get('opted_out', 0)
+        failed = eng.get('failed', 0) or status_counts.get('undeliverable', 0)
+
+        def _rate(num, denom):
+            return round((num / denom * 100), 2) if denom else 0.0
+
+        engagement = {
+            'sent': sent,
+            'delivered': delivered,
+            'clicked': clicked,
+            'replied': replied,
+            'opted_out': opted_out,
+            'failed': failed,
+            'delivery_rate': _rate(delivered, sent),
+            'click_rate': _rate(clicked, delivered or sent),
+            'reply_rate': _rate(replied, delivered or sent),
+            'opt_out_rate': _rate(opted_out, delivered or sent),
+        }
+
+        # Top zips by exposure count — gives a quick geographic read.
+        top_zips = list(self.db.exposures.aggregate([
+            {'$match': {**exposures_match, 'contact_snapshot.zip': {'$nin': [None, '']}}},
+            {'$group': {'_id': '$contact_snapshot.zip', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}},
+            {'$limit': 10},
+        ]))
+
+        # Other campaigns in the same campaign_group (Section 1/2 splits, retries, etc.).
+        related = []
+        cg = campaign.get('campaign_group')
+        if cg:
+            related = list(self.db.campaigns.find(
+                {'campaign_group': cg, 'campaign_id': {'$ne': campaign_id}},
+                {'campaign_id': 1, 'name': 1, 'sent_at': 1, 'statistics': 1},
+            ).sort('sent_at', -1).limit(10))
+
+        # Applications attributed to this campaign (via attribute_applications_to_campaigns).
+        attributed_apps = self.db.applications.count_documents({
+            'is_test': {'$ne': True},
+            'attribution.likely_campaigns.campaign_id': campaign_id,
+        })
+
+        # Paginated/searchable recent exposures with $lookup for participant name.
+        # Uses $facet to get filtered count + page slice in one round-trip.
+        exposures_per_page = max(1, min(exposures_per_page, 200))
+        exposures_page = max(1, exposures_page)
+        skip = (exposures_page - 1) * exposures_per_page
+
+        # Status filter is applied pre-lookup so the join only runs on the
+        # filtered set — cheaper than filtering after the $lookup.
+        early_match = dict(exposures_match)
+        if status_filter and status_filter in self._TEXT_STATUS_ORDER:
+            early_match['unified_status'] = status_filter
+
+        pipeline: List[Dict[str, Any]] = [
+            {'$match': early_match},
+            {'$lookup': {
+                'from': 'participants',
+                'localField': 'participant_oid',
+                'foreignField': '_id',
+                'as': '_p',
+                'pipeline': [{'$project': {
+                    '_id': 0,
+                    'demographics.customer_name': 1,
+                    'residence.parcel_owner': 1,
+                }}],
+            }},
+            {'$addFields': {
+                # Prefer demographics.customer_name; fall back to residence.parcel_owner.
+                '_name': {'$ifNull': [
+                    {'$arrayElemAt': ['$_p.demographics.customer_name', 0]},
+                    {'$arrayElemAt': ['$_p.residence.parcel_owner', 0]},
+                ]},
+            }},
+        ]
+
+        if search:
+            rx = re.escape(search.strip())
+            if rx:
+                pipeline.append({'$match': {'$or': [
+                    {'_name': {'$regex': rx, '$options': 'i'}},
+                    {'participant_id': {'$regex': rx, '$options': 'i'}},
+                    {'contact_snapshot.zip': {'$regex': rx, '$options': 'i'}},
+                    {'contact_snapshot.city': {'$regex': rx, '$options': 'i'}},
+                ]}})
+
+        pipeline.append({'$facet': {
+            'count': [{'$count': 'n'}],
+            'rows': [
+                # `_id` tiebreaker keeps pagination stable when many rows share sent_at.
+                {'$sort': {'sent_at': -1, '_id': 1}},
+                {'$skip': skip},
+                {'$limit': exposures_per_page},
+                {'$project': {
+                    'participant_id': 1, 'unified_status': 1, 'sent_at': 1,
+                    'contact_snapshot': 1, 'text_engagement': 1,
+                    'text_clicked_at': 1, '_name': 1,
+                }},
+            ],
+        }})
+
+        facet = next(iter(self.db.exposures.aggregate(pipeline)), {}) or {}
+        filtered_count = (facet.get('count') or [{}])[0].get('n', 0)
+        recent_exposures = facet.get('rows', [])
+
+        # Flatten engagement timestamp across both schema variants for the template.
+        # The boolean flags are redundant with unified_status (which is hierarchical),
+        # so we only surface clicked_at — the one signal status doesn't carry.
+        for e in recent_exposures:
+            te = e.get('text_engagement') or {}
+            e['_clicked_at'] = te.get('clicked_at') or e.get('text_clicked_at')
+
+        total_pages = max(1, (filtered_count + exposures_per_page - 1) // exposures_per_page)
+        exposures_pagination = {
+            'page': exposures_page,
+            'per_page': exposures_per_page,
+            'filtered_count': filtered_count,
+            'total_pages': total_pages,
+            'has_prev': exposures_page > 1,
+            'has_next': exposures_page < total_pages,
+            'prev_num': exposures_page - 1 if exposures_page > 1 else None,
+            'next_num': exposures_page + 1 if exposures_page < total_pages else None,
+            'search': search or '',
+            'status_filter': status_filter or '',
+        }
+
+        return {
+            'campaign': campaign,
+            'engagement': engagement,
+            'status_breakdown': [
+                {'status': s, 'count': status_counts[s]}
+                for s in self._TEXT_STATUS_ORDER if status_counts[s] > 0
+            ],
+            'top_zips': [{'zip': r['_id'], 'count': r['count']} for r in top_zips],
+            'related_campaigns': related,
+            'attributed_applications': attributed_apps,
+            'recent_exposures': recent_exposures,
+            'total_exposures': total_exposures,
+            'exposures_pagination': exposures_pagination,
+        }
 
     # ========================================
     # MAILER / LETTER CAMPAIGN METHODS

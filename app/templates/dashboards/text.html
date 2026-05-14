@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+  tr.clickable-row { cursor: pointer; }
+  tr.clickable-row:hover { background-color: rgba(25, 135, 84, 0.06); }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="dashboard-section py-5">
     <div class="container">
@@ -71,26 +78,29 @@
                             {% endif %}
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover sortable-table">
                                 <thead>
                                     <tr>
-                                        <th>Agency</th>
-                                        <th>Campaign Name</th>
-                                        <th class="text-end">Sent</th>
-                                        <th class="text-end">Delivered</th>
-                                        <th class="text-end">Failed</th>
-                                        <th>Date</th>
+                                        <th data-sort="text">Agency</th>
+                                        <th data-sort="text">Campaign Name</th>
+                                        <th class="text-end" data-sort="number">Sent</th>
+                                        <th class="text-end" data-sort="number">Delivered</th>
+                                        <th class="text-end" data-sort="number">Failed</th>
+                                        <th data-sort="date">Date</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for campaign in campaigns %}
-                                    <tr>
-                                        <td><span class="badge bg-secondary">{{ campaign.agency if campaign.agency else 'Unknown' }}</span></td>
+                                    {% set sent_count = campaign.statistics.sent.unique if campaign.statistics and campaign.statistics.sent else 0 %}
+                                    {% set delivered_count = campaign.statistics.delivered.unique if campaign.statistics and campaign.statistics.delivered else 0 %}
+                                    {% set failed_count = campaign.statistics.failed.unique if campaign.statistics and campaign.statistics.failed else 0 %}
+                                    <tr {% if campaign.campaign_id %}class="clickable-row" data-href="{{ url_for('main.text_campaign_detail', campaign_id=campaign.campaign_id) }}"{% endif %}>
+                                        <td data-sort-value="{{ campaign.agency or '' }}"><span class="badge bg-secondary">{{ campaign.agency if campaign.agency else 'Unknown' }}</span></td>
                                         <td><strong>{{ campaign.message_key if campaign.message_key else campaign.name }}</strong></td>
-                                        <td class="text-end">{{ "{:,}".format(campaign.statistics.sent.unique if campaign.statistics and campaign.statistics.sent else 0) }}</td>
-                                        <td class="text-end">{{ "{:,}".format(campaign.statistics.delivered.unique if campaign.statistics and campaign.statistics.delivered else 0) }}</td>
-                                        <td class="text-end">{{ "{:,}".format(campaign.statistics.failed.unique if campaign.statistics and campaign.statistics.failed else 0) }}</td>
-                                        <td>
+                                        <td class="text-end" data-sort-value="{{ sent_count }}">{{ "{:,}".format(sent_count) }}</td>
+                                        <td class="text-end" data-sort-value="{{ delivered_count }}">{{ "{:,}".format(delivered_count) }}</td>
+                                        <td class="text-end" data-sort-value="{{ failed_count }}">{{ "{:,}".format(failed_count) }}</td>
+                                        <td data-sort-value="{{ campaign.sent_at.isoformat() if campaign.sent_at and campaign.sent_at is not string else (campaign.sent_at or '') }}">
                                             {% if campaign.sent_at %}
                                             {{ campaign.sent_at.strftime('%b %d, %Y') if campaign.sent_at is not string else campaign.sent_at }}
                                             {% else %}
@@ -194,4 +204,9 @@
 
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/sortable_table.js') }}"></script>
+<script src="{{ url_for('static', filename='js/clickable_rows.js') }}"></script>
 {% endblock %}

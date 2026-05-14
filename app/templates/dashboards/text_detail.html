@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% macro status_badge(status) -%}
+  {%- set cls = {
+    'received': 'bg-info',
+    'clicked': 'bg-success',
+    'engaged': 'bg-primary',
+    'opted_out': 'bg-warning text-dark',
+    'undeliverable': 'bg-danger',
+    'negative_response': 'bg-danger',
+    'converted': 'bg-success',
+    'no_engagement': 'bg-secondary'
+  }.get(status, 'bg-secondary') -%}
+  <span class="badge {{ cls }}">{{ status }}</span>
+{%- endmacro %}
+
+{% block content %}
+<section class="dashboard-section py-4">
+  <div class="container">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('main.text_dashboard') }}">Text/SMS Campaigns</a></li>
+        <li class="breadcrumb-item active" aria-current="page">
+          {{ detail.campaign.name if detail and detail.campaign else 'Campaign' }}
+        </li>
+      </ol>
+    </nav>
+
+    {% if not detail %}
+      <div class="alert alert-warning">
+        <h4>Campaign not found</h4>
+        <p class="mb-0">No text campaign with id <code>{{ campaign_id }}</code>.</p>
+        {% if error %}<small class="text-muted">{{ error }}</small>{% endif %}
+      </div>
+      <a href="{{ url_for('main.text_dashboard') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Text Campaigns
+      </a>
+    {% else %}
+      {% set c = detail.campaign %}
+      {% set eng = detail.engagement %}
+
+      <!-- Header -->
+      <div class="row mb-4 align-items-center">
+        <div class="col">
+          <h1 class="fw-bold mb-1">
+            <span class="badge bg-success me-2"><i class="bi bi-phone-fill"></i> TEXT/SMS</span>
+            {{ c.name or c.campaign_id }}
+          </h1>
+          <p class="text-muted mb-0">
+            {% if c.agency %}<span class="badge bg-secondary me-2">{{ c.agency }}</span>{% endif %}
+            {% if c.sent_at %}
+              <i class="bi bi-calendar3"></i>
+              {{ c.sent_at.strftime('%b %d, %Y %I:%M %p') if c.sent_at is not string else c.sent_at }}
+            {% endif %}
+            {% if c.target_audience %} &middot; Target: {{ c.target_audience }}{% endif %}
+          </p>
+          {% if c.description %}
+            <p class="text-muted small mt-2 mb-0">{{ c.description }}</p>
+          {% endif %}
+        </div>
+        <div class="col-auto">
+          <a href="{{ url_for('main.text_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+          </a>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-2 col-sm-4 col-6">
+          <div class="card border-0 shadow-sm bg-primary text-white h-100">
+            <div class="card-body text-center py-3">
+              <h3 class="mb-0">{{ "{:,}".format(eng.sent) }}</h3>
+              <small>Sent</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6">
+          <div class="card border-0 shadow-sm bg-info text-white h-100">
+            <div class="card-body text-center py-3">
+              <h3 class="mb-0">{{ "{:,}".format(eng.delivered) }}</h3>
+              <small>Delivered ({{ eng.delivery_rate }}%)</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6">
+          <div class="card border-0 shadow-sm bg-success text-white h-100">
+            <div class="card-body text-center py-3">
+              <h3 class="mb-0">{{ "{:,}".format(eng.clicked) }}</h3>
+              <small>Clicked ({{ eng.click_rate }}%)</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6">
+          <div class="card border-0 shadow-sm bg-secondary text-white h-100">
+            <div class="card-body text-center py-3">
+              <h3 class="mb-0">{{ "{:,}".format(eng.replied) }}</h3>
+              <small>Replied ({{ eng.reply_rate }}%)</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6">
+          <div class="card border-0 shadow-sm bg-warning text-dark h-100">
+            <div class="card-body text-center py-3">
+              <h3 class="mb-0">{{ "{:,}".format(eng.opted_out) }}</h3>
+              <small>Opted Out ({{ eng.opt_out_rate }}%)</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6">
+          <div class="card border-0 shadow-sm bg-danger text-white h-100">
+            <div class="card-body text-center py-3">
+              <h3 class="mb-0">{{ "{:,}".format(eng.failed) }}</h3>
+              <small>Failed</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message body sent -->
+      {% if c.message_body %}
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light">
+              <h5 class="mb-0"><i class="bi bi-chat-square-text"></i> Message Sent</h5>
+              <small class="text-muted">
+                Placeholders like
+                <code>{ADDRESS}</code>, <code>{FIRSTNAME}</code>, <code>{AMOUNT}</code>,
+                or <code>&lt;VD_*&gt;</code> are personalized per recipient at send time.
+              </small>
+            </div>
+            <div class="card-body">
+              <blockquote class="mb-0 p-3 border-start border-4 border-success bg-light text-dark"
+                          style="white-space: pre-wrap; font-size: 1rem; line-height: 1.55; color: #1a1d23 !important;">{{ c.message_body }}</blockquote>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="row g-3 mb-4">
+        <!-- Campaign metadata -->
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light">
+              <h5 class="mb-0"><i class="bi bi-info-circle"></i> Campaign Information</h5>
+            </div>
+            <div class="card-body">
+              <table class="table table-borderless table-sm mb-0">
+                <tbody>
+                  <tr><th class="w-40">Campaign ID</th><td><code>{{ c.campaign_id }}</code></td></tr>
+                  <tr><th>Group</th><td>{{ c.campaign_group or '—' }}</td></tr>
+                  <tr><th>Channel</th><td>{{ c.channel or c.campaign_type or '—' }}</td></tr>
+                  <tr><th>Message Type</th><td>{{ c.message_type or '—' }}</td></tr>
+                  <tr><th>Source System</th><td>{{ c.source_system or '—' }}</td></tr>
+                  <tr><th>Source File</th><td><small class="text-muted">{{ c.source_file or '—' }}</small></td></tr>
+                  <tr><th>Sent At</th>
+                    <td>
+                      {% if c.sent_at %}
+                        {{ c.sent_at.strftime('%Y-%m-%d %H:%M:%S') if c.sent_at is not string else c.sent_at }}
+                      {% else %}—{% endif %}
+                    </td>
+                  </tr>
+                  <tr><th>Synced At</th>
+                    <td>
+                      {% if c.synced_at %}
+                        {{ c.synced_at.strftime('%Y-%m-%d %H:%M:%S') if c.synced_at is not string else c.synced_at }}
+                      {% else %}—{% endif %}
+                    </td>
+                  </tr>
+                  <tr><th>Attributed Applications</th>
+                    <td><strong>{{ detail.attributed_applications }}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Unified status breakdown -->
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light d-flex justify-content-between">
+              <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Unified Status Breakdown</h5>
+              <small class="text-muted align-self-center">live from exposures</small>
+            </div>
+            <div class="card-body">
+              {% if detail.status_breakdown %}
+                <table class="table table-sm mb-0">
+                  <thead><tr><th>Status</th><th class="text-end">Count</th><th class="text-end">% of total</th></tr></thead>
+                  <tbody>
+                    {% for row in detail.status_breakdown %}
+                      {% set pct = (row.count / detail.total_exposures * 100) if detail.total_exposures else 0 %}
+                      <tr>
+                        <td>{{ status_badge(row.status) }}</td>
+                        <td class="text-end">{{ "{:,}".format(row.count) }}</td>
+                        <td class="text-end">{{ "%.1f"|format(pct) }}%</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                  <tfoot>
+                    <tr class="fw-bold">
+                      <td>Total exposures</td>
+                      <td class="text-end">{{ "{:,}".format(detail.total_exposures) }}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              {% else %}
+                <p class="text-muted mb-0">No exposures recorded for this campaign.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Platform-reported stats vs live (drift visibility) -->
+      {% if c.platform_stats or c.statistics %}
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light">
+              <h5 class="mb-0"><i class="bi bi-clipboard-data"></i> Vendor / Cached Statistics</h5>
+              <small class="text-muted">Cached counters on the campaign doc — recomputed from exposures, may drift.</small>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                {% if c.platform_stats %}
+                <div class="col-md-6">
+                  <h6 class="text-muted small">Platform-reported (vendor)</h6>
+                  <table class="table table-sm">
+                    <tbody>
+                      {% for k, v in c.platform_stats.items() %}
+                        <tr><th>{{ k }}</th><td class="text-end">{{ "{:,}".format(v) if v is number else v }}</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% endif %}
+                {% if c.statistics %}
+                <div class="col-md-6">
+                  <h6 class="text-muted small">Cached statistics doc</h6>
+                  <table class="table table-sm">
+                    <tbody>
+                      {% for k, v in c.statistics.items() %}
+                        <tr><th>{{ k }}</th>
+                          <td class="text-end">
+                            {% if v is mapping %}{{ v.unique if 'unique' in v else v }}
+                            {% else %}{{ "{:,}".format(v) if v is number else v }}{% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="row g-3 mb-4">
+        <!-- Top zips -->
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light">
+              <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Top Zip Codes</h5>
+            </div>
+            <div class="card-body">
+              {% if detail.top_zips %}
+                <table class="table table-sm mb-0">
+                  <thead><tr><th>Zip</th><th class="text-end">Exposures</th></tr></thead>
+                  <tbody>
+                    {% for z in detail.top_zips %}
+                      <tr><td>{{ z.zip }}</td><td class="text-end">{{ "{:,}".format(z.count) }}</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p class="text-muted mb-0">No zip data available.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Related campaigns -->
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light">
+              <h5 class="mb-0"><i class="bi bi-collection"></i> Related Campaigns in Group</h5>
+            </div>
+            <div class="card-body">
+              {% if detail.related_campaigns %}
+                <table class="table table-sm mb-0">
+                  <thead><tr><th>Name</th><th>Sent</th><th></th></tr></thead>
+                  <tbody>
+                    {% for rc in detail.related_campaigns %}
+                      <tr>
+                        <td><small>{{ rc.name or rc.campaign_id }}</small></td>
+                        <td><small>{{ rc.sent_at.strftime('%Y-%m-%d') if rc.sent_at and rc.sent_at is not string else (rc.sent_at or '—') }}</small></td>
+                        <td class="text-end">
+                          <a href="{{ url_for('main.text_campaign_detail', campaign_id=rc.campaign_id) }}"
+                             class="btn btn-sm btn-outline-success py-0">View</a>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p class="text-muted mb-0">No related campaigns in this group.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent exposures -->
+      {% set xp = detail.exposures_pagination %}
+      <div class="row mb-4" id="exposures">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Exposures</h5>
+                <form method="get" action="{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id, _anchor='exposures') }}"
+                      class="d-flex flex-nowrap align-items-center gap-2" role="search">
+                  <input type="hidden" name="per_page" value="{{ xp.per_page }}">
+                  <select name="status" class="form-select flex-shrink-0" style="width: 200px;">
+                    <option value="">All statuses</option>
+                    {% for row in detail.status_breakdown %}
+                      <option value="{{ row.status }}" {% if xp.status_filter == row.status %}selected{% endif %}>
+                        {{ row.status }} ({{ "{:,}".format(row.count) }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <input type="search" name="q" value="{{ xp.search }}" class="form-control"
+                         placeholder="Search name, phone/email, zip, city…" style="width: 260px;">
+                  <button type="submit" class="btn btn-success flex-shrink-0">
+                    <i class="bi bi-funnel"></i> Apply
+                  </button>
+                  {% if xp.search or xp.status_filter %}
+                    <a href="{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id, _anchor='exposures') }}"
+                       class="btn btn-outline-secondary flex-shrink-0" title="Clear filters">
+                      <i class="bi bi-x-lg"></i> Clear
+                    </a>
+                  {% endif %}
+                </form>
+              </div>
+              <small class="text-muted">
+                {% if xp.search or xp.status_filter %}
+                  {{ "{:,}".format(xp.filtered_count) }} match{{ '' if xp.filtered_count == 1 else 'es' }}
+                  {% if xp.status_filter %} for status <strong>{{ xp.status_filter }}</strong>{% endif %}
+                  {% if xp.search %} matching "<strong>{{ xp.search }}</strong>"{% endif %}
+                  of {{ "{:,}".format(detail.total_exposures) }} total exposures
+                {% else %}
+                  {{ "{:,}".format(detail.total_exposures) }} total exposures
+                {% endif %}
+                {% if xp.filtered_count > 0 %}
+                  &middot; showing {{ ((xp.page - 1) * xp.per_page) + 1 }}–{{ [xp.page * xp.per_page, xp.filtered_count]|min }}
+                {% endif %}
+              </small>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0 sortable-table">
+                  <thead class="table-light">
+                    <tr>
+                      <th data-sort="text">Name</th>
+                      <th data-sort="text">Phone / Email</th>
+                      <th data-sort="text">Zip</th>
+                      <th data-sort="text">City</th>
+                      <th data-sort="text">Status</th>
+                      <th data-sort="date">Clicked At</th>
+                      <th data-sort="date">Sent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for e in detail.recent_exposures %}
+                      {% set snap = e.contact_snapshot or {} %}
+                      <tr>
+                        <td>{% if e._name %}{{ e._name }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td><code class="small">{{ e.participant_id }}</code></td>
+                        <td>{{ snap.zip or '—' }}</td>
+                        <td>{{ snap.city or '—' }}</td>
+                        <td data-sort-value="{{ e.unified_status or 'no_engagement' }}">{{ status_badge(e.unified_status or 'no_engagement') }}</td>
+                        <td data-sort-value="{{ e._clicked_at.isoformat() if e._clicked_at and e._clicked_at is not string else (e._clicked_at or '') }}">
+                          {% if e._clicked_at %}
+                            <small>{{ e._clicked_at.strftime('%Y-%m-%d %H:%M') if e._clicked_at is not string else e._clicked_at }}</small>
+                          {% else %}
+                            <span class="text-muted">—</span>
+                          {% endif %}
+                        </td>
+                        <td data-sort-value="{{ e.sent_at.isoformat() if e.sent_at and e.sent_at is not string else (e.sent_at or '') }}">
+                          <small>{{ e.sent_at.strftime('%Y-%m-%d %H:%M') if e.sent_at and e.sent_at is not string else (e.sent_at or '—') }}</small>
+                        </td>
+                      </tr>
+                    {% else %}
+                      <tr><td colspan="7" class="text-center text-muted py-4">No exposures match the current filter.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {% if xp.total_pages > 1 %}
+            <div class="card-footer bg-white">
+              <nav aria-label="Exposures pagination">
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                  {% set qs_search = '&q=' ~ xp.search if xp.search else '' %}
+                  {% set qs_status = '&status=' ~ xp.status_filter if xp.status_filter else '' %}
+                  {% set qs_per = '&per_page=' ~ xp.per_page %}
+                  {% set qs_extra = qs_search ~ qs_status ~ qs_per ~ '#exposures' %}
+
+                  <li class="page-item {% if not xp.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{% if xp.has_prev %}{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id) }}?ex_page={{ xp.prev_num }}{{ qs_extra }}{% else %}#{% endif %}">
+                      <i class="bi bi-chevron-left"></i> Prev
+                    </a>
+                  </li>
+
+                  {% set start_page = [1, xp.page - 2]|max %}
+                  {% set end_page = [xp.total_pages, xp.page + 2]|min %}
+
+                  {% if start_page > 1 %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id) }}?ex_page=1{{ qs_extra }}">1</a></li>
+                    {% if start_page > 2 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+                  {% endif %}
+
+                  {% for pn in range(start_page, end_page + 1) %}
+                    <li class="page-item {% if pn == xp.page %}active{% endif %}">
+                      <a class="page-link" href="{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id) }}?ex_page={{ pn }}{{ qs_extra }}">{{ pn }}</a>
+                    </li>
+                  {% endfor %}
+
+                  {% if end_page < xp.total_pages %}
+                    {% if end_page < xp.total_pages - 1 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id) }}?ex_page={{ xp.total_pages }}{{ qs_extra }}">{{ xp.total_pages }}</a></li>
+                  {% endif %}
+
+                  <li class="page-item {% if not xp.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{% if xp.has_next %}{{ url_for('main.text_campaign_detail', campaign_id=c.campaign_id) }}?ex_page={{ xp.next_num }}{{ qs_extra }}{% else %}#{% endif %}">
+                      Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/sortable_table.js') }}"></script>
+{% endblock %}

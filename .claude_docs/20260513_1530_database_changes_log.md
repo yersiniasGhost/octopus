@@ -100,6 +100,51 @@ Pydantic models in `src/models/` are the authoritative shape. Ingest/analysis sc
 
 *(reverse chronological — newest at the top)*
 
+### 2026-05-13 21:05 — backfill-text-campaign-message-body
+
+**Type:** data (field backfill)
+
+**Collection(s):** `campaigns` (86 docs updated)
+
+**Summary:** Populated `campaigns.message_body` with the actual SMS template for every text campaign that had a usable source. Prior to this, 88 of 89 text campaigns held a meaningless placeholder of the form `"<slot> message campaign"` (e.g., `"Prequalified message campaign"`) — a label, not the SMS body — and the Text75-84 IMPACT-drop campaigns held `null`. The detail page now shows the real message that was sent.
+
+**Sources:**
+
+- **74 campaigns** (Text1-Text74): rendered SMS body from `data/campaign_texting/Empower_Saves_Texts_All.csv`, joined to `data/campaign_texting/Empower_Saves_Texts_All_stats.csv` on the `action` ↔ `Contacted in Project` column. Per-recipient tokens (address, first name, dollar amounts) normalized to `{ADDRESS}`, `{FIRSTNAME}`, `{AMOUNT}` placeholders before picking the modal form per campaign.
+- **12 campaigns** (Text75-84, WCP Text2): campaign-brief template from `data/campaign_texting/text_content.txt`, matched to the campaign by slot keyword (`LastDay`→Final Day, `EndsSoon`→Time running out, `Cold`→Stay Cool, `Winter`→Stay Cool, `WCP`→Summer Crisis Program).
+- **3 campaigns** skipped (no source matched): `Text15_Improvements_NA`, `Text17_Improved_MVCAP`, `OHCAC_Summer_Crisis_SMS_20251104` — already had usable content or no source available.
+
+**Update gating:** Only overwrites null/empty or the legacy `"<slot> message campaign"` placeholder. Real existing content is left alone unless `--force`.
+
+**Effect on app:** `/dashboard/text/<campaign_id>` now shows a "Message Sent" card above Campaign Information with the rendered template body. Personalization tokens remain visible as `{ADDRESS}`, `{FIRSTNAME}`, `<VD_FirstName>`, etc.
+
+**Tool:** `scripts/backfill_text_campaign_message_body_tool.py` — idempotent, dry-run by default, `--apply` to write, `--force` to overwrite real bodies, `--verbose` for per-campaign output.
+
+---
+
+### 2026-05-13 19:35 — backfill-participant-customer-name
+
+**Type:** data (denormalization backfill)
+
+**Collection(s):** `participants` (6,872 docs updated)
+
+**Summary:** Filled `participants.demographics.customer_name` from the per-county `<County>CountyDemographic` source collections, joined via `linkage.parcel_id`. The participant collection is a denormalized snapshot of the county demographics, but the original import left customer_name null for the majority of participants (e.g., only ~8% populated for Text81's audience). The names existed all along in `FranklinCountyDemographic` — they just hadn't been copied across.
+
+**Counts:**
+
+- Scanned: 6,890 participants with `customer_name` null/empty AND a `linkage.parcel_id`
+- Matched in county DB: 6,872 (99.7% of candidates)
+- Updated: 6,872
+- 18 unmatched (parcel not present in county demographic, or `county_key` doesn't normalize cleanly)
+
+All updates were in Franklin county; other counties had no nameless-but-parcel-linked participants.
+
+**Effect on app:** Text-campaign detail page (`/dashboard/text/<campaign_id>`) shows participant names on virtually every row instead of just the few that had names pre-backfill.
+
+**Tool:** `scripts/backfill_participant_customer_name_tool.py` — idempotent, dry-run by default, supports `--county <name>` for targeted runs.
+
+---
+
 ### 2026-05-13 18:50 — fix4-apply-cross-file-clicks
 
 **Type:** data (mass update_many across 6 campaigns) — Decision 3 reversal for remediation
