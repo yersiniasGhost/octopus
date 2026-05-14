@@ -37,6 +37,7 @@ from src.utils.application_parsers import (
     normalize_household_members, parse_utm_from_url,
     parse_housing_status, parse_boolean_field
 )
+from src.utils.county_lookup import resolve_county
 from src.utils.log_manager import LogManager
 
 logger = LogManager().get_logger(__name__)
@@ -85,13 +86,19 @@ class ApplicationIngester:
                 phone_raw=phone_raw.strip() or None
             )
 
-            # Parse address - use the cleaner "City" fields which have parsed city/state
+            # Parse address - use the cleaner "City" fields which have parsed city/state.
+            # County: validate the CSV's free-text County against the ZIP. Keep it
+            # if plausible (multi-county ZIPs) and overwrite when it's impossible
+            # (applicants have submitted values like "San Diego" for Columbus ZIPs).
+            # Falls back to the CSV value when the ZIP isn't in our cache.
+            zip_value = row.get('Zip (ZIP / Postal Code)', '').strip() or None
+            csv_county = row.get('County', '').strip() or None
             address = ApplicantAddress(
                 street=row.get('Address (Street Address)', '').strip() or None,
                 city=row.get('City (City)', '').strip() or None,
                 state=row.get('City (State / Province)', '').strip() or None,
-                zip=row.get('Zip (ZIP / Postal Code)', '').strip() or None,
-                county=row.get('County', '').strip() or None
+                zip=zip_value,
+                county=resolve_county(zip_value, csv_county) or csv_county
             )
 
             # Parse self-reported demographics

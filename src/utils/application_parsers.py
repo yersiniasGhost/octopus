@@ -43,6 +43,48 @@ def normalize_phone(phone_raw: Optional[str]) -> Optional[str]:
     return None  # Invalid phone
 
 
+_RANGE_DELIMITER_RE = re.compile(r'\s*[-–—]\s*|\s+to\s+', re.IGNORECASE)
+_NUMERIC_TOKEN_RE = re.compile(r'\d[\d.,]*[kK]?')
+# Match monthly markers: "1850mo" / "1850/mo" / "$1850 mo" / "month" / "monthly".
+# Note: `\b` doesn't fire between a digit and a letter (both word chars), so the
+# digit-prefixed form needs its own alternative. `month` covers "month"/"monthly"
+# and avoids the `\b` problem inside "month" itself (n follows mo → no boundary).
+_MONTHLY_RE = re.compile(r'(?<=\d)\s*/?mo\b|\bmo\b|month', re.IGNORECASE)
+_K_SUFFIX_RE = re.compile(r'\d\s*[kK]\b')
+
+
+def _parse_single_amount(token: str) -> Optional[float]:
+    """Parse one numeric token (with optional thousands/decimal separators) to a float.
+
+    Recognizes a trailing 'k'/'K' as a thousands multiplier (e.g. '50k' → 50000).
+    """
+    has_k_suffix = bool(_K_SUFFIX_RE.search(token))
+
+    cleaned = re.sub(r'[^\d.,]', '', token)
+    if not cleaned:
+        return None
+
+    # European format (28.000 = 28,000): one period followed by exactly 3 digits at end
+    if re.match(r'^\d{1,3}\.\d{3}$', cleaned):
+        cleaned = cleaned.replace('.', '')
+
+    cleaned = cleaned.replace(',', '')
+
+    # Multiple decimal points — keep first as decimal, drop rest
+    if cleaned.count('.') > 1:
+        parts = cleaned.split('.')
+        cleaned = parts[0] + '.' + ''.join(parts[1:])
+
+    try:
+        amount = float(cleaned)
+    except ValueError:
+        return None
+
+    if has_k_suffix:
+        amount *= 1000.0
+    return amount
+
+
 def normalize_income(income_raw: Optional[str]) -> Tuple[Optional[float], Optional[str]]:
     """Normalize income to annual amount.
 
@@ -51,7 +93,10 @@ def normalize_income(income_raw: Optional[str]) -> Tuple[Optional[float], Option
     - With dollar sign: "$100,000"
     - Monthly: "1850mo", "1850/mo"
     - European format: "28.000" (comma as thousands sep)
-    - Malformed: "100,00.00", "36, 000"
+    - Malformed thousands sep: "100,00.00", "36, 000"
+    - Ranges: "21,000-22,000", "$40k to $50k" → midpoint
+    - Ambiguous free-text with multiple disjoint numbers → None
+      (e.g. "1200 and$1245 $45" — refuses to silently concatenate)
 
     Args:
         income_raw: Raw income string
@@ -63,45 +108,54 @@ def normalize_income(income_raw: Optional[str]) -> Tuple[Optional[float], Option
         return None, None
 
     raw = str(income_raw).strip()
-    if not raw or raw == '0':
+    if not raw:
+        return None, None
+    if raw == '0':
         return 0.0, raw
 
-    # Detect monthly income patterns
-    is_monthly = bool(re.search(r'mo|/mo|per\s*month|monthly', raw, re.IGNORECASE))
+    is_monthly = bool(_MONTHLY_RE.search(raw))
 
-    # Remove non-numeric characters except . and ,
-    cleaned = re.sub(r'[^\d.,]', '', raw)
+    # Strip currency markers and monthly suffix to expose pure structure
+    working = re.sub(r'[$£€¥]', '', raw)
+    working = _MONTHLY_RE.sub('', working).strip()
 
-    if not cleaned:
+    # Collapse "comma + whitespace" → comma (typo for thousands sep, e.g. "36, 000")
+    working = re.sub(r',\s+', ',', working)
+
+    # Range pattern: "21,000-22,000", "21000 to 22000", "$55-75k"
+    range_parts = _RANGE_DELIMITER_RE.split(working)
+    if len(range_parts) == 2:
+        left, right = range_parts
+        # Convention: "$55-75k" means "$55k-$75k" — propagate k suffix across
+        # the range when only one side carries it.
+        left_has_k = bool(_K_SUFFIX_RE.search(left))
+        right_has_k = bool(_K_SUFFIX_RE.search(right))
+        if right_has_k and not left_has_k:
+            left = left + 'k'
+        elif left_has_k and not right_has_k:
+            right = right + 'k'
+        low = _parse_single_amount(left)
+        high = _parse_single_amount(right)
+        if low is not None and high is not None and low <= high:
+            amount = (low + high) / 2.0
+            if is_monthly:
+                amount *= 12
+            return amount, raw
+
+    # Refuse to guess when raw contains multiple disjoint numeric tokens
+    # separated by non-numeric content that isn't a range delimiter.
+    tokens = _NUMERIC_TOKEN_RE.findall(working)
+    if not tokens:
+        return None, raw
+    if len(tokens) > 1:
         return None, raw
 
-    # Handle European format (28.000 = 28,000)
-    # If there's exactly one period and it's followed by 3 digits at end, it's thousands sep
-    if re.match(r'^\d{1,3}\.\d{3}$', cleaned):
-        cleaned = cleaned.replace('.', '')
-
-    # Handle malformed comma placement (100,00.00 or 36, 000)
-    # Remove commas that aren't proper thousands separators
-    cleaned = cleaned.replace(' ', '')
-
-    # Standard cleanup: remove commas (thousands separators)
-    cleaned = cleaned.replace(',', '')
-
-    # Handle multiple decimal points - take first valid number
-    if cleaned.count('.') > 1:
-        parts = cleaned.split('.')
-        cleaned = parts[0] + '.' + ''.join(parts[1:])
-
-    try:
-        amount = float(cleaned)
-
-        # Convert monthly to annual
-        if is_monthly:
-            amount = amount * 12
-
-        return amount, raw
-    except ValueError:
+    amount = _parse_single_amount(tokens[0])
+    if amount is None:
         return None, raw
+    if is_monthly:
+        amount *= 12
+    return amount, raw
 
 
 def parse_utm_from_url(url: Optional[str]) -> dict:
