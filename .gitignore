@@ -67,4 +67,14 @@ package-lock.json
 # Generated outputs
 data/
 data/processed/
+data2/
 reports/
+
+# Database backups (large; restorable via mongodump)
+/backups/
+
+# Trained ML model artifacts (large) — root-level only, not src/models/
+/models/
+
+# External tooling docs (gstack/superpowers)
+/docs/superpowers/

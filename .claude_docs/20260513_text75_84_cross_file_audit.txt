@@ -1,0 +1,150 @@
+================================================================================
+STAGE 4b — Cross-file click coverage audit (read-only)
+================================================================================
+
+=== EmpowerSaves_OH_Text75_Winter_Section1.xlsx (own slug = lmss) ===
+  Own clicks (click_lmss): 1053
+
+=== EmpowerSaves_OH_Text76_Winter_Section2.xlsx (own slug = lmss) ===
+  Own clicks (click_lmss): 1020
+
+=== EmpowerSaves_OH_Text77_WCP_Section1.xlsx (own slug = sMcs) ===
+  Own clicks (click_sMcs): 1008
+  ⚠  click_lmss: 1012 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 1008
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 4
+        examples: ['6142094843', '6145565835', '6145586059', '6145659864']
+
+=== EmpowerSaves_OH_Text78_WCP_Section2.xlsx (own slug = lmLs) ===
+  Own clicks (click_lmLs): 991
+  ⚠  click_lmss: 1004 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 997
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 7
+        examples: ['3304122718', '6143132754', '6145611547', '6145972267', '6146688663', '6148061221', '6149620251']
+
+=== EmpowerSaves_OH_Text79_Cold_Section1.xlsx (own slug = qXJi) ===
+  Own clicks (click_qXJi): 956
+  ⚠  click_lmss: 998 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 993
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 5
+        examples: ['6142094843', '6142900420', '6145565835', '6145586059', '6145659864']
+  ⚠  click_sMcs: 974 sightings  → owners: ['text_impact_wcp_77']
+      covered in owning campaign(s): 963
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 11
+        examples: ['6142046218', '6142094171', '6143166011', '6143590922', '6143763920', '6146205299', '6147328862', '6147724849', '6147837145', '6149619536', '7409720656']
+
+=== EmpowerSaves_OH_Text80_Cold_Section2.xlsx (own slug = mWaR) ===
+  Own clicks (click_mWaR): 1011
+  ⚠  click_lmss: 989 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 982
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 7
+        examples: ['3304122718', '6143132754', '6145611547', '6145972267', '6146688663', '6148061221', '6149620251']
+  ⚠  click_lmLs: 977 sightings  → owners: ['text_impact_wcp_78']
+      covered in owning campaign(s): 975
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 2
+        examples: ['6146688663', '6148179782']
+
+=== EmpowerSaves_OH_Text81_EndsSoon_Section1.xlsx (own slug = iXJM) ===
+  Own clicks (click_iXJM): 955
+  ⚠  click_lmss: 984 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 978
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 6
+        examples: ['6142050504', '6142094843', '6145565835', '6145586059', '6145659864', '6147476496']
+  ⚠  click_sMcs: 959 sightings  → owners: ['text_impact_wcp_77']
+      covered in owning campaign(s): 946
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 13
+        examples: ['4195455237', '6142046218', '6142050504', '6142094171', '6143166011', '6143590922', '6143763920', '6146205299', '6147328862', '6147724849', '6147837145', '6149619536', '7409720656']
+  ✅ click_pRJQ: 945 sightings  → owners: ['text_impact_lastday_83', 'text_impact_lastday_84']
+      covered in owning campaign(s): 945
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 0
+  ⚠  click_qXJi: 944 sightings  → owners: ['text_impact_cold_79']
+      covered in owning campaign(s): 941
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 3
+        examples: ['6145968814', '6148430379', '6149619536']
+
+=== EmpowerSaves_OH_Text82_EndsSoon_Section2.xlsx (own slug = Ytxw) ===
+  Own clicks (click_Ytxw): 961
+  ⚠  click_mWaR: 986 sightings  → owners: ['text_impact_cold_80']
+      covered in owning campaign(s): 982
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 4
+        examples: ['6142567808', '6142823731', '6145814643', '6146323498']
+  ⚠  click_lmss: 981 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 974
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 7
+        examples: ['3304122718', '6143132754', '6145611547', '6145972267', '6148061221', '6149620251', '6172918054']
+  ✅ click_pRJQ: 978 sightings  → owners: ['text_impact_lastday_83', 'text_impact_lastday_84']
+      covered in owning campaign(s): 978
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 0
+  ⚠  click_lmLs: 968 sightings  → owners: ['text_impact_wcp_78']
+      covered in owning campaign(s): 966
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 2
+        examples: ['6145814643', '6148179782']
+
+=== EmpowerSaves_OH_Text83_LastDay_Section1.xlsx (own slug = pRJQ) ===
+  Own clicks (click_pRJQ): 945
+  ⚠  click_lmss: 971 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 966
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 5
+        examples: ['6142050504', '6145565835', '6145586059', '6145659864', '6147476496']
+  ⚠  click_sMcs: 947 sightings  → owners: ['text_impact_wcp_77']
+      covered in owning campaign(s): 936
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 11
+        examples: ['6142046218', '6142050504', '6142094171', '6143166011', '6143590922', '6143763920', '6146205299', '6147328862', '6147837145', '6149619536', '7409720656']
+  ⚠  click_qXJi: 937 sightings  → owners: ['text_impact_cold_79']
+      covered in owning campaign(s): 934
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 3
+        examples: ['6145968814', '6148430379', '6149619536']
+  ✅ click_iXJM: 935 sightings  → owners: ['text_impact_endssoon_81']
+      covered in owning campaign(s): 935
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 0
+
+=== EmpowerSaves_OH_Text84_LastDay_Section2.xlsx (own slug = pRJQ) ===
+  Own clicks (click_pRJQ): 978
+  ⚠  click_mWaR: 982 sightings  → owners: ['text_impact_cold_80']
+      covered in owning campaign(s): 978
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 4
+        examples: ['6142567808', '6142823731', '6145814643', '6146323498']
+  ⚠  click_lmss: 973 sightings  → owners: ['text_impact_winter_75', 'text_impact_winter_76']
+      covered in owning campaign(s): 966
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 7
+        examples: ['3304122718', '6143132754', '6145611547', '6145972267', '6148061221', '6149620251', '6172918054']
+  ⚠  click_lmLs: 962 sightings  → owners: ['text_impact_wcp_78']
+      covered in owning campaign(s): 960
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 2
+        examples: ['6145814643', '6148179782']
+  ✅ click_Ytxw: 952 sightings  → owners: ['text_impact_endssoon_82']
+      covered in owning campaign(s): 952
+      absent from owning campaign(s) (different audience): 0
+      present in owning campaign but UNCLICKED there: 0
+
+================================================================================
+AUDIT SUMMARY
+================================================================================
+  Total click token sightings (across all files):       31236
+  Total cross-file sightings (excluding own-slug):      21358
+  Discrepancy groups (cross-file claims not recorded): 18
+  Total unique unclicked-in-owning phones flagged:     103
+
+  Per Decision 3: report only — no auto-fix. Review the above to decide
+  whether each discrepancy warrants manual investigation.

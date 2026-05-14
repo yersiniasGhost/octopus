@@ -251,6 +251,8 @@ class TextEngagement(BaseModel):
     replied: Optional[bool] = None
     opted_out: Optional[bool] = None
     failed: Optional[bool] = None
+    clicked: Optional[bool] = None
+    clicked_at: Optional[datetime] = None
 
 
 class PostalEngagement(BaseModel):
@@ -513,14 +515,19 @@ class Exposure(BaseModel):
                 return UnifiedEngagement.NO_ENGAGEMENT.value
 
         elif self.channel in (Channel.TEXT.value, Channel.TEXT_MORNING.value, Channel.TEXT_EVENING.value):
-            if self.text_engagement.replied:
-                return UnifiedEngagement.ENGAGED.value
-            elif self.text_engagement.read or self.text_engagement.delivered:
-                return UnifiedEngagement.RECEIVED.value
-            elif self.text_engagement.opted_out:
+            # Precedence: opted_out/undeliverable are terminal (never overwritten by
+            # later signals), then engaged (replied) > clicked > received > no_engagement.
+            # Mirrors the imperative guard in scripts/mark_clicked_from_csv_tool.py.
+            if self.text_engagement.opted_out:
                 return UnifiedEngagement.OPTED_OUT.value
             elif self.text_engagement.failed:
                 return UnifiedEngagement.UNDELIVERABLE.value
+            elif self.text_engagement.replied:
+                return UnifiedEngagement.ENGAGED.value
+            elif self.text_engagement.clicked:
+                return UnifiedEngagement.CLICKED.value
+            elif self.text_engagement.read or self.text_engagement.delivered:
+                return UnifiedEngagement.RECEIVED.value
             else:
                 return UnifiedEngagement.NO_ENGAGEMENT.value
 

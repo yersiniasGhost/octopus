@@ -6,6 +6,93 @@ Brief descriptions of utility scripts in the `scripts/` directory.
 
 ## Campaign Management
 
+### apply_cross_file_text_clicks_tool.py
+**One-shot Fix #4 tool** (ran 2026-05-13). Aggregates cross-file `click_<slug>` evidence from all 10 Text75-84 vendor xlsx files and applies it to the corresponding owning campaign's exposures. Reverses the Stage-4 "stay in lane" policy for remediation, after the Stage 4b audit revealed ~0.5% of cross-file click signals were being lost. Same per-doc precedence as Stage 4 (received→clicked, engaged/opted_out→audit-only, undeliverable→skip). Idempotent. Default dry-run; `--apply` to write.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/apply_cross_file_text_clicks_tool.py
+python scripts/apply_cross_file_text_clicks_tool.py --apply
+```
+
+### backfill_wcp_text2_clicked_flag_tool.py
+**One-shot Fix #1 tool** (ran 2026-05-13). Backfills `text_engagement.clicked=true` on the 2,111 docs in older WCP Text2 Section 1/2 campaigns (Jan 2026) that had `unified_status: "clicked"` without the underlying nested-field flag. `clicked_at` left as-is (original timestamps unknown). Idempotent. Default dry-run; `--apply`.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/backfill_wcp_text2_clicked_flag_tool.py
+python scripts/backfill_wcp_text2_clicked_flag_tool.py --apply
+```
+
+### audit_text75_84_cross_file_clicks_tool.py
+**Read-only audit** (Stage 4b of Text75-84 ingest). For each of the 10 RumbleUp xlsx files, scans the Conversations Tags column for `click_<slug>` tokens belonging to OTHER campaigns and verifies the owning campaign has matching `text_engagement.clicked=true` exposures. Reports phones present in the owning campaign but NOT marked as clicked there — discrepancies are flagged but not auto-fixed (per Decision 3). Useful for sanity-checking cross-file corroboration of click data.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/audit_text75_84_cross_file_clicks_tool.py
+python scripts/audit_text75_84_cross_file_clicks_tool.py --verbose-missing  # show all flagged phones
+```
+
+### apply_text75_84_clicks_tool.py
+**One-shot Stage 4 tool** for the Text75-84 ingest. Applies `click_<slug>` matches from each of the 10 RumbleUp xlsx files at `data/campaign-updated-20260512/` to corresponding exposures in `empower_development`. Strictly stays-in-lane (only this file's own slug is processed; cross-contamination tokens ignored per Decision 3). Per-doc precedence: received/no_engagement → promote to `unified_status: clicked` + set `text_engagement.clicked/clicked_at`; engaged/opted_out → audit-only (set click flag but keep status); undeliverable → skip. Matches by `contact_snapshot.phone` (dual-phone-safe). Idempotent. Default dry-run; `--apply` to write; `--files key1,key2` filter.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/apply_text75_84_clicks_tool.py
+python scripts/apply_text75_84_clicks_tool.py --apply
+python scripts/apply_text75_84_clicks_tool.py --files text79,text80 --apply
+```
+
+### ingest_text75_84_exposures_tool.py
+**One-shot Stage 3 ingestor** of Text75-84 RumbleUp xlsx files from `data/campaign-updated-20260512/`. Per-file actions via `FILE_PLAN` table: `wipe` (delete old UUID-keyed campaign + exposures, then re-create from xlsx — used for Text75/76), `create` (insert new campaign + exposures — used for Text77/78), `reset_clicks` (downgrade unified_status: clicked → received and clear text_engagement.clicked — used for Text83). No exposure changes for Text79-82/Text84 (Stage 4 only). Reads the third tag column ('Tags') that the existing impact-cold helper misses. Writes both participant_id and participant_oid at insert time. Does NOT write engagement_summary (removed 2026-05-13). Default dry-run; `--apply` to write; `--files key1,key2` filters scope.
+
+**NOT idempotent for create/wipe actions** (re-running --apply on Text77/78 would duplicate exposures because no pre-insert dedup). reset_clicks is idempotent (second run finds 0 docs with unified_status=clicked).
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/ingest_text75_84_exposures_tool.py
+python scripts/ingest_text75_84_exposures_tool.py --apply
+python scripts/ingest_text75_84_exposures_tool.py --files text75,text83 --apply
+```
+
+### cleanup_duplicate_text_exposures_tool.py
+**One-shot diagnostic** (Stage 2 of Text75-84 ingest work, ran 2026-05-13 — NOT applied; tool kept for future use). Scans `db.exposures` for `(campaign_id, participant_id)` duplicate pairs in text-channel campaigns. For each duplicate group, reports KEEP/DROP candidates (by earliest `created_at`) with field-level diff hints. Default dry-run; `--apply` would delete dropped candidates; `--campaigns id1,id2` limits scope.
+
+**Important caveat:** the May 2026 run on Text79-84 surfaced 3 "duplicates" that turned out to be legitimate dual-phone sends (same contact, two phones, both folded under one participant by the matcher). The tool's keep-earliest heuristic is correct for true vendor-retry duplicates but wrong for dual-phone-send cases. Always inspect the `contact_snapshot` diff before applying.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/cleanup_duplicate_text_exposures_tool.py
+python scripts/cleanup_duplicate_text_exposures_tool.py --campaigns text_impact_cold_79
+python scripts/cleanup_duplicate_text_exposures_tool.py --apply
+```
+
+### migrate_text_engagement_clicked_tool.py
+**One-shot migration** (Stage 0 of Text75-84 ingest work, completed 2026-05-13). Folds the legacy top-level `text_clicked` / `text_clicked_at` fields on `db.exposures` into the proper nested path `text_engagement.clicked` / `text_engagement.clicked_at`. Two passes: (A) 1,134 True docs migrate value + preserve clicked_at, (B) 16,767 False docs (junk default from impact-cold tool family) just `$unset` the legacy fields. Idempotent — re-runs after success move zero docs. Default dry-run; `--apply` to write. See `.claude_docs/20260513_1530_database_changes_log.md` entry `migrate-text-engagement-clicked` for the full migration record.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/migrate_text_engagement_clicked_tool.py            # dry-run
+python scripts/migrate_text_engagement_clicked_tool.py --apply
+```
+
+### investigate_text75_84_state_tool.py
+**One-shot investigation** (Stage 1 of the Text75-84 click-ingestion workflow). Surveys the 10 EmpowerSaves_OH_Text{75..84} workbooks at `data/campaign-updated-20260512/` against the live `empower_development` DB and emits a per-file markdown report. For each file: extracts Stats-sheet source-of-truth (sent count, slug, action #, reply tag), counts `click_<slug>` tokens (including cross-contamination from other campaigns), finds candidate campaign docs in DB, profiles existing exposures (status distribution, sent_at range, duplicates, orphan FKs, legacy off-model `text_clicked` count, dual-keyed participants), and computes file-vs-DB phone deltas. Pure reads; no DB writes. Reads all three tag columns from the Conversations sheet ('Msg Tags', 'Contact Tags', and the contact-aggregated 'Tags' column the existing impact-cold helper misses). Report path: `.claude_docs/<ts>_text75_84_state_investigation.md`.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/investigate_text75_84_state_tool.py
+python scripts/investigate_text75_84_state_tool.py --report-path /tmp/x.md
+```
+
 ### populate_participant_oid_tool.py
 **Reusable Tool**: Backfills `exposures.participant_oid` (ObjectId reference to `participants._id`) from the existing `participant_id` natural key. Adds a denormalized FK alongside the natural key — does NOT modify `participant_id`. Idempotent: re-runs only touch exposures missing the field. Default is dry-run; pass `--apply` to write. Reports orphan participant_ids (exposures whose participant_id doesn't match any participant) so referential integrity issues surface before writes.
 

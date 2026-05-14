@@ -13,6 +13,12 @@ This document captures the *actual* shape of documents in the live DB at this da
 
 | Time  | Change | Affected |
 |---|---|---|
+| 18:50 | Fix #4: applied cross-file click evidence to 6 of the 10 Text75-84 owning campaigns. +38 click promotions; cross-file audit now shows 0 discrepancies. | `exposures` (38) |
+| 18:45 | Fix #1: backfilled `text_engagement.clicked=true` on 2,111 WCP Text2 Jan-2026 docs that had `unified_status=clicked` without the underlying flag. | `exposures` (2,111) |
+| 18:32 | Cross-file click coverage audit (read-only). 21,358 cross-file sightings, 103 discrepancies flagged for future review. | report only |
+| 18:25 | Stage 4 of Text75-84: applied click_<slug> matches across all 10 files. 9,851 promoted to clicked, 27 audit-only. | `exposures` (9,878) |
+| 18:18 | Stage 3 of Text75-84: wiped Text75/76 (old UUID), created Text77/78 fresh, reset Text83 clicks. -7,641 / +13,798 / 1,134 status resets. | `exposures` (+6,157 net), `campaigns` (-2 +4) |
+| 17:52 | Folded legacy `text_clicked`/`text_clicked_at` into `text_engagement.clicked`/`clicked_at` (1,134 True + 16,767 False unset). Rewrote `compute_unified_status` text branch (opted_out > undeliverable > engaged > clicked > received). | `exposures` (17,901), Pydantic model |
 | 17:40 | Added `applications.participant_match.participant_oid` (surrogate FK to `participants._id`) + index | `applications` (590/615) |
 | 17:15 | Added index on `exposures.participant_oid` | `exposures` |
 | 17:05 | Added `exposures.participant_oid` (surrogate FK to `participants._id`) | `exposures` (337,912) |
@@ -32,8 +38,8 @@ Counts as of generation time.
 | Collection | Count | Pydantic model | Role |
 |---|---:|---|---|
 | `participants` | 14,364 | `models/campaign_data.py :: Participant` | Master person — one doc per canonical contact (email or phone). Denormalized demographics, residence. (Engagement rollup was removed 2026-05-13 — compute from `exposures` via `src.utils.engagement`.) |
-| `campaigns` | 158 | `models/campaign_data.py :: Campaign` | Per-send campaign metadata. Email, text, mailer, letter. Includes vendor stats. |
-| `exposures` | 337,912 | `models/campaign_data.py :: Exposure` | One row per (participant × campaign). The fact table for engagement. |
+| `campaigns` | 160 | `models/campaign_data.py :: Campaign` | Per-send campaign metadata. Email, text, mailer, letter. Includes vendor stats. |
+| `exposures` | 344,069 | `models/campaign_data.py :: Exposure` | One row per (participant × campaign). The fact table for engagement. |
 | `applications` | 615 | `models/application.py :: Application` | **Canonical** conversion events (submitted forms). |
 | `applicants` | 296 | `models/applicant.py :: Applicant` | **Legacy** sign-up records from earlier CSV imports; superseded by `applications` but still queryable. |
 
@@ -269,12 +275,13 @@ Naming is now uniform across all counties (`<County>CountyResidential`, etc.) as
     "bounced": false, "complained": false, "unsubscribed": false
   },
   "text_engagement": {
-    "delivered": null,
-    "read":      null,
-    "replied":   null,
-    "opted_out": null,
-    "failed":    null
-    // NOTE: no `clicked` field — see drift below
+    "delivered":  null,
+    "read":       null,
+    "replied":    null,
+    "opted_out":  null,
+    "failed":     null,
+    "clicked":    null,   // added 2026-05-13 17:52 (mirrors email_engagement)
+    "clicked_at": null
   },
   "postal_engagement": {
     "delivered": null, "response": null
@@ -298,30 +305,23 @@ Naming is now uniform across all counties (`<County>CountyResidential`, etc.) as
 }
 ```
 
-### `unified_status` hierarchy (text channel — current logic in `Exposure.compute_unified_status`)
-
-```
-replied  → engaged
-read/delivered → received
-opted_out → opted_out
-failed → undeliverable
-nothing → no_engagement
-```
-
-**`clicked` is not produced by `compute_unified_status`** — it's set imperatively by the mark-clicked tool only. The tool promotes `received → clicked` and refuses to overwrite `engaged` or `opted_out`. So in practice the live ordering is:
+### `unified_status` hierarchy (text channel — current logic in `Exposure.compute_unified_status`, updated 2026-05-13 17:52)
 
 ```
 opted_out / undeliverable    (terminal — never overwritten)
-engaged   (replied — wins over clicked)
-clicked   (link tap — beats received)
-received
+engaged    (replied — wins over clicked)
+clicked    (link tap — beats received)
+received   (delivered / read)
 no_engagement
 ```
 
+`compute_unified_status` now produces all six statuses including `clicked` (previously `clicked` was set imperatively only via `mark_clicked_from_csv_tool.py`). Future ingest code can call `compute_unified_status` after setting `text_engagement.clicked=True` and get the correct status string back.
+
 **🚩 Schema drift (relevant to upcoming work):**
-- `TextEngagement` Pydantic model has **no `clicked` / `clicked_at` field** — but the live data has 1,134 docs with `text_clicked: true` at the top level of the exposure document. Either we add the field to the model and migrate, or we keep the off-model fields and document them. (This is decision #1 from the prior message.)
-- `unified_status` distinct values include `"converted"` and `"negative_response"` which are not in the `UnifiedEngagement` enum. Something is writing them. Worth grepping before adding new statuses.
-- Compound index on `(participant_id, campaign_id)` is **not unique** — duplicates are possible and have happened (per obs 1701, Apr 30: "Duplicate exposure migration created 20 real and 20 phantom records"). Always upsert defensively.
+- ✅ `TextEngagement.clicked` + `clicked_at` added to model (2026-05-13 17:52) and 1,134 legacy off-model docs migrated. Field path is `exposures.text_engagement.clicked`.
+- ⚠ `unified_status` distinct values include `"converted"` and `"negative_response"` which are not in the `UnifiedEngagement` enum. Something is writing them. Worth grepping before adding new statuses.
+- ⚠ Compound index on `(participant_id, campaign_id)` is **not unique** — duplicates are possible and have happened (per obs 1701, Apr 30: "Duplicate exposure migration created 20 real and 20 phantom records"). Always upsert defensively.
+- ✅ 2,111 docs in older WCP Text2 campaigns (Jan 2026) had `unified_status: "clicked"` without the nested flag; backfilled 2026-05-13 18:45 (`scripts/backfill_wcp_text2_clicked_flag_tool.py`). `compute_unified_status` now returns the same `clicked` value.
 
 ---
 
