@@ -1757,3 +1757,70 @@ python scripts/backfill_participant_customer_name_tool.py --apply      # write
 ```
 
 **Output (initial run, 2026-05-13)**: 6,872 / 6,890 nameless-but-parcel-linked participants matched a `customer_name` in `FranklinCountyDemographic` and were updated. The 18 unmatched parcels either don't exist in the county collection or have county_key values that don't normalize cleanly. Effect on Text81 detail page: from 1/25 names visible per page → 25/25.
+
+## attribute_winter_sameday_conversions_tool.py
+**Purpose**: Backfill `attribution.likely_campaigns` (a `CampaignLink`) for the four 2026-01-23 Winter same-day conversions that the UTM-based pipeline missed.
+
+Four IMPACT participants submitted GravityForms applications on the EmpowerSaves landing page (`reduceenergyburdenohio.com`) on the same day they received the Winter text blast (Text75 Section1 / Text76 Section2), but the form carried no UTM so attribution stayed empty. This tool writes the missing link per application, calibrated by evidence strength: recorded Text76 *click* → confidence 0.95, method `click_same_day_landing`; same-day Text75 *receipt* only → confidence 0.70, method `receipt_same_day_landing`. Hardcoded `TARGETS` table (app_id → campaign slug). Idempotent (skips an app already linked to the target campaign, mirroring `export_campaign_color_csvs_tool.py`); safety-guards on campaign existence and on `entry_date` falling on the 2026-01-23 send day before writing.
+
+**Note**: `application_id` is stored as a **string** in `applications` (e.g. `"437"`), and the `campaign_id` written into the link is the campaign *slug* (`text_impact_winter_76`), not the ObjectId.
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/attribute_winter_sameday_conversions_tool.py            # dry-run (default)
+python scripts/attribute_winter_sameday_conversions_tool.py --apply    # write
+```
+
+**Output (initial run, 2026-06-02)**: 4 applications updated (#437/#440/#412 → `text_impact_winter_76`; #408 → `text_impact_winter_75`). These were the first 4 applications in the collection to carry a populated `likely_campaigns`. Re-run skips all 4 as already-linked.
+
+## attribute_click_conversions_tool.py
+**Purpose**: Generalized, query-driven behavioral attribution. Backfills `attribution.likely_campaigns` on converted applications by inferring the driving campaign from the matched participant's *click* behavior, aligned to the application's `entry_date`. Supersedes the hardcoded `attribute_winter_sameday_conversions_tool.py`.
+
+**Attribution priority** (first match wins; confidence by evidence strength):
+1. same-day CLICK → conf 0.95, method `click_same_day_landing`
+2. windowed CLICK (clicked ≤ `--lag-days` before applying, most recent wins) → conf 0.85, method `click_window_landing`
+3. same-day RECEIPT, no click → conf 0.70, method `receipt_same_day_landing` (only with `--include-receipt`)
+
+**Scope/safety**: only touches applications with EMPTY `likely_campaigns` (idempotent); SKIPS apps that already carry a real UTM (`utm_source`/`utm_campaign`/`utm_id` — reserved for a future `utm_direct` rule, not overwritten); SKIPS apps with no `participant_match.participant_oid`. Writes the campaign *slug* (`campaigns.campaign_id`, e.g. `text_impact_winter_75`); `application_id` is a STRING in this collection.
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/attribute_click_conversions_tool.py                                   # dry-run report
+python scripts/attribute_click_conversions_tool.py --csv data/attribution/status.csv # per-app status CSV (no writes)
+python scripts/attribute_click_conversions_tool.py --lag-days 7 --apply              # write
+```
+`--csv PATH` classifies EVERY application into one status (same-day / windowed / utm-deferred / no-match / no-signal / already-attributed) and exits without writing.
+
+**Output (initial run, 2026-06-02, lag 7d, click-only)**: of 299 empty-attribution applications, **224 attributed** (164 same-day @0.95, 60 windowed @0.85) across the full Text75–84 / WCP / Cold / EndsSoon / LastDay text family + 2 EGE email clicks. Skipped: 25 has-UTM, 15 no-match, 35 no-signal. Collection-wide after run: 228 attributed, 75 empty. Outliers (no-signal/no-match/receipt) catalogued in `.claude_docs/20260602_1232_attribution_outliers.md` for a later click-ingestion audit.
+
+## attribute_utm_direct_tool.py
+**Purpose**: UTM-direct attribution for direct-mail conversions deferred by the behavioral tool. Maps the landing-page UTM (`utm_source=mail&utm_campaign=<Test|Control>-<Click|View>`) to the real `dm_impact_*` letter campaign.
+
+**Verified mapping** (March 2026 IMPACT direct-mail A/B drop): `Test→new` (NEW copy), `Control→old` (OLD copy); `Click→clickers`, `View→non_clickers` → `dm_impact_{audience}_{copy}`. e.g. `Test-Click → dm_impact_clickers_new`. Mapping confirmed independently: 20/21 matched converters also appear in the mapped campaign's letter exposures.
+
+**Confidence (double-keyed)**: 0.99 `utm_direct_verified` when the UTM maps AND the participant is in that campaign's letter exposures; 0.90 `utm_direct` when mapped by label only (no `participant_oid` or not in audience). Idempotent; skips already-attributed apps; reports unmappable UTMs (e.g. `utm_source=Majority`) rather than guessing.
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/attribute_utm_direct_tool.py            # dry-run
+python scripts/attribute_utm_direct_tool.py --apply    # write
+```
+
+**Output (initial run, 2026-06-02)**: 24 of 25 UTM-deferred applications attributed (22 verified @0.99, 2 label-only @0.90) → `clickers_old` 9, `non_clickers_new` 8, `clickers_new` 4, `non_clickers_old` 3. 1 unmapped (#695, `utm_source=Majority` — needs a campaign record). Collection-wide after run: 252 attributed, 51 empty.
+
+## fix_dm_campaign_sent_date_tool.py
+**Purpose**: Correct the placeholder `sent_at` on the four `dm_impact_*` direct-mail campaigns. They were ingested from RumbleUp audience CSVs (no send date), so `sent_at` defaulted to the ingest timestamp 2026-05-14 — but the real drop was ~March 2026 (every attributable conversion landed 2026-03-13 → 03-31). Repoints `sent_at` on the 4 campaigns AND their 1,000 letter exposures, preserving provenance: original kept in `sent_at_ingest`, plus `sent_at_estimated` flag and `sent_at_source` note when inferred.
+
+**Date**: defaults to the earliest dm_impact-attributed conversion (a "delivered no later than" floor, flagged estimated). Pass `--date YYYY-MM-DD` once the true vendor drop date is known (clears the estimated flag).
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/fix_dm_campaign_sent_date_tool.py                   # dry-run, inferred date
+python scripts/fix_dm_campaign_sent_date_tool.py --date 2026-03-10 --apply   # known date
+```
+
+**Output (initial run, 2026-06-02)**: 4 campaigns + 1,000 exposures repointed 2026-05-14 → **2026-03-13 (ESTIMATED**, source "earliest dm_impact-attributed conversion"). Original ingest date preserved in `sent_at_ingest` on all 1,004 docs. **Action needed**: re-run with `--date` when the real RumbleUp/vendor drop date is confirmed.
