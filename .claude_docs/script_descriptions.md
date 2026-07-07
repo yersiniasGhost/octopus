@@ -1824,3 +1824,118 @@ python scripts/fix_dm_campaign_sent_date_tool.py --date 2026-03-10 --apply   # k
 ```
 
 **Output (initial run, 2026-06-02)**: 4 campaigns + 1,000 exposures repointed 2026-05-14 → **2026-03-13 (ESTIMATED**, source "earliest dm_impact-attributed conversion"). Original ingest date preserved in `sent_at_ingest` on all 1,004 docs. **Action needed**: re-run with `--date` when the real RumbleUp/vendor drop date is confirmed.
+
+## export_text7x_8x_participant_csv_tool.py
+**Purpose**: Read-only export of the Text7X/8X (Text75-84) campaign cohort to a single 24-column CSV — one row per participant targeted by at least one selected Text campaign. Combines LOCATE-appended demographics (Melissa Data), self-reported applicant data, and engagement across text (Text75-84), direct mail (DM IMPACT), and email (EGE WinterCrisis 2026). Adapts `export_participant_master_csv_tool.py` (from the original checkout) with a cohort filter + Melissa LOCATE join. Makes no DB writes.
+
+**Cohort filter**: `--campaigns` selects which Text campaigns define the population (accepts `75`, `text75`, or full slugs; default all ten). The filter changes *which participants* appear, not which columns — all ten Text columns are always emitted (stable schema).
+
+**Text cell code** (kept from the master export, reviewed 2026-06-02): `received=1, clicked=2, opted_out=3, undeliverable=4, negative_response=5`, blank = not targeted. SMS has no open event, so the literal `2=opened` from the column note cannot occur; the richer 1-5 code is used.
+
+**(locate) demographics**: phone-matched to the Melissa Data LOCATE CSV (`--locate-csv`, default `/home/yersinia/devel/oc-orig/octopus/data/demographic/20260121-frankline/all_not_in_demographic_db_FINAL.csv`; warns + leaves columns blank if absent). Fills Age (from MD_DateOfBirth), Children/Senior (MD_PresenceOf*), Income Append (MD_HouseholdIncome bracket → midpoint), Household size. An applicant's self-reported value overrides the appended value where present. **Number of Adults stays blank** — no source has an adult-count field. Email columns use the EGE_WinterCrisis_2026 campaign (only 2026 email; ~89% cohort coverage).
+
+**Intake likely campaign** (`infer_intake_campaign`): priority = (1) application UTM source/medium → (2) a same-day exposure, preferring `clicked` over `received`, then latest by send time → (3) most recent exposure on/before entry_date → (4) `N/A`. The same-day rule (added 2026-06-03) corrects a timezone bug: exposure `sent_at` is UTC while application `entry_date` is local Eastern, so a strict `sent_at<=entry_date` test dropped same-day text clicks (which blast ~21:00 UTC ≈ 16:00 ET) and produced `N/A` (no prior exposure) or a stale months-old campaign (older exposure survived). On current data the fix cleared all 43 `N/A`s to 0 and reattributed 111 stale rows; 150/154 changed rows now resolve to a same-day *clicked* exposure, 4 to same-day *received*. Requires `load_intake_exposures` to project `unified_status` (so the same-day branch can prefer clicks).
+
+**Usage**:
+```bash
+source venv/bin/activate
+python scripts/export_text7x_8x_participant_csv_tool.py                 # all 75-84 → exports/
+python scripts/export_text7x_8x_participant_csv_tool.py --campaigns 75,76,83
+python scripts/export_text7x_8x_participant_csv_tool.py --output /tmp/out.csv
+```
+
+**Output (full run, 2026-06-03)**: 7,417 cohort rows; LOCATE phone-matched 5,877 (79%); filled age 4,968 / children 5,520 / senior 5,657 / household 6,333 / income-append 6,418; 249 applicant matches; income-reported 234; intake likely campaign `N/A` count 0 (was 41 before the same-day fix).
+
+---
+
+## backfill_franklin_impact_demographics_tool.py
+
+Backfills missing demographic fields into the `FranklinCountyDemographic`
+collection (`empower_development`) from the IMPACT Franklin 2,500-row source file
+(`~/devel/oc-orig/octopus/data/demographic/20260121-frankline/IMPACT_franklin_2500_final.xlxs`,
+converted to CSV alongside it).
+
+**Non-destructive**: writes a field only when the DB value is missing/sentinel
+(`-1`, `''`, `nan`) AND the source carries a real value — existing good values are
+preserved. Matched on `parcel_id`. Idempotent.
+
+**Fields backfilled** (source → DB, format-matched to existing docs):
+- `MD_PresenceOfSenior` → `presence_of_senior` (`Yes`/`No`)
+- `Age in Two-Year Increments - 1st Individual` → `owner_age` (int)
+- `Number of Adults` → `number_of_adults` (int)
+- `Marital Status` → `marital_status` (`S`→Single, `M`→Married, A/B passthrough)
+- `MD_EstimatedHomeValue` → `estimated_home_value` (int)
+- `MD_PresenceOfChildren` (fallback `Presence of Children` Y/N) → **new** `presence_of_children` (`Yes`/`No`)
+
+Stamps provenance on every modified doc: `backfill_at`, `backfill_from`, `backfill_fields`.
+
+```bash
+python scripts/backfill_franklin_impact_demographics_tool.py            # dry run
+python scripts/backfill_franklin_impact_demographics_tool.py --apply    # write
+```
+
+**Output (2026-06-03)**: 2,500/2,500 rows matched; 2,472 docs modified.
+Fills: presence_of_senior +859, owner_age +1,182, number_of_adults +1,224,
+marital_status +1,177, estimated_home_value +1,379, presence_of_children +2,375
+(new field). Post-backfill DB coverage now equals source-file coverage for all
+fields of interest (income, children, senior, age, adults, marital, home value).
+
+---
+
+## enrich_participants_franklin_demographics_tool.py
+
+Enriches `participants.demographics` from the (backfilled) `FranklinCountyDemographic`
+collection. Joins on `linkage.parcel_id` (direct, falling back to digits-only
+normalization). The cohort participants are ~100% Franklin and the parcel match
+rate is 99.9% — far better than the phone-keyed LOCATE join (79%).
+
+**Non-destructive**: a demographics sub-field is written only where the participant
+slot is null/absent AND the Franklin doc has a value. Idempotent. Stamps
+`demographics_enriched_at/from/fields` provenance on each modified participant.
+
+Fills: `demographics.owner_age`, `presence_of_children`, `presence_of_senior`
+(new slots), `number_of_adults`, `marital_status`, `estimated_income`,
+`household_size` (FCD `md_householdsize`).
+
+```bash
+python scripts/enrich_participants_franklin_demographics_tool.py            # dry run
+python scripts/enrich_participants_franklin_demographics_tool.py --apply    # write
+```
+
+**Output (2026-06-03)**: 8,823 Franklin participants updated (3 unmatched).
+Fills: owner_age +6,772, presence_of_children +1,881 (limited to the IMPACT-2500
+subset where FCD carries children), presence_of_senior +5,282, number_of_adults
++6,703, marital_status +6,755, estimated_income +6,888, household_size +6,727.
+
+### export_text7x_8x_participant_csv_tool.py — demographics fallback added (2026-06-03)
+build_row() now reads `participant.demographics` as a fallback after the LOCATE
+CSV for age (`owner_age`), children (`presence_of_children`), senior
+(`presence_of_senior`), and Number of Adults (`number_of_adults`, previously
+always blank). New helper `yn_from_yesno()` maps the 'Yes'/'No' presence flags to
+'Y'/'N'. Post-enrichment coverage (7,417-row cohort): age 4,968→5,476,
+children 5,520→6,043, senior 5,657→6,170, household 6,333→7,260,
+income 6,418→7,414, Number of Adults 0→5,315.
+
+### backfill_campaign_weather_tool.py — embed local weather on each campaign (2026-07-07)
+Adds an embedded `weather` sub-document to every doc in `campaigns`
+(`empower_development`). Resolves each campaign's **dominant county** from its
+recipients (`exposures.campaign_id` → `exposures.participant_oid` →
+`participants.linkage.county_key`), then fetches daily historical weather for that
+county's centroid over the window `[sent_at − 5d, sent_at]` (6 inclusive days)
+from the Open-Meteo archive API (free, no key, Fahrenheit). Computes temp
+mean/min/max, HDD/CDD (base 65°F), and extreme-day counts (freezing <32°F,
+hot >90°F). Idempotent (skips campaigns already having `weather` unless `--force`);
+memoizes `(county, window)` fetches. County centroids for the 25 Ohio counties
+are a static table in the script (CountyKeys has no lat/lon).
+Design: `.claude_docs/20260707_1551_campaign_weather_design.md`.
+Tests: `tests/test_campaign_weather.py` (11 unit tests on the pure logic).
+
+```bash
+python scripts/backfill_campaign_weather_tool.py --dry-run --limit 12   # preview
+python scripts/backfill_campaign_weather_tool.py                        # write all
+python scripts/backfill_campaign_weather_tool.py --force                # recompute
+```
+
+**Result (2026-07-07)**: 163 campaigns tagged — 153 `ok`, 6 `no_send_date`,
+4 `no_county`; 107 unique (county, window) API fetches. Winter Crisis text
+campaigns correctly show mean ~11°F, HDD ~322, 6 freezing days.

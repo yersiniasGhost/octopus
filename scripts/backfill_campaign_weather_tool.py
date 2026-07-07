@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""Backfill an embedded ``weather`` sub-document onto each campaign.
+
+For every campaign in ``empower_development.campaigns`` this tool:
+  1. Resolves the *dominant* county from its recipients
+     (exposures.campaign_id -> exposures.participant_oid ->
+      participants.linkage.county_key), picking the county with the most
+     recipients and recording that county's recipient share.
+  2. Fetches daily historical weather for the county centroid over the
+     window [sent_at - 5 days, sent_at] (6 inclusive days) from the
+     Open-Meteo archive API (free, no key), in Fahrenheit.
+  3. Computes temp mean/min/max, HDD/CDD (base 65F), and extreme-day counts,
+     then writes the embedded ``weather`` field.
+
+Design: .claude_docs/20260707_1551_campaign_weather_design.md
+
+Usage:
+    python scripts/backfill_campaign_weather_tool.py [--force] [--dry-run] [--limit N]
+
+Idempotent: campaigns that already have a ``weather`` field are skipped unless
+--force is given. Weather fetches are cached per (county, start, end) so
+campaigns sharing a county+window reuse a single API call.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import time
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
+
+import requests
+from dotenv import load_dotenv
+from pymongo import MongoClient
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+WINDOW_DAYS = 5          # days prior to send; window = [sent_at - 5d, sent_at] => 6 records
+HDD_BASE_F = 65.0
+CDD_BASE_F = 65.0
+FREEZE_THRESHOLD_F = 32.0
+HOT_THRESHOLD_F = 90.0
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+SOURCE_TAG = "open-meteo-archive"
+
+# Approximate geographic centroids (lat, lon) for the 25 Ohio counties in
+# CountyKeys. County-level weather does not need parcel precision.
+COUNTY_CENTROIDS = {
+    "Allen": (40.77, -84.11), "Athens": (39.33, -82.05), "Belmont": (40.02, -80.99),
+    "Coshocton": (40.30, -81.92), "Cuyahoga": (41.48, -81.68), "Fayette": (39.56, -83.46),
+    "Franklin": (39.97, -83.01), "Guernsey": (40.05, -81.49), "Hancock": (41.00, -83.67),
+    "Hardin": (40.66, -83.66), "Harrison": (40.29, -81.09), "Holmes": (40.56, -81.93),
+    "Huron": (41.14, -82.60), "Lawrence": (38.60, -82.53), "Marion": (40.59, -83.16),
+    "Montgomery": (39.75, -84.29), "Morgan": (39.62, -81.85), "Morrow": (40.52, -82.79),
+    "Muskingum": (39.96, -81.94), "Ottawa": (41.53, -82.94), "Putnam": (41.02, -84.13),
+    "Richland": (40.77, -82.53), "Ross": (39.34, -82.94), "Scioto": (38.80, -83.02),
+    "Wyandot": (40.84, -83.30),
+}
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers (unit-tested in tests/test_campaign_weather.py)
+# ---------------------------------------------------------------------------
+
+def compute_window(sent_at: datetime, days_prior: int = WINDOW_DAYS):
+    """Return (start_date, end_date) covering the send day and `days_prior`
+    preceding calendar days. end is the send date; start is end - days_prior."""
+    end = sent_at.date()
+    start = end - timedelta(days=days_prior)
+    return start, end
+
+
+def normalize_county(county_key: str) -> str:
+    """Normalize a linkage.county_key to a COUNTY_CENTROIDS key.
+
+    Handles values like 'Franklin', 'FranklinCounty', 'Franklin County'."""
+    if not county_key:
+        return ""
+    name = str(county_key).strip()
+    for suffix in (" County", "County"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)].strip()
+    return name
+
+
+def degree_days(daily_means):
+    """Sum HDD and CDD (base 65F) from a list of daily mean temps (F)."""
+    hdd = sum(max(0.0, HDD_BASE_F - t) for t in daily_means if t is not None)
+    cdd = sum(max(0.0, t - CDD_BASE_F) for t in daily_means if t is not None)
+    return round(hdd, 1), round(cdd, 1)
+
+
+def extreme_days(daily):
+    """Count freezing days (tmin < 32F) and hot days (tmax > 90F).
+
+    `daily` is a list of dicts with tmin_f / tmax_f keys."""
+    freezing = sum(1 for d in daily if d.get("tmin_f") is not None and d["tmin_f"] < FREEZE_THRESHOLD_F)
+    hot = sum(1 for d in daily if d.get("tmax_f") is not None and d["tmax_f"] > HOT_THRESHOLD_F)
+    return freezing, hot
+
+
+def summarize_temps(daily):
+    """Return {'mean','min','max'} over a list of daily records (F)."""
+    means = [d["tmean_f"] for d in daily if d.get("tmean_f") is not None]
+    mins = [d["tmin_f"] for d in daily if d.get("tmin_f") is not None]
+    maxes = [d["tmax_f"] for d in daily if d.get("tmax_f") is not None]
+    return {
+        "mean": round(sum(means) / len(means), 1) if means else None,
+        "min": round(min(mins), 1) if mins else None,
+        "max": round(max(maxes), 1) if maxes else None,
+    }
+
+
+def build_weather_doc(county, share, lat, lon, start, end, daily, fetched_at):
+    """Assemble the embedded `weather` sub-document from fetched daily data."""
+    hdd, cdd = degree_days([d.get("tmean_f") for d in daily])
+    freezing, hot = extreme_days(daily)
+    return {
+        "status": "ok",
+        "county": county,
+        "county_recipient_share": round(share, 4),
+        "window": {
+            "start": datetime(start.year, start.month, start.day),
+            "end": datetime(end.year, end.month, end.day),
+            "days": (end - start).days + 1,
+        },
+        "source": SOURCE_TAG,
+        "latitude": lat,
+        "longitude": lon,
+        "fetched_at": fetched_at,
+        "temp_f": summarize_temps(daily),
+        "degree_days": {"hdd_base65": hdd, "cdd_base65": cdd},
+        "extremes": {
+            "freezing_days": freezing,
+            "hot_days": hot,
+            "freeze_threshold_f": FREEZE_THRESHOLD_F,
+            "hot_threshold_f": HOT_THRESHOLD_F,
+        },
+        "daily": daily,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Data access
+# ---------------------------------------------------------------------------
+
+def resolve_campaign_counties(db):
+    """One pass over participants + exposures -> {campaign_id: Counter(county)}."""
+    oid_county = {}
+    for p in db.participants.find({}, {"linkage.county_key": 1}):
+        ck = (p.get("linkage") or {}).get("county_key")
+        if ck:
+            oid_county[str(p["_id"])] = normalize_county(ck)
+
+    camp_counties = defaultdict(Counter)
+    for e in db.exposures.find({}, {"campaign_id": 1, "participant_oid": 1}):
+        cid = e.get("campaign_id")
+        county = oid_county.get(str(e.get("participant_oid")))
+        if cid and county:
+            camp_counties[cid][county] += 1
+    return camp_counties
+
+
+def dominant_county(counter):
+    """Return (county, share) for the top county, or (None, 0.0)."""
+    if not counter:
+        return None, 0.0
+    total = sum(counter.values())
+    county, n = counter.most_common(1)[0]
+    return county, n / total
+
+
+def fetch_weather(lat, lon, start, end, session):
+    """Fetch daily archive weather; return list of {date,tmin_f,tmax_f,tmean_f}."""
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean",
+        "temperature_unit": "fahrenheit",
+        "timezone": "America/New_York",
+    }
+    resp = session.get(ARCHIVE_URL, params=params, timeout=30)
+    resp.raise_for_status()
+    d = resp.json().get("daily", {})
+    dates = d.get("time", [])
+    tmax = d.get("temperature_2m_max", [])
+    tmin = d.get("temperature_2m_min", [])
+    tmean = d.get("temperature_2m_mean", [])
+    out = []
+    for i, day in enumerate(dates):
+        out.append({
+            "date": day,
+            "tmin_f": tmin[i] if i < len(tmin) else None,
+            "tmax_f": tmax[i] if i < len(tmax) else None,
+            "tmean_f": tmean[i] if i < len(tmean) else None,
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(description="Backfill embedded campaign weather.")
+    ap.add_argument("--force", action="store_true", help="Recompute campaigns that already have weather")
+    ap.add_argument("--dry-run", action="store_true", help="Print intended writes without mutating the DB")
+    ap.add_argument("--limit", type=int, default=0, help="Process at most N campaigns (0 = all)")
+    args = ap.parse_args()
+
+    load_dotenv()
+    dbname = os.getenv("MONGODB_OCTOPUS", "empower_development")
+    client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"),
+                         serverSelectionTimeoutMS=5000)
+    db = client[dbname]
+
+    print(f"Resolving recipient counties for all campaigns in {dbname} ...")
+    camp_counties = resolve_campaign_counties(db)
+    print(f"  resolved county data for {len(camp_counties)} campaigns")
+
+    session = requests.Session()
+    weather_cache = {}  # (county, start, end) -> daily list
+    counts = Counter()
+
+    query = {} if args.force else {"weather": {"$exists": False}}
+    campaigns = list(db.campaigns.find(query, {"campaign_id": 1, "name": 1, "sent_at": 1}))
+    if args.limit:
+        campaigns = campaigns[: args.limit]
+    print(f"Processing {len(campaigns)} campaign(s){' (dry-run)' if args.dry_run else ''} ...\n")
+
+    for c in campaigns:
+        cid = c.get("campaign_id")
+        name = c.get("name", "?")
+        sent_at = c.get("sent_at")
+
+        if not sent_at:
+            weather = {"status": "no_send_date"}
+            counts["no_send_date"] += 1
+        else:
+            county, share = dominant_county(camp_counties.get(cid))
+            centroid = COUNTY_CENTROIDS.get(county) if county else None
+            if not centroid:
+                weather = {"status": "no_county"}
+                counts["no_county"] += 1
+            else:
+                start, end = compute_window(sent_at)
+                lat, lon = centroid
+                key = (county, start, end)
+                try:
+                    if key not in weather_cache:
+                        weather_cache[key] = fetch_weather(lat, lon, start, end, session)
+                        time.sleep(0.2)  # be polite to the free API
+                    daily = weather_cache[key]
+                    weather = build_weather_doc(county, share, lat, lon, start, end,
+                                                daily, datetime.utcnow())
+                    counts["ok"] += 1
+                except Exception as exc:  # noqa: BLE001 - record and continue
+                    weather = {"status": "fetch_failed", "error": str(exc)[:200]}
+                    counts["fetch_failed"] += 1
+
+        status = weather["status"]
+        extra = ""
+        if status == "ok":
+            extra = (f" {weather['county']}({weather['county_recipient_share']:.0%}) "
+                     f"mean={weather['temp_f']['mean']}F "
+                     f"HDD={weather['degree_days']['hdd_base65']} "
+                     f"CDD={weather['degree_days']['cdd_base65']} "
+                     f"freeze={weather['extremes']['freezing_days']} "
+                     f"hot={weather['extremes']['hot_days']}")
+        print(f"  [{status:13}] {name[:42]:42}{extra}")
+
+        if not args.dry_run:
+            db.campaigns.update_one({"_id": c["_id"]}, {"$set": {"weather": weather}})
+
+    print("\nSummary:")
+    for k, v in counts.most_common():
+        print(f"  {k}: {v}")
+    print(f"  unique (county,window) weather fetches: {len(weather_cache)}")
+    if args.dry_run:
+        print("  (dry-run: no documents were modified)")
+
+
+if __name__ == "__main__":
+    main()
