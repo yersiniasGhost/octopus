@@ -67,6 +67,12 @@ lat/lon comes from a static 25-county Ohio lookup embedded in the script.
 - `extremes`:
   - `freezing_days` = count of days with daily min < 32°F
   - `hot_days` = count of days with daily max > 90°F
+  - `freezing_hours` = count of hourly temps < 32°F (from hourly archive data)
+  - `hot_hours` = count of hourly temps > 90°F
+  - `window_hours` = total hours in the window (144 for a full 6-day window)
+
+  Day counts flag *whether* an extreme occurred; hour counts measure its
+  *duration* (a day can read as "freezing" from a single pre-dawn hour).
 
 ### 5. Embedded schema
 

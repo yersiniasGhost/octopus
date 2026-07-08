@@ -54,6 +54,13 @@ def test_extreme_days_counts_thresholds():
     assert hot == 1
 
 
+def test_threshold_hours_counts_and_ignores_none():
+    hourly = [31.9, 32.0, 10.0, 90.0, 90.1, 95.0, None, 50.0]
+    freezing, hot = w.threshold_hours(hourly)
+    assert freezing == 2   # 31.9 and 10.0 (< 32); 32.0 is not < 32
+    assert hot == 2        # 90.1 and 95.0 (> 90); 90.0 is not > 90
+
+
 def test_summarize_temps():
     daily = [
         {"tmin_f": 20.0, "tmax_f": 50.0, "tmean_f": 35.0},
@@ -83,9 +90,10 @@ def test_build_weather_doc_structure():
         {"date": "2025-01-10", "tmin_f": 20.0, "tmax_f": 40.0, "tmean_f": 30.0},
         {"date": "2025-01-11", "tmin_f": 25.0, "tmax_f": 45.0, "tmean_f": 35.0},
     ]
+    hourly = [20.0, 25.0, 31.0, 40.0, 33.0, 45.0]  # three hours < 32F
     from datetime import date
     doc = w.build_weather_doc("Franklin", 0.82, 39.97, -83.0,
-                              date(2025, 1, 10), date(2025, 1, 11), daily,
+                              date(2025, 1, 10), date(2025, 1, 11), daily, hourly,
                               datetime(2026, 7, 7))
     assert doc["status"] == "ok"
     assert doc["county"] == "Franklin"
@@ -94,5 +102,8 @@ def test_build_weather_doc_structure():
     assert doc["degree_days"]["hdd_base65"] == 65.0  # (65-30)+(65-35)
     assert doc["degree_days"]["cdd_base65"] == 0.0
     assert doc["extremes"]["freezing_days"] == 2
+    assert doc["extremes"]["freezing_hours"] == 3
+    assert doc["extremes"]["hot_hours"] == 0
+    assert doc["extremes"]["window_hours"] == 6
     assert doc["temp_f"]["min"] == 20.0
     assert len(doc["daily"]) == 2

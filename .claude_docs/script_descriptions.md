@@ -1939,3 +1939,11 @@ python scripts/backfill_campaign_weather_tool.py --force                # recomp
 **Result (2026-07-07)**: 163 campaigns tagged — 153 `ok`, 6 `no_send_date`,
 4 `no_county`; 107 unique (county, window) API fetches. Winter Crisis text
 campaigns correctly show mean ~11°F, HDD ~322, 6 freezing days.
+
+### backfill_campaign_weather_tool.py — added threshold HOURS (2026-07-07, update)
+Extended to also request **hourly** temperature from the Open-Meteo archive and
+count `freezing_hours` (hourly temp < 32°F), `hot_hours` (> 90°F), and
+`window_hours` (144 for a full window) into `weather.extremes`. Hours measure the
+*duration* of extremes that the day counts only flag. Re-run with `--force` to
+update existing docs. New pure fn `threshold_hours()`; tests extended to 12.
+Notable: the Feb-4-2026 Winter Crisis send read 144/144 freezing hours.

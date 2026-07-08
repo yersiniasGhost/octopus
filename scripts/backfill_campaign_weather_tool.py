@@ -101,6 +101,15 @@ def extreme_days(daily):
     return freezing, hot
 
 
+def threshold_hours(hourly_f):
+    """Count hours below the freezing / above the hot threshold.
+
+    `hourly_f` is a flat list of hourly temperatures (F) over the window."""
+    freezing = sum(1 for t in hourly_f if t is not None and t < FREEZE_THRESHOLD_F)
+    hot = sum(1 for t in hourly_f if t is not None and t > HOT_THRESHOLD_F)
+    return freezing, hot
+
+
 def summarize_temps(daily):
     """Return {'mean','min','max'} over a list of daily records (F)."""
     means = [d["tmean_f"] for d in daily if d.get("tmean_f") is not None]
@@ -113,10 +122,11 @@ def summarize_temps(daily):
     }
 
 
-def build_weather_doc(county, share, lat, lon, start, end, daily, fetched_at):
-    """Assemble the embedded `weather` sub-document from fetched daily data."""
+def build_weather_doc(county, share, lat, lon, start, end, daily, hourly_f, fetched_at):
+    """Assemble the embedded `weather` sub-document from fetched daily+hourly data."""
     hdd, cdd = degree_days([d.get("tmean_f") for d in daily])
     freezing, hot = extreme_days(daily)
+    freezing_hrs, hot_hrs = threshold_hours(hourly_f)
     return {
         "status": "ok",
         "county": county,
@@ -135,6 +145,9 @@ def build_weather_doc(county, share, lat, lon, start, end, daily, fetched_at):
         "extremes": {
             "freezing_days": freezing,
             "hot_days": hot,
+            "freezing_hours": freezing_hrs,
+            "hot_hours": hot_hrs,
+            "window_hours": len(hourly_f),
             "freeze_threshold_f": FREEZE_THRESHOLD_F,
             "hot_threshold_f": HOT_THRESHOLD_F,
         },
@@ -173,32 +186,38 @@ def dominant_county(counter):
 
 
 def fetch_weather(lat, lon, start, end, session):
-    """Fetch daily archive weather; return list of {date,tmin_f,tmax_f,tmean_f}."""
+    """Fetch archive weather; return {'daily': [...], 'hourly_f': [...]}.
+
+    daily: list of {date,tmin_f,tmax_f,tmean_f}; hourly_f: flat list of hourly
+    temperatures (F) across the window, used for threshold-hour counts."""
     params = {
         "latitude": lat,
         "longitude": lon,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean",
+        "hourly": "temperature_2m",
         "temperature_unit": "fahrenheit",
         "timezone": "America/New_York",
     }
     resp = session.get(ARCHIVE_URL, params=params, timeout=30)
     resp.raise_for_status()
-    d = resp.json().get("daily", {})
+    body = resp.json()
+    d = body.get("daily", {})
     dates = d.get("time", [])
     tmax = d.get("temperature_2m_max", [])
     tmin = d.get("temperature_2m_min", [])
     tmean = d.get("temperature_2m_mean", [])
-    out = []
+    daily = []
     for i, day in enumerate(dates):
-        out.append({
+        daily.append({
             "date": day,
             "tmin_f": tmin[i] if i < len(tmin) else None,
             "tmax_f": tmax[i] if i < len(tmax) else None,
             "tmean_f": tmean[i] if i < len(tmean) else None,
         })
-    return out
+    hourly_f = [t for t in body.get("hourly", {}).get("temperature_2m", []) if t is not None]
+    return {"daily": daily, "hourly_f": hourly_f}
 
 
 # ---------------------------------------------------------------------------
@@ -254,9 +273,10 @@ def main():
                     if key not in weather_cache:
                         weather_cache[key] = fetch_weather(lat, lon, start, end, session)
                         time.sleep(0.2)  # be polite to the free API
-                    daily = weather_cache[key]
+                    fetched = weather_cache[key]
                     weather = build_weather_doc(county, share, lat, lon, start, end,
-                                                daily, datetime.utcnow())
+                                                fetched["daily"], fetched["hourly_f"],
+                                                datetime.utcnow())
                     counts["ok"] += 1
                 except Exception as exc:  # noqa: BLE001 - record and continue
                     weather = {"status": "fetch_failed", "error": str(exc)[:200]}
@@ -269,8 +289,8 @@ def main():
                      f"mean={weather['temp_f']['mean']}F "
                      f"HDD={weather['degree_days']['hdd_base65']} "
                      f"CDD={weather['degree_days']['cdd_base65']} "
-                     f"freeze={weather['extremes']['freezing_days']} "
-                     f"hot={weather['extremes']['hot_days']}")
+                     f"freeze={weather['extremes']['freezing_days']}d/{weather['extremes']['freezing_hours']}h "
+                     f"hot={weather['extremes']['hot_days']}d/{weather['extremes']['hot_hours']}h")
         print(f"  [{status:13}] {name[:42]:42}{extra}")
 
         if not args.dry_run:
