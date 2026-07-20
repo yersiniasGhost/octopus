@@ -661,6 +661,22 @@ python scripts/enrich_demographics_from_bolt.py --file Allen --dry-run
 
 Output: Updates 7,197 documents across 8+ collections with demographic enrichment fields.
 
+## Bayesian-Fable Model Series (src/bayesian-fable/)
+
+### run_fable.py
+**Purpose**: CLI for the third-generation (McElreath-style) model series — f01 campaign pooling ladder, f02 weather→text engagement, f03 cooling-dose salience (flagship), f04 Text75–84 vs EGE-control ITT, f05 ordered engagement ladder. Design doc: [`20260709_1745_bayesian_fable_model_series.md`](20260709_1745_bayesian_fable_model_series.md).
+
+Modes per model: `simulate` (fit on generative synthetic data, report parameter recovery — no MongoDB needed), `prior` (prior predictive check only), `fit` (full workflow: prior predictive → NUTS with log-likelihood → convergence gate via `src.bayesian_models.validation` → posterior predictive → persist to `data/inference/fable/<model_id>/`), plus `balance` (f04 covariate-balance table, run before fitting).
+
+Usage:
+```bash
+source venv/bin/activate
+python src/bayesian-fable/run_fable.py f01 simulate
+python src/bayesian-fable/run_fable.py f01 fit --variant all --channel text   # pooling ladder + LOO
+python src/bayesian-fable/run_fable.py f03 fit --variant reliable             # kwh_cl_r2 >= 0.5 subset
+python src/bayesian-fable/run_fable.py f04 balance --csv <combined-export.csv>
+```
+
 ## Bayesian Model Training (src/bayesian_scripts/)
 
 ### train_model_01_baseline.py
@@ -1947,3 +1963,133 @@ count `freezing_hours` (hourly temp < 32°F), `hot_hours` (> 90°F), and
 *duration* of extremes that the day counts only flag. Re-run with `--force` to
 update existing docs. New pure fn `threshold_hours()`; tests extended to 12.
 Notable: the Feb-4-2026 Winter Crisis send read 144/144 freezing hours.
+
+### analyze_bayesian_model_inputs_tool.py — live model-input coverage report (2026-07-08)
+Reusable EDA companion to `.claude_docs/20260708_0940_bayesian_model_inputs_catalog.md`.
+One pass over `empower_development` printing: campaign weather coverage and
+collinearity (incl. within-month HDD spread — the identification currency for
+weather effects), exposure outcome rates by channel + duplicate-pair count,
+participant covariate coverage (exposed the `income_level` 13% trap and county-key
+drift), the joined effective-N funnel for the weather→engagement models (base
+frame + `kwh_cl_slope` dose subset with seasonal support), and Text75-84 cohort
+conversion counts. Findings feed `20260708_1635_bayesian_model_proposals.md`.
+
+```bash
+source venv/bin/activate
+python scripts/analyze_bayesian_model_inputs_tool.py
+```
+
+### export_application_exposure_dataset_tool.py — F6 application-conversion dataset (2026-07-13)
+Materializes the exposure-grain frame behind the f06 Bayesian model
+(`src/bayesian-fable/core/frames.load_application_frame`) as a shareable CSV in
+`exports/`. One row per deduped (participant, campaign) send: `applied` outcome
+(best-confidence attributed trigger of the participant's earliest application,
+post-application sends censored), channel/agency, message-theme one-hots,
+window weather (HDD/CDD, temp, freezing/hot hours), communication-sequence
+features (prior-send count, receipt-lag-adjusted recency with letters +6 days,
+first/last-in-wave and last-week flags), and demographics incl. the sparse
+Franklin fields (owner_age, children, senior, adults). Prints event counts by
+attribution method, channel mix, and coverage. First run (2026-07-13): 210,831
+rows, 227 events.
+
+```bash
+source venv/bin/activate
+python scripts/export_application_exposure_dataset_tool.py
+```
+
+### compute_f06_scenario_contrasts_tool.py — f06 posterior contrasts on outcome scale (2026-07-14)
+Loads the latest f06 (impact2026) trace and reports population-average
+applications per 10,000 sends under counterfactual factor settings (last-week /
+first-in-wave / first-contact flags flipped, HDD at mean vs +1SD, income at
+$25k vs $60k). Feeds the scenario table in
+`.claude_docs/20260713_1030_f06_application_hazard_results.md` and the lay
+summary `.claude_docs/20260714_0910_f06_results_plain_language.md`.
+
+```bash
+source venv/bin/activate
+python scripts/compute_f06_scenario_contrasts_tool.py
+```
+
+### backfill_impact2026_message_types_tool.py — code message_types on IMPACT-2026 text campaigns (2026-07-15)
+Backfills the six-code `message_types` theme labels onto the 12 IMPACT-2026
+text campaigns (Jan–Mar 2026) that were sent uncoded. The 12 campaigns reuse
+only 4 distinct message bodies, each verbatim-identical to an already-coded
+2025 campaign (Text31–34, Text19–22, Text63–68, Text71–74), so codes are
+inherited from those twins for coder consistency. Idempotent; skips campaigns
+whose existing codes conflict. `--dry-run` reports without writing. Unlocks
+the message-theme question in the f06 application-hazard analysis.
+
+```bash
+source venv/bin/activate
+python scripts/backfill_impact2026_message_types_tool.py [--dry-run]
+```
+
+### get_participant_profile_tool.py — full participant profile by _id / phone / name (2026-07-16)
+**Reusable Tool**. Resolves an identifier (24-hex ObjectId, phone number, or
+case-insensitive name substring, tried in that order) to one or more
+participants and prints everything known about each: the participant
+document, campaign exposures, application match (both the modern
+`applications` collection and the legacy `applicants` collection), and
+county-specific enrichment — demographic, residential, electrical, thermal
+load, gas, and multi-tenant data joined via `linkage.parcel_id` — plus a
+Melissa LOCATE CSV phone match and an energy-burden verdict (flags
+`total_energy_burden > 6%` as high burden per the Model 02 hypothesis
+threshold). Generalizes `investigate_participant_debug.py` (which is
+Franklin-only and ID-only) to all ~30 ingested counties and to phone/name
+lookups. Read-only. Name searches matching >5 participants print a
+disambiguation list (capped at 30 rows) instead of dumping every profile.
+Backs the `participant-profile` skill — see
+`.claude/skills/participant-profile/SKILL.md` for the county-collection
+naming quirks and field-meaning notes this tool encodes.
+
+**Usage:**
+```bash
+source venv/bin/activate
+python scripts/get_participant_profile_tool.py 69a61c0f9595ac4823aeb4b4
+python scripts/get_participant_profile_tool.py 6142640950
+python scripts/get_participant_profile_tool.py "Tuan Nguyen"
+```
+
+## gpu_env_tool.sh (2026-07-16)
+
+Sourceable environment setup for GPU-accelerated PyMC/JAX runs. Activates the
+repo venv and prepends the venv's pip-installed `nvidia/*/lib` CUDA 12.9
+libraries to `LD_LIBRARY_PATH` so the system CUDA 12.4 toolkit in
+`/usr/local/cuda` cannot shadow them (that shadowing breaks
+`libcublasLt`/`cuSPARSE` loading and silently drops JAX to CPU). Also disables
+XLA GPU memory preallocation. Usage: `source scripts/gpu_env_tool.sh`.
+
+## run_bayesian_campaign_models_tool.sh (2026-07-16)
+
+Sequential GPU sweep of every bayesian-fable campaign-model configuration for
+the clicks + applications goal: F1 pooling ladders for `text_clicked` and
+`email_clicked`, the F7 (text click, IMPACT winter cohort) and F8 (email
+click, summer collection) predictor ladders with PSIS-LOO comparison, F2
+replied models pooled/summer/winter, and F6 application-hazard refits with
+message themes (post 2026-07-15 backfill), with and without campaign REs.
+Logs per step to `data/inference/fable/logs/`; failures don't stop the sweep.
+
+## summarize_fable_results_tool.py (2026-07-16)
+
+Consolidates bayesian-fable fit outputs (`data/inference/fable/`) into one
+markdown summary: convergence overview from the latest `report_*.json` per
+model directory, coefficient tables (with odds ratios for `b_*` terms, RE
+scales, ICC) from the latest `summary_*.csv`, and all persisted PSIS-LOO
+ladder comparison CSVs. `--filter` restricts by directory-name substring;
+`--out` writes to a file.
+
+## render_claude_docs_html_tool.py (2026-07-16)
+
+Renders `.claude_docs` markdown artifacts to standalone styled HTML (same
+basename, `.html` extension) with inline CSS readable in light and dark
+themes; tables and fenced code supported. Used to publish the Bayesian
+modeling artifacts as .md + .html pairs.
+
+## run_bayesian_reruns_tool.sh (2026-07-17)
+
+Follow-up fits after the 2026-07-16 sweep, covering the steps that needed
+code fixes: F2 summer with the season-appropriate hot_hours weather axis, F5
+opt-out with the variant-aware outcome name, the F8 email-click ladder in its
+memory-safe campaign-grain Binomial form, and the F7 text-click ladder at 500
+draws (pointwise log-likelihood fits in ~0.6 GB). Same logging convention as
+the main sweep driver.

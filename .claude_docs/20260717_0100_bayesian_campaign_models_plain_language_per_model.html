@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Each Model Found — In Plain Language</title><style>
+:root { color-scheme: light dark; }
+body { font: 16px/1.6 -apple-system, 'Segoe UI', Roboto, sans-serif;
+       max-width: 60rem; margin: 2rem auto; padding: 0 1.25rem; }
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #8884; padding-bottom: .4rem; }
+h2 { border-bottom: 1px solid #8883; padding-bottom: .25rem; margin-top: 2.2rem; }
+table { border-collapse: collapse; margin: 1rem 0; display: block; overflow-x: auto; }
+th, td { border: 1px solid #8886; padding: .35rem .7rem; text-align: left; }
+th { background: #8882; }
+code { background: #8882; padding: .1rem .35rem; border-radius: 4px;
+       font-size: .9em; }
+pre { background: #8881; border: 1px solid #8883; border-radius: 6px;
+      padding: .8rem 1rem; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid #8886; margin-left: 0; padding-left: 1rem;
+             color: #888; }
+</style></head>
+<body><h1>What Each Model Found — In Plain Language</h1>
+<p><strong>Date:</strong> 2026-07-17 · Companion to the <a href="20260716_2345_bayesian_campaign_models_results.md">statistical results</a> and <a href="20260716_1920_bayesian_campaign_models_development.md">development notes</a>. One section per model; the cross-model story lives in the synthesis artifact (d).</p>
+<hr />
+<h2>F1 — "How different are campaigns from each other?" (click rates)</h2>
+<p><strong>Text messages (the 12 winter 2026 IMPACT campaigns):</strong> Almost identical. Roughly 31 of every 100 text recipients click the link, and the busiest and quietest campaigns only range from about 29 to 33. Practical read: for texts, <em>which</em> campaign a message belongs to tells you very little — don't expect big wins from re-engineering text campaign content alone.</p>
+<p><strong>Emails (63 campaigns, summer 2025):</strong> Very different from each other. The average email gets about 2 clicks per 1,000 recipients, but campaigns routinely land anywhere from 1 to 3+ per 1,000 — a threefold spread. Practical read: something about individual email campaigns genuinely matters. The catch (see F8): it isn't the message themes or the weather we have on record.</p>
+<p><em>Technical note:</em> both conclusions come from a "pooling ladder" — three models that assume campaigns are identical / unrelated / partially related. The partially-related model wins both times, which is what justifies using campaign effects in every other model.</p>
+<h2>F7 — "What predicts whether a text recipient clicks?"</h2>
+<p>We compared five versions of the model, each adding a block of predictors (household demographics; send-window weather; message themes), and scored each on its ability to predict clicks for people it hasn't seen.</p>
+<p><strong>Only demographics helped.</strong> Households with lower estimated income and smaller households click a bit more often, and those effects are measured precisely. Weather and message themes added <em>nothing</em> — the model predicts clicks just as well without them. Even the demographic effects are modest: they shift a ~31% click rate by roughly ±1–2 percentage points per step, not tens of points.</p>
+<p><strong>Practical read:</strong> among people who receive a program text, clicking is close to a coin-flip weighted by need — not something the message wording or a cold snap visibly changes. (Caveat: all 12 campaigns ran Jan–Mar 2026 in single counties, so weather and themes only vary <em>between</em> 12 campaigns — a weak lens. A deliberately varied test — same content across different weeks, or A/B themes within a wave — would sharpen this a lot.)</p>
+<h2>F8 — "What predicts whether an email recipient clicks?"</h2>
+<p>Email clicks are rare (about 2 per 1,000), so we asked the question at the campaign level: can weather or themes explain why some of the 63 campaigns got triple the clicks of others?</p>
+<p><strong>No measured factor explains the spread.</strong> Models with weather, themes, both, or neither all predict campaign click counts equally well. The individual-level model adds two suggestive signals: sends during <em>cooler</em> summer windows did somewhat better, and lower-income recipients clicked somewhat more — but the campaign-to-campaign differences remain mostly unexplained. Candidate explanations we can't test with current data: subject lines, send time-of-day, list freshness.</p>
+<p><strong>Practical read:</strong> email campaign performance varies a lot for reasons not in our coded data. If email matters going forward, capture subject-line and send-time metadata — and add UTM tracking so email conversions become visible at all.</p>
+<h2>F2 — "Do people reply to texts more in certain weather?" (by season)</h2>
+<p>We fit the reply model three ways: winter 2026 only, summer 2025 only, and all campaigns pooled.</p>
+<p><strong>Weather doesn't move replies in any season.</strong> Temperature and extreme-hours effects are indistinguishable from zero every time. What <em>does</em> stand out:</p>
+<ul>
+<li><strong>Campaigns differ wildly in reply rates</strong> — far more than for clicks. Some campaigns generate essentially zero replies (including every March 2026 send, which looks like a data-ingestion gap rather than behavior — flagged for follow-up).</li>
+<li><strong>Higher-income households reply more</strong> (clearest in winter). That's the opposite of clicks and applications — see the synthesis for what we make of it.</li>
+</ul>
+<p><em>Honest label:</em> the summer and pooled fits technically fail our strictest quality gate (the sampler struggles with the extreme campaign-to-campaign spread), but the substantive conclusions are stable across all three fits, including the winter one that passes cleanly.</p>
+<h2>F5 — "Does a message theme lift engagement overall?" (none → clicked → replied)</h2>
+<p>Treating engagement as a ladder (no engagement &lt; clicked &lt; replied) on the winter cohort, now with the freshly coded message themes: <strong>no theme reliably moves people up the ladder</strong>; a couple lean slightly negative. Lower income and smaller households nudge engagement up slightly. This refit replaces a July-9 version that unknowingly used only 8% of the cohort (a data-coverage bug fixed this session) and couldn't see themes at all (they weren't coded yet).</p>
+<p><strong>Opt-outs (companion model):</strong> themes don't drive opt-outs either — and <em>higher</em>-income households opt out more, the same direction as replies. Replying STOP is still replying: income predicts "texting back" in general, not positivity.</p>
+<h2>F6 — "What precedes an actual application?" (refit with themes)</h2>
+<p>The July-13 finding stands, now strengthened: <strong>timing is everything, content is nothing we can detect.</strong></p>
+<ul>
+<li>A send landing in the <strong>last week of a participant's campaign wave</strong> is associated with ~80× higher odds of being the send that precedes an application (with a known mechanical component — read as "strongly enriched," not literally 80×).</li>
+<li>Being the <strong>first send of a wave</strong> (~6×) or the <strong>first contact ever</strong> (~4×) also helps — novelty matters.</li>
+<li><strong>Colder send windows</strong> help (2.5–3.7× per SD of heating-degree-days), surviving adjustment for campaign identity.</li>
+<li><strong>Lower-income households apply more</strong> (~20% higher odds per $22k lower income) — the program is reaching its target population.</li>
+<li><strong>All six message themes: no detectable effect</strong> on applications, now testable for the first time thanks to the July-15 theme backfill. If anything, "urgency/deadline" and "personalized/qualified" lean negative.</li>
+</ul>
+<p>Both versions of the model (with and without campaign-level pooling) agree.</p>
+<hr />
+<h3>One-paragraph caveat that applies everywhere</h3>
+<p>Clicks are only tracked for the 12 winter-2026 IMPACT text campaigns, applications are only attributable within that same cohort, and email conversions are structurally invisible (no UTM tracking). Every conclusion above is conditional on where the lights are on. The three highest-value data investments remain: email UTM parameters, subject-line/send-time metadata, and deliberately varied (ideally randomized) message themes within a wave.</p></body></html>

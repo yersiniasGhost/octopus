@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campaign Modeling — The Whole Story in Plain Language</title><style>
+:root { color-scheme: light dark; }
+body { font: 16px/1.6 -apple-system, 'Segoe UI', Roboto, sans-serif;
+       max-width: 60rem; margin: 2rem auto; padding: 0 1.25rem; }
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #8884; padding-bottom: .4rem; }
+h2 { border-bottom: 1px solid #8883; padding-bottom: .25rem; margin-top: 2.2rem; }
+table { border-collapse: collapse; margin: 1rem 0; display: block; overflow-x: auto; }
+th, td { border: 1px solid #8886; padding: .35rem .7rem; text-align: left; }
+th { background: #8882; }
+code { background: #8882; padding: .1rem .35rem; border-radius: 4px;
+       font-size: .9em; }
+pre { background: #8881; border: 1px solid #8883; border-radius: 6px;
+      padding: .8rem 1rem; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid #8886; margin-left: 0; padding-left: 1rem;
+             color: #888; }
+</style></head>
+<body><h1>Campaign Modeling — The Whole Story in Plain Language</h1>
+<p><strong>Date:</strong> 2026-07-17
+<strong>What was asked:</strong> Predict clicks and applications from everything we know about EMPOWER Saves campaigns — message content, weather, timing, demographics — across seasonal groups and all campaigns together, and say which factors actually matter.
+<strong>What was run:</strong> Twenty-plus Bayesian model fits (PyMC 5, GPU) across four outcome families (text clicks, email clicks, text replies, applications), each with formal out-of-sample comparisons and convergence checks. Details: <a href="20260716_1920_bayesian_campaign_models_development.md">development</a> · <a href="20260716_2345_bayesian_campaign_models_results.md">statistics</a> · <a href="20260717_0100_bayesian_campaign_models_plain_language_per_model.md">per-model plain language</a>.</p>
+<hr />
+<h2>The five headline findings</h2>
+<h3>1. Timing beats content — by a mile</h3>
+<p>For actual applications (the outcome that matters most), <em>when</em> a message lands dominates <em>what it says</em>. Sends in the <strong>last week of a campaign wave</strong> are dramatically enriched among application triggers (~80× odds, partly mechanical, still enormous after discounting); <strong>first-of-wave</strong> and <strong>first-ever</strong> contacts carry 4–6× odds. Meanwhile, across every outcome we modeled — applications, text clicks, email clicks, the engagement ladder, opt-outs — <strong>not one of the six coded message themes shows a detectable effect</strong>. This is the first analysis able to test themes on conversions (the 12 IMPACT campaigns were theme-coded on July 15), and the answer is consistently null at current sample sizes.</p>
+<p><strong>Action:</strong> invest in cadence design (deadline-proximity sends, strong opening touch), not copy-editing between the current themes. If theme effects are worth chasing, they need a real A/B design within a wave.</p>
+<h3>2. Cold weather sells a heating-assistance program — modestly, and only where conversion is visible</h3>
+<p>Colder send-windows raise application odds (2.5–3.7× per SD of heating-degree-days, robust to campaign-level pooling) and lean helpful for email clicks (cooler summer windows did better). But weather does nothing detectable for text clicks or replies in any season. Weather varies only <em>between</em> campaigns (12 winter clusters), so this is "suggestive and coherent," not proven — the same verdict as July 13, now with themes ruled out as a confounder.</p>
+<p><strong>Action:</strong> when a cold snap is forecast during an active wave, that's the week to send — cheap to act on, consistent with the evidence, low regret if the effect is smaller than estimated.</p>
+<h3>3. The program reaches its target population — and "engagement" means two different things</h3>
+<p>Lower-income households <strong>click more</strong> (texts: OR 0.94/SD; emails: 0.84) and <strong>apply more</strong> (0.80). But <em>higher</em>-income households <strong>reply more</strong> (1.08–1.24) and <strong>opt out more</strong> (1.22). Texting back — whether "YES", a question, or "STOP" — is a different behavior from quietly clicking a link and filing an application. Reply-rate dashboards therefore <em>undercount</em> engagement by exactly the households the program targets.</p>
+<p><strong>Action:</strong> don't use reply rate as the engagement KPI; use clicks (where tracked) and applications.</p>
+<h3>4. Campaign-to-campaign differences: huge for email and replies, negligible for text clicks</h3>
+<p>Text-click rates barely vary across campaigns (29–33%), so there's little headroom for campaign-level optimization of texts. Email campaigns vary 3× in click rate and reply rates vary wildly — but <strong>none of that spread is explained by coded themes or weather</strong> (formal model comparison: predictor blocks add zero skill). The likely real drivers — subject lines, send time-of-day, list composition — aren't captured in the data yet.</p>
+<p><strong>Action:</strong> log subject lines and send times as structured campaign metadata; that's where the unexplained email variance most plausibly lives.</p>
+<h3>5. You can only learn where the lights are on — and three switches are still off</h3>
+<p>Everything above is conditional on tracking coverage: text clicks exist only for Jan–Mar 2026 (12 campaigns), applications are only attributable in that same cohort, email conversions are invisible (1 attributed event in ~125k sends), and March 2026 replies appear to have stopped being ingested (flagged; worth a pipeline check). The seasonal comparisons the goal asked for are honest only for replies — and there, season mostly proxies <em>cohort</em> (different lists, agencies, channels), which is why we report "summer vs winter" descriptively rather than causally.</p>
+<p><strong>Action (data investments, in value order):</strong> (1) UTM parameters on email links, (2) subject-line/send-time metadata, (3) randomized theme assignment within one wave, (4) verify the March-2026 reply ingestion gap.</p>
+<h2>Seasonal and pooled configurations — what they showed</h2>
+<ul>
+<li><strong>Winter 2026</strong> (the IMPACT cohort): the only place clicks and applications are observable; all conversion findings above are winter findings. Within-cohort, month/county/season are inseparable from campaign identity (each campaign = one month, one county) — a design limit, not a modeling choice.</li>
+<li><strong>Summer 2025</strong>: carries almost all email data and most replies. Weather null on replies; cooler-window hint on email clicks; income-positive reply pattern present here too.</li>
+<li><strong>Pooled all-campaign models</strong>: dominated by campaign heterogeneity (reply models) and regime differences; they confirm the seasonal fits' coefficients but add little — the seasonal/cohort splits are the more honest units of analysis.</li>
+</ul>
+<h2>How much to trust this</h2>
+<p>Every fit went through prior checks, convergence gates, and posterior checks; the key models (applications, engagement ladder, winter replies, both pooling ladders) pass cleanly with zero divergences. The reply models at summer/pooled scale and the rare-event email fits trip the strictest gate (divergences in the campaign-effect "funnel") while their substantive coefficients are stable and well-mixed — flagged honestly in the results doc. The most important structural risks are attribution-related, not statistical: last-week enrichment has a known mechanical component, and channel comparisons measure <em>observability</em>, not persuasion.</p>
+<h2>What was fixed along the way (affects past results)</h2>
+<ul>
+<li>A silent data gate (<code>total_energy_burden</code>, ~8% winter coverage) had been shrinking winter frames to 8% of their size — the July-9 engagement-ladder fit is superseded by this session's refit.</li>
+<li>Winter models previously mixed collinear month/county/campaign effects (each winter campaign is one month + one county) — now corrected to campaign-only effects.</li>
+<li>GPU sampling was silently broken by a CUDA library conflict — fixed and documented (<code>scripts/gpu_env_tool.sh</code>).</li>
+</ul></body></html>

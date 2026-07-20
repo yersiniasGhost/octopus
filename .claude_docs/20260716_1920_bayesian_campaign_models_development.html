@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bayesian Campaign Models — Development (clicks + applications, pooled & seasonal)</title><style>
+:root { color-scheme: light dark; }
+body { font: 16px/1.6 -apple-system, 'Segoe UI', Roboto, sans-serif;
+       max-width: 60rem; margin: 2rem auto; padding: 0 1.25rem; }
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #8884; padding-bottom: .4rem; }
+h2 { border-bottom: 1px solid #8883; padding-bottom: .25rem; margin-top: 2.2rem; }
+table { border-collapse: collapse; margin: 1rem 0; display: block; overflow-x: auto; }
+th, td { border: 1px solid #8886; padding: .35rem .7rem; text-align: left; }
+th { background: #8882; }
+code { background: #8882; padding: .1rem .35rem; border-radius: 4px;
+       font-size: .9em; }
+pre { background: #8881; border: 1px solid #8883; border-radius: 6px;
+      padding: .8rem 1rem; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid #8886; margin-left: 0; padding-left: 1rem;
+             color: #888; }
+</style></head>
+<body><h1>Bayesian Campaign Models — Development (clicks + applications, pooled &amp; seasonal)</h1>
+<p><strong>Date:</strong> 2026-07-16
+<strong>Goal:</strong> Predict the two conversion-relevant outcomes — <strong>link clicks</strong> and <strong>intake applications</strong> — from campaign, weather, message-theme, sequence, and demographic inputs, across seasonal subsets and the pooled all-campaign collection; identify the most consequential predictors in each configuration.
+<strong>Stack:</strong> PyMC 5.25.1, NUTS via NumPyro/JAX 0.6.2 on an NVIDIA RTX A6000 (CUDA backend; see §7).
+<strong>Framework:</strong> <code>src/bayesian-fable/</code> (Statistical Rethinking workflow: estimand → DAG → generative simulation → prior predictive → fit → diagnostics gate → posterior predictive → contrasts). This document covers the <em>development</em>; results live in the companion results artifact.</p>
+<hr />
+<h2>1. Outcome inventory and what is identifiable where</h2>
+<p>Profiling <code>empower_development.exposures</code> ⋈ <code>campaigns</code> (2026-07-16):</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Events</th>
+<th>Trials</th>
+<th>Where observed</th>
+<th>Season coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text_clicked</code></td>
+<td>12,027</td>
+<td>~39k sends</td>
+<td>Jan–Mar 2026 IMPACT cohort only (12 campaigns)</td>
+<td><strong>winter only</strong> (tracking regime)</td>
+</tr>
+<tr>
+<td><code>email_clicked</code></td>
+<td>280</td>
+<td>~125k sends</td>
+<td>all 63 email campaigns</td>
+<td>62/63 campaigns are summer 2025</td>
+</tr>
+<tr>
+<td><code>applied</code> (attributed)</td>
+<td>227</td>
+<td>~211k send-rows</td>
+<td>attribution runs through tracked text clicks</td>
+<td><strong>winter only</strong> (F6 finding)</td>
+</tr>
+<tr>
+<td><code>replied</code></td>
+<td>3,627</td>
+<td>~204k text sends</td>
+<td>all text campaigns, both regimes</td>
+<td><strong>summer 2025 + winter 2026</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Three structural facts shape every configuration choice:</p>
+<ol>
+<li><strong>Text click tracking exists only for the 2026 IMPACT cohort.</strong> 2025 text sends cannot register clicks <em>by construction</em>. Any model that pools across regimes launders the tracking change into its coefficients, so text-click and application models are restricted to the IMPACT cohort (this is also why "seasonal text-click models" cannot exist — there is no summer click data to fit).</li>
+<li><strong>Season ≈ cohort.</strong> Summer = 2025 agencies/lists/channels; winter = 2026 IMPACT. Seasonal contrasts are honest only for <code>replied</code> (the one outcome observed in both), and even there differences read as <em>season + cohort</em>, not season alone.</li>
+<li><strong>Message themes were coded onto the 12 IMPACT campaigns on 2026-07-15.</strong> The Jul-13 application model could not ask the theme question (all theme dummies were constant in the attributable cohort); this run can. That refit is one of the main deliverables here.</li>
+</ol>
+<h2>2. Universal data gates (enforced in <code>core/frames.py</code>)</h2>
+<p>Unchanged from the series design (doc 20260709_1745): dedupe exposures on <code>(participant, campaign)</code> (129k duplicate pairs); normalize <code>county_key</code>; weather models require <code>campaigns.weather.status == 'ok'</code>; adjust with <code>estimated_income</code> (99.8% coverage) never <code>income_level</code> (13.2%); z-score continuous predictors in-model and persist scalers; <code>replied</code> is the cross-regime text outcome.</p>
+<h2>3. Model forms</h2>
+<p>All engagement models share one hierarchical Bernoulli skeleton (<code>models/engagement.py</code>), per Rethinking Ch. 13 (multiple cluster types, all non-centered):</p>
+<pre><code>y_i ~ Bernoulli(logit_p_i)
+logit_p_i = a  +  a_month[m_i] + a_county[g_i] + a_campaign[c_i]     (non-centered REs)
+          + Σ_k b_k · z(x_k,i)          continuous terms (weather, demographics)
+          + Σ_t b_t · theme_t,i         binary message-theme dummies, entered RAW
+a        ~ Normal(logit(base rate), 1)
+b_weather ~ Normal(0, 0.3);  b_theme ~ Normal(0, 0.5);  b_demog ~ Normal(0, 0.5)
+sigma_RE ~ Exponential(2), offsets ~ Normal(0,1)
+</code></pre>
+<p><strong>New this run:</strong> a <code>binary_terms</code> path in the shared builder. Theme dummies stay 0/1 (not z-scored) so <code>exp(b)</code> is directly the odds ratio for "campaign carried this theme"; constant columns are skipped, not errored (themes can go constant inside a seasonal subset).</p>
+<p>The application model (F6) is a <strong>discrete-time hazard</strong> at the send grain: every deduped send is a Bernoulli trial, y=1 iff that send is the best-confidence attributed trigger of the participant's earliest application; post-application sends are censored. Its intercept prior centers on the empirical base-rate logit (~250 events / ~300k rows); sequence features (prior-send count, recency, wave position) enter alongside weather, themes, and demographics.</p>
+<h3>3.1 The predictor-ladder design (new models F7/F8)</h3>
+<p>"Which predictors are most consequential" is asked two ways:</p>
+<ul>
+<li><strong>Within a model:</strong> posterior magnitudes/odds ratios with 94% HDIs.</li>
+<li><strong>Between models:</strong> a nested variant ladder on ONE frame, PSIS-LOO compared — which predictor <em>block</em> buys out-of-sample skill beyond cluster structure:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Rung</th>
+<th>Adds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>re_only</code></td>
+<td>varying intercepts only (month + county + campaign)</td>
+</tr>
+<tr>
+<td><code>demog</code></td>
+<td>+ income, household size, energy burden</td>
+</tr>
+<tr>
+<td><code>weather</code></td>
+<td>demog + temp_mean, freezing_hours (F7) / hot_hours (F8)</td>
+</tr>
+<tr>
+<td><code>themes</code></td>
+<td>demog + six message-theme dummies</td>
+</tr>
+<tr>
+<td><code>full</code></td>
+<td>demog + weather + themes</td>
+</tr>
+</tbody>
+</table>
+<p>Clusters enter every rung, so a block only wins LOO by explaining variation the REs cannot simply absorb. <code>core.workflow.fit_ladder()</code> owns the invariant that LOO is only compared within a single frame; F1's pooling ladder was refactored onto it (DRY).</p>
+<h2>4. Configuration matrix (this run)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Model</th>
+<th>Outcome</th>
+<th>Frame / season</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>F1 ladder</td>
+<td>text_clicked (Binomial)</td>
+<td>12 IMPACT campaigns</td>
+<td>click heterogeneity + shrinkage reference</td>
+</tr>
+<tr>
+<td>2</td>
+<td>F1 ladder</td>
+<td>email_clicked (Binomial)</td>
+<td>63 email campaigns</td>
+<td>rare-click heterogeneity reference</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>F7 ladder ×5</strong></td>
+<td>text_clicked</td>
+<td>IMPACT winter 2026 (~38k rows)</td>
+<td>most-consequential-predictor ladder for the rich click outcome</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>F8 ladder ×5</strong> + full refit</td>
+<td>email_clicked</td>
+<td>summer 2025 collection (~125k rows)</td>
+<td>same ladder, rare-event regime</td>
+</tr>
+<tr>
+<td>5</td>
+<td>F2</td>
+<td>replied</td>
+<td>summer 2025</td>
+<td>seasonal configuration</td>
+</tr>
+<tr>
+<td>6</td>
+<td>F2</td>
+<td>replied</td>
+<td>winter 2026</td>
+<td>seasonal configuration</td>
+</tr>
+<tr>
+<td>7</td>
+<td>F2</td>
+<td>replied</td>
+<td>pooled all campaigns</td>
+<td>all-campaign collection (Jul-9 fit failed its gate; refit at target_accept 0.95)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>F6 refit</strong></td>
+<td>applied</td>
+<td>IMPACT winter 2026</td>
+<td>theme question, unlocked by the 2026-07-15 backfill</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>F6 + campaign REs</strong></td>
+<td>applied</td>
+<td>IMPACT winter 2026</td>
+<td>how much theme/weather signal survives within-campaign pooling</td>
+</tr>
+</tbody>
+</table>
+<p>Sampling: NumPyro NUTS, 4 chains; ladders keep pointwise log-likelihood for LOO (draws trimmed to 500/chain on the 125k-row email frame for memory; a separate 1500-draw no-loglik run supplies F8's coefficients); hazard fits use <code>target_accept 0.99</code> per F6 guidance. Every fit passes the shared gate: R̂ &lt; 1.01, ESS &gt; 400, zero divergences, prior- and posterior-predictive checks persisted under <code>data/inference/fable/&lt;model_id&gt;/</code>.</p>
+<h2>5. Identification (what coefficients mean)</h2>
+<ul>
+<li><strong>Demographics</strong> vary at row grain → cleanly identified within campaigns; read as adjusted associations.</li>
+<li><strong>Weather and themes vary at the campaign grain.</strong> F7 has 12 campaign clusters, F8 has 63. With campaign REs present, these coefficients report <em>what survives partial pooling across campaigns</em> — deliberately conservative. The generative recovery test (§6) quantifies exactly this shrinkage.</li>
+<li><strong>Applications:</strong> the F6 DAG closes weather backdoors with {month, county}; channel contrasts measure attribution <em>observability</em>, not persuasion (email conversions are structurally invisible), hence the IMPACT-text restriction.</li>
+<li><strong>Seasonal splits</strong> are cohort-confounded (fact #2) and are presented as descriptive regime contrasts.</li>
+</ul>
+<h2>6. Generative validation (known-answer tests)</h2>
+<p>The new <code>binary_terms</code> path was validated by simulation before touching real data (McElreath's parameter-recovery gate):</p>
+<ul>
+<li><strong>40 simulated campaigns</strong> (the realistic scale): 10/12 parameters recovered in the 89% HDI; the two misses were campaign-grain terms pulled toward zero by RE competition — the <em>designed</em> behavior the caveats in §5 describe.</li>
+<li><strong>150 simulated campaigns:</strong> 9/12 with all misses marginal (e.g. truth 0.05 vs HDI [0.055, 0.091]); at 89% coverage ~1.3 misses of 12 are expected by chance. Direction and magnitude recovered throughout → estimator consistent, code path correct.</li>
+</ul>
+<p>Earlier gates for the reused machinery (F1/F2/F3/F5/F6 recovery) passed in the Jul 9–13 sessions and were not re-run.</p>
+<h2>7. GPU environment (repro note)</h2>
+<p><code>jax.devices()</code> fell back to CPU with <code>RuntimeError: Unable to load cuSPARSE</code>. Root cause: the system CUDA <strong>12.4</strong> toolkit (<code>/usr/local/cuda</code>, driver 550) shadows the venv's pip-installed CUDA <strong>12.9</strong> userland — <code>libcublas.so.12</code> (12.9) resolved the <em>system</em> <code>libcublasLt.so.12</code> (12.4), which lacks <code>cublasLtGetEnvironmentMode</code>. Fix (persisted in <code>scripts/gpu_env_tool.sh</code>): prepend every <code>venv/.../nvidia/*/lib</code> directory to <code>LD_LIBRARY_PATH</code> and set <code>XLA_PYTHON_CLIENT_PREALLOCATE=false</code>. Verified: <code>[CudaDevice(id=0)]</code>, matmul on <code>cuda:0</code>.</p>
+<h2>8. Files touched this run</h2>
+<ul>
+<li><code>models/engagement.py</code> — <code>binary_terms</code> in builder + simulator (campaign-grain flags)</li>
+<li><code>models/f07_text_click.py</code>, <code>models/f08_email_click.py</code> — <strong>new</strong> predictor-ladder models</li>
+<li><code>models/f02_weather_text.py</code> — <code>summer</code>/<code>winter</code> seasonal variants</li>
+<li><code>models/f06_application_hazard.py</code> — <code>impact2026_re</code> combined variant</li>
+<li><code>models/f01_campaign_pooling.py</code> — <code>--outcome</code> support (+ tracking-regime gate for <code>text_clicked</code>), <code>fit_all</code> → shared <code>fit_ladder</code></li>
+<li><code>core/frames.py</code> — campaign month on the Binomial frame (regime/season gating)</li>
+<li><code>core/workflow.py</code> — <code>fit_ladder()</code> (variant sweep + PSIS-LOO + persisted comparison)</li>
+<li><code>run_fable.py</code> — f07/f08 registration, <code>--outcome</code>, variant-suffixed output dirs, generic ladder mode</li>
+<li><code>scripts/gpu_env_tool.sh</code>, <code>scripts/run_bayesian_campaign_models_tool.sh</code> — environment + sweep driver</li>
+</ul>
+<p>Reproduce: <code>./scripts/run_bayesian_campaign_models_tool.sh</code> (logs in <code>data/inference/fable/logs/</code>).</p></body></html>
