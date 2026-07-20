@@ -66,6 +66,7 @@ package-lock.json
 
 # Generated outputs
 data/
+exports/
 data/processed/
 data2/
 reports/
