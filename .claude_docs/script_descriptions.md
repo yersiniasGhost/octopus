@@ -2093,3 +2093,6 @@ opt-out with the variant-aware outcome name, the F8 email-click ladder in its
 memory-safe campaign-grain Binomial form, and the F7 text-click ladder at 500
 draws (pointwise log-likelihood fits in ~0.6 GB). Same logging convention as
 the main sweep driver.
+
+## ingest_electric_bills_tool.py
+**Purpose**: Ingest utility pre-enrollment electric usage lists (AEP, AES, Duke, FirstEnergy) from `data/electric-bills/` zips into `{County}ElectricalDB` collections. Dry-run by default (`--execute` to write); dry run prints/writes a per-county refresh summary (docs updated/created, readings added, match rates). Streams nested zips without full extraction; matches service addresses to parcels via shared `src/tools/address_normalization.py`; unmatched accounts stored with deterministic surrogate `_id` (parcel_id=null). Supporting package: `src/tools/utility_bills/` (record, parsers, sources registry, ingest engine). NOTE: kW peak demand, KVAR/on-peak splits (AES), and read-vs-estimated flags (Duke) exist in the raw files but are deliberately NOT stored (decision 2026-08-19). Known-bad archives are documented in `src/tools/utility_bills/sources.py` (Jan 2026 AEP zip corrupt; "AEP August 2026.zip" is a mislabeled AES duplicate).

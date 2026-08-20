@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 from pymongo import UpdateOne
+from src.tools.address_normalization import normalize_address, normalize_address_keep_unit, is_valid_person_name
 from src.tools.mongo import get_empower_db
 from src.utils.log_manager import LogManager
 
@@ -36,104 +37,6 @@ UTILITY_FILES = {
         Path('/home/warnd/empower/data/CountyData/FranklinCounty/AEP_OPCO.csv'),
     ]
 }
-
-
-def normalize_address(address: str) -> str:
-    """
-    Normalize address for matching between utility and residential data.
-
-    Converts to residential format (AV, BL, CR) which is the canonical form.
-    Strips apartment/unit suffixes that appear in utility data but not residential.
-    """
-    if not address:
-        return ''
-
-    # Uppercase, strip whitespace, remove extra spaces
-    addr = ' '.join(address.upper().strip().split())
-
-    # Remove apartment, unit, suite suffixes (utility data has these, residential doesn't)
-    # Must be done BEFORE suffix standardization to avoid partial matches
-    addr = re.sub(r'\s+(APT|UNIT|SUITE|STE|#)\s*\S*$', '', addr, flags=re.IGNORECASE)
-
-    # Suffix standardization - convert TO residential format (shorter forms)
-    # Order matters: longer forms first to avoid partial replacements
-    replacements = [
-        # Full words to residential abbreviations
-        (' STREET', ' ST'),
-        (' AVENUE', ' AV'),
-        (' DRIVE', ' DR'),
-        (' ROAD', ' RD'),
-        (' LANE', ' LN'),
-        (' COURT', ' CT'),
-        (' CIRCLE', ' CR'),
-        (' BOULEVARD', ' BL'),
-        (' PLACE', ' PL'),
-        (' TERRACE', ' TE'),
-        (' PARKWAY', ' PK'),
-        (' HIGHWAY', ' HW'),
-        (' ALLEY', ' AL'),
-        (' LOOP', ' LP'),
-        # Utility abbreviations to residential abbreviations
-        (' AVE', ' AV'),    # Utility AVE → Residential AV
-        (' BLVD', ' BL'),   # Utility BLVD → Residential BL
-        (' CIR', ' CR'),    # Utility CIR → Residential CR
-        (' TER', ' TE'),    # Utility TER → Residential TE
-        (' PKWY', ' PK'),   # Utility PKWY → Residential PK
-        (' HWY', ' HW'),    # Utility HWY → Residential HW
-        # Direction standardization
-        (' NORTH', ' N'),
-        (' SOUTH', ' S'),
-        (' EAST', ' E'),
-        (' WEST', ' W'),
-    ]
-    for old, new in replacements:
-        addr = addr.replace(old, new)
-
-    return addr
-
-
-def is_valid_person_name(name: str) -> bool:
-    """Check if name looks like a person (not LLC, Corp, etc)."""
-    if not name:
-        return False
-    name_upper = name.upper()
-    # Skip business entities
-    business_indicators = [
-        'LLC', 'INC', 'CORP', 'LTD', 'COMPANY', 'PROPERTIES', 'HOLDINGS',
-        'TRUST', 'BANK', 'MORTGAGE', 'RENTAL', 'REALTY', 'INVESTMENT',
-        'MANAGEMENT', 'DEVELOPMENT', 'ENTERPRISE', 'FOUNDATION', 'CHURCH',
-        'ASSOCIATION', 'UNIVERSITY', 'SCHOOL', 'HOSPITAL', 'CENTER',
-        'APARTMENTS', 'APTS', 'PARTNERS', 'GROUP', 'FUND', 'CAPITAL'
-    ]
-    for indicator in business_indicators:
-        if indicator in name_upper:
-            return False
-    # Should have at least a comma (LASTNAME, FIRSTNAME format) or look like a name
-    # Skip names starting with special characters
-    if name.startswith('.') or name.startswith('#') or name.startswith('`'):
-        return False
-    return True
-
-
-def normalize_address_keep_unit(address: str) -> str:
-    """Normalize address but KEEP apartment/unit suffix for multi-unit detection."""
-    if not address:
-        return ''
-    addr = ' '.join(address.upper().strip().split())
-    # Same suffix standardization as normalize_address, but NO apartment stripping
-    replacements = [
-        (' STREET', ' ST'), (' AVENUE', ' AV'), (' DRIVE', ' DR'),
-        (' ROAD', ' RD'), (' LANE', ' LN'), (' COURT', ' CT'),
-        (' CIRCLE', ' CR'), (' BOULEVARD', ' BL'), (' PLACE', ' PL'),
-        (' TERRACE', ' TE'), (' PARKWAY', ' PK'), (' HIGHWAY', ' HW'),
-        (' ALLEY', ' AL'), (' LOOP', ' LP'),
-        (' AVE', ' AV'), (' BLVD', ' BL'), (' CIR', ' CR'),
-        (' TER', ' TE'), (' PKWY', ' PK'), (' HWY', ' HW'),
-        (' NORTH', ' N'), (' SOUTH', ' S'), (' EAST', ' E'), (' WEST', ' W'),
-    ]
-    for old, new in replacements:
-        addr = addr.replace(old, new)
-    return addr
 
 
 def extract_names_from_utility_files(utility_files: list, verbose: bool = False) -> Dict[Tuple[str, str], str]:
