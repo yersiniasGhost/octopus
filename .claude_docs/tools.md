@@ -216,3 +216,70 @@ python src/tools/db_schema_explorer.py
 ---
 
 *Last updated: 2025-12-07*
+
+## backup_mongo_collections_tool.py
+
+**Purpose**: Labelled MongoDB checkpoint backups so a multi-step migration can roll back to any point.
+
+**Location**: `src/scripts/backup_mongo_collections_tool.py`
+
+Wraps `mongodump`/`mongorestore`. Note: `mongodump` has **no `--nsInclude`** flag (that is mongorestore only), so collections matching a suffix are enumerated and dumped one at a time — do not "simplify" this back to a pattern flag.
+
+### Actions
+
+| Action | Effect |
+|---|---|
+| `create <label>` | Dump collections matching `--suffix` (default `ThermalLoads`), or `--full` for a single whole-database archive. Refuses an existing label. |
+| `list` | Show every checkpoint with timestamp, size and collection count. |
+| `verify <label>` | Restore into a scratch database and compare document counts per collection. Production untouched; scratch dropped afterwards. |
+| `restore <label>` | Roll production back. Destructive — drops before restoring. `--collection NAME` or `--all`, with a typed confirmation unless `--yes`. |
+
+**Usage:**
+```bash
+source venv/bin/activate
+
+python src/scripts/backup_mongo_collections_tool.py create cp03-pre-dedupe --suffix ThermalLoads
+python src/scripts/backup_mongo_collections_tool.py create cp00-baseline --full
+python src/scripts/backup_mongo_collections_tool.py list
+python src/scripts/backup_mongo_collections_tool.py verify cp03-pre-dedupe
+python src/scripts/backup_mongo_collections_tool.py restore cp03-pre-dedupe --collection CuyahogaThermalLoads
+```
+
+**Checkpoint root**: `~/backups/octopus-thermal/<label>/`, override with `OCTOPUS_BACKUP_ROOT`. Each checkpoint carries a `manifest.json` recording database, mode, collection list, timing and size.
+
+**Measured cost (2026-09-16)**: all 25 `*ThermalLoads` = 135 MB / 21s. Whole `empower_development` = 957 MB / 94s. Disk free 197 GB.
+
+**Tested**: create, list, verify (all 25 collections matched), duplicate-label guard, and a `mongorestore` round trip confirming document-identical restore including index metadata. `restore` against production was proven by the Task 0 rollback drill on 2026-09-16: `MorrowThermalLoads` was dropped and restored from `cp00-thermal` and came back byte-identical — 1,124 documents, content hash `175b5e56…` unchanged, and both `_id_` and `parcel_key_1` rebuilt (verified with `collection_fingerprint_tool.py`).
+
+## collection_fingerprint_tool.py
+
+**Purpose**: Read-only fingerprint of a MongoDB collection — document count, index definitions and a content hash — so a rollback can be proven rather than assumed.
+
+**Location**: `src/scripts/collection_fingerprint_tool.py`
+
+`mongorestore --drop` drops a collection *and its indexes*, then rebuilds them from the dump's metadata. A check that compares only document counts would score a restore that silently lost an index, or returned different documents, as a pass. This captures all three so the claim "the collection is what it was" is checkable.
+
+**Never writes to MongoDB.** There is no `--execute` flag because there is nothing to execute; the only file it writes is the JSON capture you ask for.
+
+### Actions
+
+| Action | Effect |
+|---|---|
+| `capture <Collection>` | Print count, index names and content hash. `--out PATH` also writes the capture as JSON. |
+| `compare <before.json> <after.json>` | Diff two captures. Prints `IDENTICAL` and exits 0, or lists each difference and exits 1. |
+
+**Usage:**
+```bash
+source venv/bin/activate
+
+python src/scripts/collection_fingerprint_tool.py capture MorrowThermalLoads --out exports/morrow_before.json
+# ... destructive operation ...
+python src/scripts/collection_fingerprint_tool.py capture MorrowThermalLoads --out exports/morrow_after.json
+python src/scripts/collection_fingerprint_tool.py compare exports/morrow_before.json exports/morrow_after.json
+```
+
+**Content hash**: each document is canonicalised with `bson.json_util` (which handles `ObjectId`, `datetime` and the rest of BSON) and hashed; the per-document digests are then sorted before the final hash. Sorting the digests makes the hash independent of document *and* key order, because `mongorestore` gives no ordering guarantee — hashing in cursor order would flag every restore as changed.
+
+**Cost**: streams and hashes every document. Instant on Morrow (1,124 docs); expect a few seconds on Cuyahoga (260,939). Intended for targeted rollback proofs, not routine monitoring.
+
+**Tested**: `tests/test_collection_fingerprint.py`, 13 tests — order independence, BSON type handling, detection of a dropped index, an added index, a lost `unique` flag, a count change, and changed content at an identical count. Exercised for real in the Task 0 rollback drill.
