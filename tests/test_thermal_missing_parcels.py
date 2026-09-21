@@ -98,3 +98,58 @@ def test_thermal_side_nulls_do_not_break_the_difference():
                       [{'parcel_id': None}, {'parcel_id': 'A'}])
 
     assert result == ['B']
+
+
+# --- recompute mode ----------------------------------------------------------
+
+def _targets(electrical, thermal, recompute_all):
+    return calc.get_target_parcels(FakeDB(electrical, thermal), 'Testville',
+                                   recompute_all=recompute_all)
+
+
+def test_default_mode_selects_only_parcels_without_thermal_loads():
+    result = _targets([{'parcel_id': 'A'}, {'parcel_id': 'B'}], [{'parcel_id': 'A'}], False)
+
+    assert result == ['B']
+
+
+def test_recompute_mode_selects_every_linked_parcel():
+    """The single-model migration has to revisit records that already exist."""
+    result = _targets([{'parcel_id': 'A'}, {'parcel_id': 'B'}], [{'parcel_id': 'A'}], True)
+
+    assert result == ['A', 'B']
+
+
+def test_recompute_mode_still_excludes_unlinked_records():
+    result = _targets([{'parcel_id': None}, {'parcel_id': 'A'}], [{'parcel_id': 'A'}], True)
+
+    assert result == ['A']
+
+
+def test_recompute_mode_ignores_thermal_records_with_no_electrical_data():
+    """A parcel with no billing data cannot be recomputed, only left alone."""
+    result = _targets([{'parcel_id': 'A'}], [{'parcel_id': 'A'}, {'parcel_id': 'Z'}], True)
+
+    assert result == ['A']
+
+
+# --- mixed parcel_id types (T-02) --------------------------------------------
+
+def test_mixed_int_and_string_parcel_ids_sort_without_raising():
+    """Cuyahoga carries 1,022 int parcel_ids alongside strings.
+
+    Sorting them directly raises TypeError. Ordering is only for reproducible
+    batching, so a string sort key is enough -- the values themselves are left
+    untouched, because normalizing the stored type is T-02's migration.
+    """
+    result = _targets([{'parcel_id': 'B1'}, {'parcel_id': 2401889000},
+                       {'parcel_id': 'A1'}], [], True)
+
+    assert len(result) == 3
+    assert 2401889000 in result
+
+
+def test_missing_mode_also_survives_mixed_types():
+    result = _missing([{'parcel_id': 'B1'}, {'parcel_id': 2401889000}], [])
+
+    assert len(result) == 2

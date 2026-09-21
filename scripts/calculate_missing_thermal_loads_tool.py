@@ -48,6 +48,26 @@ from src.utils.log_manager import LogManager
 # still actionable: 'unknown' sorts as stale for a later refresh.
 SOURCE_TAG_UNKNOWN = 'unknown'
 
+# Specification marker written on every document. Records without it were
+# produced by the superseded two-univariate-regression code.
+THERMAL_MODEL = 'hl+cl'
+THERMAL_MODEL_PER_DAY = 'hl+cl/day'
+
+# A billing row pairs kWh from the FIRST reading with degree-hours integrated to
+# the SECOND. That is only coherent when the two readings are about a month
+# apart. A wider span means a reading is missing, and the row then carries one
+# month's kWh against a multi-year weather total -- Cuyahoga parcel 30324005 has
+# a 2,369-day span holding 471 kWh and 738,887 heating degree-hours, 36x the
+# largest legitimate value in its own history. Four such rows out of 39 flip its
+# heating coefficient from -0.00637 to +0.00565. These are gaps, not periods.
+PERIOD_MIN_DAYS = 25
+PERIOD_MAX_DAYS = 40
+
+# Fields the single model replaces. A joint fit has one intercept and one r2,
+# so the per-driver pair no longer exists and is removed rather than duplicated.
+LEGACY_SLOPE_FIELDS = ('kwh_hl_intercept', 'kwh_cl_intercept',
+                       'kwh_hl_r2', 'kwh_cl_r2')
+
 logger = LogManager().get_logger(__name__)
 
 
@@ -250,7 +270,35 @@ def get_missing_parcels(db, county: str) -> List[str]:
     logger.info(f"Found {len(thermal_parcels):,} thermal records")
     logger.info(f"Missing thermal data: {len(missing):,} parcels")
 
-    return sorted(missing)
+    # key=str: Cuyahoga mixes int and str parcel_ids (T-02), which cannot be
+    # compared directly. Ordering is only for reproducible batching.
+    return sorted(missing, key=str)
+
+
+def get_target_parcels(db, county: str, recompute_all: bool = False) -> List[str]:
+    """Select the parcels to compute for.
+
+    Default: parcels with electrical data and no ThermalLoads record.
+    recompute_all: every parcel-linked electrical record, so existing slopes are
+    revisited too. That is the mode the single-model migration runs in -- the
+    superseded records are updated in place, never duplicated.
+    """
+    if not recompute_all:
+        return get_missing_parcels(db, county)
+
+    electrical_coll = f"{county}ElectricalDB"
+    unlinked = db[electrical_coll].count_documents({'parcel_id': {'$in': [None, '']}})
+    parcels = {
+        doc.get('parcel_id')
+        for doc in db[electrical_coll].find({'parcel_id': {'$nin': [None, '']}},
+                                            {'parcel_id': 1})
+        if doc.get('parcel_id')
+    }
+    logger.info(f"Recompute mode: {len(parcels):,} parcel-linked electrical records")
+    if unlinked:
+        logger.info(f"Excluded {unlinked:,} electrical records with no parcel_id "
+                    f"(unmatched utility accounts - see T-14)")
+    return sorted(parcels, key=str)
 
 
 def get_electrical_data(db, county: str, parcel_ids: List[str], batch_size: int = 1000) -> Dict[str, Dict]:
@@ -308,6 +356,7 @@ def calculate_thermal_loads_for_parcel(
         return [], {}
 
     billing_data = []
+    dropped = 0
 
     for i in range(len(dates) - 1):
         try:
@@ -318,11 +367,17 @@ def calculate_thermal_loads_for_parcel(
             if pd.isna(kwh) or kwh is None:
                 continue
 
+            span = (d2 - d1).days
+            if not PERIOD_MIN_DAYS <= span <= PERIOD_MAX_DAYS:
+                dropped += 1
+                continue
+
             hl = weather.heating_load(d1, d2)
             cl = weather.cooling_load(d1, d2)
 
             billing_data.append({
                 'date': dates[i],
+                'days': int((d2 - d1).days),
                 'kwh': float(kwh),
                 'hl': hl,
                 'cl': cl
@@ -331,54 +386,82 @@ def calculate_thermal_loads_for_parcel(
             logger.debug(f"Error processing billing period {dates[i]}: {e}")
             continue
 
+    if dropped:
+        logger.debug(f"dropped {dropped} billing period(s) outside "
+                     f"{PERIOD_MIN_DAYS}-{PERIOD_MAX_DAYS} days")
+
     if len(billing_data) < 3:
         return billing_data, {}
 
-    # Perform linear regression
+    model = fit_thermal_model(billing_data)
+    if model:
+        model['kwh_periods_dropped'] = dropped
+    return billing_data, model
+
+
+def fit_thermal_model(billing_data: List[Dict], per_day: bool = False) -> Dict:
+    """Fit kWh against heating AND cooling degree-hours in one model.
+
+    The previous code fit two separate univariate regressions against the same
+    kWh series. In Ohio the cold months are exactly the months with no air
+    conditioning, so heating and cooling degree-hours are near-perfect
+    opposites: whichever driver was left out got absorbed by the other with the
+    wrong sign. That is how 174,067 of 239,068 Franklin records (72.8%) ended up
+    with a negative heating slope, and 36,445 (15.2%) with a negative cooling
+    slope -- including gas-heated houses whose electricity is driven entirely by
+    air conditioning.
+
+    Fitting both terms together lets each driver claim its own share:
+
+        kWh = intercept + kwh_hl_slope * heating_dh + kwh_cl_slope * cooling_dh
+
+    A failed regression returns None plus a reason. It is never coerced to 0.0,
+    because a genuine flat house also scores 0.0 and the two must stay
+    distinguishable.
+    """
+    if len(billing_data) < 3:
+        return {}
+
     df = pd.DataFrame(billing_data)
+    marker = THERMAL_MODEL_PER_DAY if per_day else THERMAL_MODEL
 
-    slope_data = {}
+    if per_day:
+        # Degree-hours are integrated between meter readings and kWh is a period
+        # total, so both scale with period length -- measured on real Franklin
+        # histories, corr(days, heating degree-hours) is +0.916 and periods run
+        # 29 to 641 days. Dividing through puts every period on a common daily
+        # footing so the fit describes weather response, not billing calendars.
+        if 'days' not in df.columns:
+            raise ValueError("per-day fit needs a 'days' field on every billing period")
+        df = df[df['days'] > 0]
+        if len(df) < 3:
+            return {}
+        hl = df['hl'] / df['days']
+        cl = df['cl'] / df['days']
+        y = (df['kwh'] / df['days']).values
+    else:
+        hl, cl = df['hl'], df['cl']
+        y = df['kwh'].values
 
-    # Heating load regression
     try:
-        x_hl = df['hl'].values.reshape(-1, 1)
-        y_kwh = df['kwh'].values
-
-        model_hl = LinearRegression()
-        model_hl.fit(x_hl, y_kwh)
-
-        predictions_hl = model_hl.predict(x_hl)
-        r2_hl = r2_score(y_kwh, predictions_hl)
-
-        slope_data['kwh_hl_slope'] = float(model_hl.coef_[0])
-        slope_data['kwh_hl_intercept'] = float(model_hl.intercept_)
-        slope_data['kwh_hl_r2'] = float(r2_hl)
-    except Exception as e:
-        logger.debug(f"Heating regression failed: {e}")
-        slope_data['kwh_hl_slope'] = 0.0
-        slope_data['kwh_hl_intercept'] = 0.0
-        slope_data['kwh_hl_r2'] = 0.0
-
-    # Cooling load regression
-    try:
-        x_cl = df['cl'].values.reshape(-1, 1)
-
-        model_cl = LinearRegression()
-        model_cl.fit(x_cl, y_kwh)
-
-        predictions_cl = model_cl.predict(x_cl)
-        r2_cl = r2_score(y_kwh, predictions_cl)
-
-        slope_data['kwh_cl_slope'] = float(model_cl.coef_[0])
-        slope_data['kwh_cl_intercept'] = float(model_cl.intercept_)
-        slope_data['kwh_cl_r2'] = float(r2_cl)
-    except Exception as e:
-        logger.debug(f"Cooling regression failed: {e}")
-        slope_data['kwh_cl_slope'] = 0.0
-        slope_data['kwh_cl_intercept'] = 0.0
-        slope_data['kwh_cl_r2'] = 0.0
-
-    return billing_data, slope_data
+        X = np.column_stack([hl.values, cl.values])
+        model = LinearRegression().fit(X, y)
+        return {
+            'kwh_hl_slope': float(model.coef_[0]),
+            'kwh_cl_slope': float(model.coef_[1]),
+            'kwh_intercept': float(model.intercept_),
+            'kwh_r2': float(r2_score(y, model.predict(X))),
+            'kwh_model': marker,
+            'kwh_periods': int(len(df)),
+        }
+    except Exception as exc:
+        logger.debug(f"Thermal regression failed: {exc}")
+        return {
+            'kwh_hl_slope': None, 'kwh_cl_slope': None,
+            'kwh_intercept': None, 'kwh_r2': None,
+            'kwh_model': marker, 'kwh_periods': int(len(df)),
+            'calculation_error': f"{type(exc).__name__}: {exc}",
+        }
 
 
 def load_weather_for_county(county: str, weather_file: Optional[str] = None,
@@ -416,73 +499,84 @@ def load_weather_for_county(county: str, weather_file: Optional[str] = None,
     return processor, provenance
 
 
-def build_thermal_document(parcel_id: str, billing_data: List[Dict], slope_data: Dict,
+def build_thermal_document(parcel_id: str, billing_data: List[Dict], model: Dict,
                            weather_provenance: Optional[Dict] = None) -> Dict:
-    """Assemble the ThermalLoads document.
+    """Assemble the electric half of a ThermalLoads document.
 
-    NOTE: the gas sentinels and the insert-only write path are known defects
-    tracked as T-01 and T-03 in the remediation runbook. They are deliberately
-    left alone here; T-00 only adds weather provenance.
+    Single-model schema: one heating coefficient, one cooling coefficient, one
+    shared intercept, one r2. The legacy per-driver intercepts and r2 values are
+    not written -- see LEGACY_SLOPE_FIELDS, which thermal_update_ops removes.
+
+    Gas fields are deliberately absent. They are seeded only on insert, so a
+    recompute cannot overwrite the 126,987 real gas regressions in Cuyahoga.
     """
     document = {
         'parcel_id': parcel_id,
         'kwh_hl_cl_loads': billing_data,
-        'gas_hl_cl_loads': [],  # Not calculated for electric-only
-        'kwh_hl_slope': slope_data.get('kwh_hl_slope', 0.0),
-        'kwh_hl_intercept': slope_data.get('kwh_hl_intercept', 0.0),
-        'kwh_hl_r2': slope_data.get('kwh_hl_r2', 0.0),
-        'kwh_cl_slope': slope_data.get('kwh_cl_slope', 0.0),
-        'kwh_cl_intercept': slope_data.get('kwh_cl_intercept', 0.0),
-        'kwh_cl_r2': slope_data.get('kwh_cl_r2', 0.0),
-        'gas_hl_slope': -1,
-        'gas_hl_intercept': -1,
-        'gas_hl_r2': -1,
-        'gas_cl_slope': -1,
-        'gas_cl_intercept': -1,
-        'gas_cl_r2': -1,
+        'kwh_hl_slope': model.get('kwh_hl_slope'),
+        'kwh_cl_slope': model.get('kwh_cl_slope'),
+        'kwh_intercept': model.get('kwh_intercept'),
+        'kwh_r2': model.get('kwh_r2'),
+        'kwh_model': model.get('kwh_model', THERMAL_MODEL),
+        'kwh_periods': model.get('kwh_periods', len(billing_data)),
+        'kwh_periods_dropped': model.get('kwh_periods_dropped', 0),
         'calculated_at': datetime.now(),
         'calculation_source': 'calculate_missing_thermal_loads_tool.py',
     }
+    if model.get('calculation_error'):
+        document['calculation_error'] = model['calculation_error']
     if weather_provenance:
         document.update(weather_provenance)
     return document
 
 
-def insert_thermal_loads(
-    db,
-    county: str,
-    parcel_id: str,
-    billing_data: List[Dict],
-    slope_data: Dict,
-    dry_run: bool = False,
-    weather_provenance: Optional[Dict] = None
-) -> bool:
+def thermal_update_ops(document: Dict) -> Dict:
+    """Build the update that replaces a parcel's electric slopes in place.
+
+    Replace, never insert a second copy: the collections have no unique index
+    (T-03) and Cuyahoga already carries 875 duplicate parcel_ids, so this is
+    applied with update_many and every copy receives identical values.
+
+    $set carries the electric fields only. $unset removes the superseded
+    per-driver intercepts and r2. $setOnInsert seeds the gas sentinels, so a
+    document that already holds real gas regressions keeps them.
     """
-    Insert thermal load data into MongoDB.
+    body = {k: v for k, v in document.items() if k != 'parcel_id'}
+    return {
+        '$set': body,
+        '$unset': {f: '' for f in LEGACY_SLOPE_FIELDS},
+        '$setOnInsert': {
+            # parcel_id is not listed: on an upsert MongoDB takes it from the
+            # query filter, and naming it here as well invites a path conflict.
+            'gas_hl_cl_loads': [],
+            'gas_hl_slope': -1, 'gas_hl_intercept': -1, 'gas_hl_r2': -1,
+            'gas_cl_slope': -1, 'gas_cl_intercept': -1, 'gas_cl_r2': -1,
+        },
+    }
 
-    Args:
-        db: MongoDB database connection
-        county: County name
-        parcel_id: Parcel ID
-        billing_data: List of billing period thermal data
-        slope_data: Regression results
-        dry_run: If True, don't actually insert
 
-    Returns:
-        True if successful
+def write_thermal_loads(db, county: str, parcel_id: str, billing_data: List[Dict],
+                        model: Dict, dry_run: bool = False,
+                        weather_provenance: Optional[Dict] = None) -> bool:
+    """Replace a parcel's electric thermal loads in place.
+
+    update_many, not insert_one: the collections carry no unique index on
+    parcel_id (T-03) and Cuyahoga already holds 875 duplicates, so every copy of
+    a parcel receives identical corrected values rather than a further duplicate
+    being appended. upsert=True creates the record when the parcel is new.
     """
     thermal_coll = f"{county}ThermalLoads"
-
-    document = build_thermal_document(parcel_id, billing_data, slope_data, weather_provenance)
+    document = build_thermal_document(parcel_id, billing_data, model, weather_provenance)
 
     if dry_run:
         return True
 
     try:
-        db[thermal_coll].insert_one(document)
+        db[thermal_coll].update_many({'parcel_id': parcel_id},
+                                     thermal_update_ops(document), upsert=True)
         return True
-    except Exception as e:
-        logger.error(f"Failed to insert {parcel_id}: {e}")
+    except Exception as exc:
+        logger.error(f"Failed to write {parcel_id}: {exc}")
         return False
 
 
@@ -500,6 +594,9 @@ def main():
                         help='Show detailed progress')
     parser.add_argument('--weather-file', type=str, default=None,
                         help='Path to pre-processed weather CSV (with valid, T columns)')
+    parser.add_argument('--recompute-all', action='store_true',
+                        help='Recompute every parcel-linked record, not only missing ones '
+                             '(the single-model migration mode)')
     args = parser.parse_args()
 
     print("\n" + "=" * 70, flush=True)
@@ -515,8 +612,11 @@ def main():
     db = get_empower_db()
 
     # Find missing parcels
-    print("\n  Identifying parcels missing thermal data...", flush=True)
-    missing_parcels = get_missing_parcels(db, args.county)
+    if args.recompute_all:
+        print("\n  Selecting every parcel-linked record for recomputation...", flush=True)
+    else:
+        print("\n  Identifying parcels missing thermal data...", flush=True)
+    missing_parcels = get_target_parcels(db, args.county, args.recompute_all)
 
     if not missing_parcels:
         print("  No missing parcels found!", flush=True)
@@ -579,32 +679,38 @@ def main():
                 print("insufficient data")
             continue
 
-        if insert_thermal_loads(db, args.county, parcel_id, billing_data, slope_data,
-                                args.dry_run, weather_provenance):
+        if write_thermal_loads(db, args.county, parcel_id, billing_data, slope_data,
+                               args.dry_run, weather_provenance):
             stats['success'] += 1
             if args.verbose:
-                hl_slope = slope_data.get('kwh_hl_slope', 0)
-                hl_r2 = slope_data.get('kwh_hl_r2', 0)
-                print(f"✓ HL slope={hl_slope:.4f}, R²={hl_r2:.3f}")
+                hl = slope_data.get('kwh_hl_slope')
+                cl = slope_data.get('kwh_cl_slope')
+                r2 = slope_data.get('kwh_r2')
+                if hl is None:
+                    print(f"✗ regression error: {slope_data.get('calculation_error')}")
+                else:
+                    print(f"✓ heat={hl:+.4f} cool={cl:+.4f} R²={r2:.3f}")
         else:
             stats['failed'] += 1
             if args.verbose:
-                print("✗ insert failed")
+                print("✗ write failed")
 
     # Print summary
     print("\n" + "=" * 70)
     print("  RESULTS")
     print("=" * 70)
-    print(f"\n  Total missing parcels:    {len(missing_parcels):,}")
+    label = "Total target parcels:" if args.recompute_all else "Total missing parcels:"
+    print(f"\n  {label:<26}{len(missing_parcels):,}")
     print(f"  Processed:                {stats['processed']:,}")
     print(f"  Successfully calculated:  {stats['success']:,}")
     print(f"  Insufficient data:        {stats['insufficient_data']:,}")
-    print(f"  Failed inserts:           {stats['failed']:,}")
+    print(f"  Failed writes:            {stats['failed']:,}")
 
     if args.dry_run:
         print("\n  [DRY RUN - No changes were made to database]")
     else:
-        print(f"\n  {stats['success']:,} new thermal load records inserted into {args.county}ThermalLoads")
+        print(f"\n  {stats['success']:,} records written to {args.county}ThermalLoads "
+              f"(model {THERMAL_MODEL})")
 
     print("\n" + "=" * 70)
     print("  COMPLETE")

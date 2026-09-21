@@ -8,12 +8,11 @@ This script joins participant data with thermal load analysis results:
 - Updates participants with heating/cooling load regression coefficients
 
 The thermal load fields added:
-- thermal.kwh_hl_slope: Heating load slope (kWh/HDD)
-- thermal.kwh_hl_intercept: Heating load intercept
-- thermal.kwh_hl_r2: Heating load R² fit quality
-- thermal.kwh_cl_slope: Cooling load slope (kWh/CDD)
-- thermal.kwh_cl_intercept: Cooling load intercept
-- thermal.kwh_cl_r2: Cooling load R² fit quality
+- thermal.kwh_hl_slope: Heating coefficient (kWh per heating degree-hour)
+- thermal.kwh_cl_slope: Cooling coefficient (kWh per cooling degree-hour)
+- thermal.kwh_intercept: Shared intercept of the joint model
+- thermal.kwh_r2: Fit quality of the joint heating+cooling model
+- thermal.kwh_model: Specification marker ('hl+cl')
 - thermal.enriched_at: Timestamp of enrichment
 - thermal.source_collection: Source thermal collection name
 
@@ -84,11 +83,10 @@ def build_thermal_lookup(thermal_collections: dict, verbose: bool = False) -> di
         for doc in collection.find({}, {
             'parcel_id': 1,
             'kwh_hl_slope': 1,
-            'kwh_hl_intercept': 1,
-            'kwh_hl_r2': 1,
             'kwh_cl_slope': 1,
-            'kwh_cl_intercept': 1,
-            'kwh_cl_r2': 1
+            'kwh_intercept': 1,
+            'kwh_r2': 1,
+            'kwh_model': 1
         }):
             parcel_id = doc.get('parcel_id')
             if parcel_id:
@@ -96,11 +94,10 @@ def build_thermal_lookup(thermal_collections: dict, verbose: bool = False) -> di
                     'county': county,
                     'collection': f"{county}ThermalLoads",
                     'kwh_hl_slope': doc.get('kwh_hl_slope'),
-                    'kwh_hl_intercept': doc.get('kwh_hl_intercept'),
-                    'kwh_hl_r2': doc.get('kwh_hl_r2'),
                     'kwh_cl_slope': doc.get('kwh_cl_slope'),
-                    'kwh_cl_intercept': doc.get('kwh_cl_intercept'),
-                    'kwh_cl_r2': doc.get('kwh_cl_r2')
+                    'kwh_intercept': doc.get('kwh_intercept'),
+                    'kwh_r2': doc.get('kwh_r2'),
+                    'kwh_model': doc.get('kwh_model')
                 }
                 count += 1
 
@@ -202,15 +199,20 @@ def enrich_participants(campaign_db, thermal_lookup: dict, args) -> dict:
         update_doc = {
             '$set': {
                 'thermal.kwh_hl_slope': thermal_data['kwh_hl_slope'],
-                'thermal.kwh_hl_intercept': thermal_data['kwh_hl_intercept'],
-                'thermal.kwh_hl_r2': thermal_data['kwh_hl_r2'],
                 'thermal.kwh_cl_slope': thermal_data['kwh_cl_slope'],
-                'thermal.kwh_cl_intercept': thermal_data['kwh_cl_intercept'],
-                'thermal.kwh_cl_r2': thermal_data['kwh_cl_r2'],
+                'thermal.kwh_intercept': thermal_data['kwh_intercept'],
+                'thermal.kwh_r2': thermal_data['kwh_r2'],
+                'thermal.kwh_model': thermal_data['kwh_model'],
                 'thermal.enriched_at': datetime.now(),
                 'thermal.source_collection': thermal_data['collection'],
                 'thermal.county': county  # Normalized county name
-            }
+            },
+            # Clean break: the joint model has one intercept and one r2, so the
+            # per-driver pair copied here in January 2026 is removed.
+            '$unset': {
+                'thermal.kwh_hl_intercept': '', 'thermal.kwh_cl_intercept': '',
+                'thermal.kwh_hl_r2': '', 'thermal.kwh_cl_r2': '',
+            },
         }
 
         if args.verbose:

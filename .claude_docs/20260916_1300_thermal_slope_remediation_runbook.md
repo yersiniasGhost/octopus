@@ -86,6 +86,7 @@ Labels are refused if they already exist — checkpoints are never silently over
 | `cp07-pre-provenance` | T-10 | ThermalLoads |
 | `cp08-pre-refresh` | T-09 | `--full` |
 | `cp09-pre-quality` | T-11 / T-12 | ThermalLoads |
+| `cp10-pre-singlemodel` | T-15 migration | ThermalLoads |
 
 Prune checkpoints once the phase after them is verified and committed. At ~135 MB each the
 whole schedule is under 4 GB against 197 GB free — do not prune early to save space.
@@ -706,6 +707,118 @@ Permanently ineligible until more deliveries arrive, yet indistinguishable from 
 them as work.
 
 **Verify.** `--check coverage` — `below_min_periods` totals 45,781 and every one is now labelled.
+
+---
+
+### T-15 — The regression specification, and billing rows that are not measurements
+
+**Priority:** Critical — affects every one of the 794,636 thermal documents and everything
+built on them. **Status 2026-09-21:** code complete and tested; **migration not run.**
+
+**Issue, part one — two univariate regressions.** `calculate_thermal_loads_for_parcel()` fit
+`kWh ~ heating` and `kWh ~ cooling` as two separate models against the same kWh series. For a
+gas-heated house with electric air conditioning, electricity peaks in summer when heating
+demand is near zero, so the heating-only fit must lift its intercept and tilt downward.
+Parcel `010-000235-00`: heating-only `-0.0525` (r² 0.604), cooling-only `+0.2987` (r² 0.948),
+joint `heating +0.0087, cooling +0.3316` (r² 0.953). The mirror case, parcel `010-149582-00`
+(electric heat): cooling-only `-0.6349`, which is what `kwh_cl_slope` still holds on that
+record. Population: 174,067 of 239,068 Franklin records (72.8%) carry a negative heating
+slope; 36,445 (15.2%) a negative cooling slope.
+
+**Issue, part two — gap rows (the larger cause).** A billing row takes `kwh` from the FIRST
+reading and integrates degree-hours to the SECOND. That is only coherent when the readings
+are about a month apart. Where a reading is missing, the row pairs one month's kWh with a
+multi-year weather total. Cuyahoga parcel `30324005` has a 2,369-day span holding 471 kWh
+against 738,887 heating degree-hours — 36x the largest legitimate value in its own history.
+Dropping 4 such rows out of 39 flips its heating coefficient from `-0.00637` to `+0.00565`.
+Under 10% of rows, but the highest-leverage ones in every fit.
+
+**Evidence.** `scripts/compare_thermal_specifications_tool.py` compared eight specifications
+on three metrics. Before the validity fix the metrics contradicted each other and no
+specification won on more than one axis. After it, every specification improved and the joint
+family converged:
+
+| Cuyahoga, clean | neg share | median coef | oos r² | rank stability |
+|---|---:|---:|---:|---:|
+| S0 legacy | 54.2% | **-0.0013** | -0.177 | 0.447 |
+| **S1 joint** | 16.9% | +0.0072 | **+0.094** | 0.381 |
+| S2/S3 per-day | 18.9% | +0.0065 | +0.085 | 0.398 |
+| S4 joint+days | 18.0% | +0.0063 | +0.087 | 0.394 |
+| S5/S6 seasonal | 16.2% | +0.0065 | -0.146 | 0.477 |
+
+Franklin's legacy rank stability moved from **-0.304 to +0.278** on the validity fix alone —
+the ranking campaign targeting sorts on had been anti-correlated with itself across time.
+
+**Two metrics that proved unusable, recorded so they are not repeated.**
+- *Share of negative slopes.* In a gas-heated county the true heating coefficient is near
+  zero, so a correct model lands near 50% negative by sampling noise. Diagnostic only when
+  far above half with large magnitudes.
+- *Fuel separation against `CuyahogaGasDB`.* Confounded: gas-metered parcels carry a median
+  42 billing periods with a longest span of 2,373 days, against 17 periods and 35 days for
+  the rest — 83.7% have a gap versus 48.2%. GasDB membership tracks which ingest a parcel
+  arrived in, not its fuel. The apparent separation was counting corrupt rows. After the
+  validity fix all specifications sit at AUC 0.45–0.55, i.e. none.
+
+**Decision: S1, `kWh ~ heating + cooling` over all periods.** Best or tied-best out-of-sample
+in both counties, physically sensible coefficients, simplest thing that works. Per-day
+normalization is now behaviourally identical while carrying a ratio-artifact risk (dividing
+two variables by a shared quantity correlates them). The `days` covariate buys nothing once
+spans are constrained. Seasonal *filtering* is actively wrong, and this was measured rather
+than argued (17,820 Cuyahoga periods, 402 parcels):
+
+| | median | p90 | max |
+|---|---:|---:|---:|
+| heating dh during summer periods | **3** | 181 | 273 |
+| cooling dh during winter periods | **0** | 154 | 581 |
+| heating dh during winter periods | 12,339 | 24,616 | 30,003 |
+| cooling dh during summer periods | 1,204 | 3,002 | 3,354 |
+
+An out-of-season period already contributes ~zero to its own term — the degree-day variable
+switches itself off, so no filtering is required. But that period still carries the baseline
+kWh that pins the intercept:
+
+| | median coef | median intercept | intercept IQR | intercepts < 0 |
+|---|---:|---:|---:|---:|
+| joint, all periods | 0.2224 | 405 | 397 | **1.0%** |
+| cooling-only, summer periods | 0.1260 | 590 | **799** | **8.2%** |
+
+Discarding the out-of-season rows doubles the intercept spread and produces eight times as
+many houses drawing *less than zero* kWh at zero cooling demand — physically impossible, and
+the signature of a baseline extrapolated instead of observed. That is the mechanism behind
+S5's out-of-sample r² of -0.760 on Franklin.
+
+**Build — DONE.**
+- `fit_thermal_model()` — one joint regression. Failures return `None` plus
+  `calculation_error`, never `0.0` (this resolves **T-12**, which the rewrite forced).
+- Billing-period validity: spans outside `PERIOD_MIN_DAYS=25`–`PERIOD_MAX_DAYS=40` are dropped
+  and counted in `kwh_periods_dropped`, never silently.
+- Clean-break schema: `kwh_hl_slope`, `kwh_cl_slope`, `kwh_intercept`, `kwh_r2`, `kwh_model`,
+  `kwh_periods`, `kwh_periods_dropped`. The legacy `kwh_hl_intercept`, `kwh_cl_intercept`,
+  `kwh_hl_r2`, `kwh_cl_r2` are `$unset`.
+- `write_thermal_loads()` — `update_many(..., upsert=True)`, replacing rather than inserting.
+  Gas fields moved to `$setOnInsert`, which resolves **T-01**: a recompute can no longer
+  overwrite Cuyahoga's 126,987 real gas regressions.
+- `--recompute-all` selects every parcel-linked record, not only missing ones.
+- Downstream rewired: `generate_campaign_list_by_energy_percentile_tool.py` (now reads
+  `kwh_r2`) and `enrich_thermal_loads.py` (new fields, legacy `$unset` on participants).
+
+**Test.** `tests/test_thermal_joint_model.py` (19), `tests/test_billing_period_validity.py`
+(7), `tests/test_thermal_missing_parcels.py` (13). Suite **187 passing**.
+
+**Migration — NOT RUN. Blocked on:**
+1. **T-02.** Nine counties store `parcel_id` as `int`/`Int64` in ThermalLoads against `str` in
+   ElectricalDB, so the upsert filter matches nothing and inserts a duplicate instead of
+   replacing. 67,307 documents. Belmont, Coshocton, Guernsey, Harrison, Holmes, Lawrence,
+   Morgan, Muskingum, Cuyahoga. Franklin and the other string/string counties are safe.
+2. **Weather for 19 counties.** Only the six T-07 counties were fetched under T-00.
+3. **Participant refresh.** 3,265 participants carry embedded `thermal.*` copies from
+   2026-01-04 that go stale on migration; `enrich_thermal_loads.py` refreshes them.
+
+**Checkpoint when it runs:** `cp10-pre-singlemodel` (ThermalLoads).
+
+**Done when:** every thermal document carries `kwh_model`, the legacy fields are gone,
+Cuyahoga's `real_gas_slopes` still totals 126,987, and document counts are unchanged
+(a rise means the T-02 duplication path is live — stop immediately).
 
 ---
 

@@ -71,7 +71,7 @@ class HouseholdRecord:
     in_demographic_db: bool = False
     # Heating load fields (optional, populated when --heating-load is used)
     kwh_hl_slope: Optional[float] = None
-    kwh_hl_r2: Optional[float] = None
+    kwh_r2: Optional[float] = None
 
     def to_csv_row(self, include_heating_load: bool = False) -> Dict:
         """Convert to CSV row dictionary"""
@@ -88,7 +88,7 @@ class HouseholdRecord:
         }
         if include_heating_load:
             row['Heating_Load_Slope'] = round(self.kwh_hl_slope, 6) if self.kwh_hl_slope else ''
-            row['Heating_Load_R2'] = round(self.kwh_hl_r2, 3) if self.kwh_hl_r2 else ''
+            row['Heating_Load_R2'] = round(self.kwh_r2, 3) if self.kwh_r2 else ''
         return row
 
 
@@ -231,7 +231,7 @@ def fetch_households_with_heating_load(db, county: str, zip_codes: List[int],
     - ZIP codes
     - Minimum energy percentile
     - Positive heating load slope (kwh_hl_slope > 0)
-    - Minimum R² fit quality
+    - Minimum R2 fit quality (kwh_r2, the joint heating+cooling model fit)
 
     Sorts by heating load slope (highest first) for weatherization targeting.
 
@@ -278,9 +278,9 @@ def fetch_households_with_heating_load(db, county: str, zip_codes: List[int],
                     {'$match': {
                         '$expr': {'$eq': ['$parcel_id', '$$pid']},
                         'kwh_hl_slope': {'$gt': 0},
-                        'kwh_hl_r2': {'$gte': min_r2}
+                        'kwh_r2': {'$gte': min_r2}
                     }},
-                    {'$project': {'kwh_hl_slope': 1, 'kwh_hl_r2': 1, '_id': 0}}
+                    {'$project': {'kwh_hl_slope': 1, 'kwh_r2': 1, '_id': 0}}
                 ],
                 'as': 'thermal'
             }
@@ -313,7 +313,7 @@ def fetch_households_with_heating_load(db, county: str, zip_codes: List[int],
                 'parcel_owner': 1,
                 'energy_percentile': 1,
                 'kwh_hl_slope': '$thermal.kwh_hl_slope',
-                'kwh_hl_r2': '$thermal.kwh_hl_r2',
+                'kwh_r2': '$thermal.kwh_r2',
                 'customer_name': '$demographic.customer_name',
                 'mobile': '$demographic.mobile',
                 'has_demographic': {'$cond': [{'$ifNull': ['$demographic.customer_name', False]}, True, False]}
@@ -353,7 +353,7 @@ def fetch_households_with_heating_load(db, county: str, zip_codes: List[int],
             phone=phone,
             in_demographic_db=doc.get('has_demographic', False),
             kwh_hl_slope=doc.get('kwh_hl_slope'),
-            kwh_hl_r2=doc.get('kwh_hl_r2')
+            kwh_r2=doc.get('kwh_r2')
         )
         households.append(record)
 
