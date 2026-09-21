@@ -208,11 +208,36 @@ the aug2026 delivery, so weather must too. A weather file ending in 2024 silentl
 county weather series**, and r² on the 5 sample parcels is plausible (Franklin baseline: compare
 against the 44,851 records stamped `2026-01-19`).
 
-**Status 2026-09-21:** code and tests complete; weather not yet fetched. Candidate selection now
-runs clean on real data — Montgomery 31,846 missing (198,762 unlinked excluded), Franklin 18,641
-(216,887 excluded), Athens 293 (18,168 excluded) — and each then stops with a clear
-"no weather data for X, fetch it first". Those counts remain above the audit's 31,107 / 17,671 /
-283; the residual is T-02 type mismatches and T-04 phantoms, as expected.
+**Status 2026-09-21 — COMPLETE.** Code, tests and weather all done.
+
+Candidate selection runs clean on real data — Montgomery 31,846 missing (198,762 unlinked
+excluded), Franklin 18,641 (216,887 excluded), Athens 293 (18,168 excluded). Those counts remain
+above the audit's 31,107 / 17,671 / 283; the residual is T-04 phantoms (T-02 is now done, and
+none of these three counties carried type mismatches).
+
+**Weather fetched for all 25 thermal counties** (2026-09-21, 57 MB under `data/weather/`, gitignored).
+Every file: 102,624 hourly observations spanning `2015-01-01T00:00 → 2026-09-15T23:00`, row count
+matching its `.meta.json` sidecar. The six T-07 counties were fetched earlier in the day and left
+alone; a refetch would have produced byte-identical files, since the archive's end date is
+unchanged. Verified distinct rather than assumed: **25 of 25 distinct file hashes, 25 of 25
+distinct mean-January temperatures**, and the gradient follows latitude — Lawrence (38.60°N)
+warmest at 32.59 °F, Richland and Morrow (north-central) coldest at 26.46 / 26.87. One file copied
+25 times, which is the defect this task exists to prevent, would fail both checks.
+
+**Done-when met:** `--county Franklin --limit 5 --dry-run` loads Franklin @ (39.97, -83.01) and
+`--county Montgomery` loads Montgomery @ (39.75, -84.29) — different series, nothing written,
+r² 0.170–0.467 and 0.004–0.734 respectively. 7 of the 9 successful fits show positive heating
+slopes, against the 72.8% negative that opened this remediation.
+
+**Known limitation — the old end of the timeline.** `--start` is 2015-01-01, chosen from
+Cuyahoga's earliest reading. Measured across all 25 counties the electrical series actually begins
+**2005-08-18 (Ross)**, so some readings fall before the weather window and `heating_load()` returns
+a silent 0.0 for them — the same fail-open shape T-00 fixed at the recent end. Scale decides it:
+**331 readings out of 30,822,426 (0.001%), across 44 parcels** in Lawrence (154), Scioto (86),
+Franklin (35), Ross (24), Muskingum (20) and four others. Widening the fetch would cost ~250 extra
+API requests for 0.001% of readings, and T-15's 25–40 day validity filter likely discards most of
+them anyway, since an isolated 2006 reading pairs with an enormous gap to the next. Recorded, not
+fixed. Revisit only if a parcel-level defect traces back to one of those 44.
 
 ---
 
