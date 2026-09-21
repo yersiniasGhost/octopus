@@ -28,12 +28,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pymongo import MongoClient
 
+from src.tools.parcel_id import normalize_parcel_id as _norm
+
 MIN_PERIODS = 3  # regression minimum enforced by calculate_missing_thermal_loads_tool.py
-
-
-def _norm(value):
-    """Normalize a parcel identifier for comparison across BSON types."""
-    return None if value is None else str(value).strip() or None
 
 
 def _counties(db, only: str) -> list:

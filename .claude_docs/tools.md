@@ -302,3 +302,17 @@ Holds `COUNTY_CENTROIDS` (the 25 counties in CountyKeys), `normalize_county`, th
 **There is deliberately no fallback.** A silent fallback is what applied Columbus degree-hours to Cleveland, Dayton and Appalachian southeast Ohio. `centroid()` is checked before any path is considered, so an unmapped county reports "no centroid" rather than the misleading "file not found".
 
 **Tested**: `tests/test_thermal_weather_selection.py` (selection, provenance, centroid coverage for all 25 thermal counties) and `tests/test_campaign_weather.py` (the original consumer, still green after extraction).
+
+## parcel_id.py
+
+**Purpose**: Parcel identifier normalization, shared by every tool that joins on `parcel_id`.
+
+**Location**: `src/tools/parcel_id.py`
+
+`normalize_parcel_id(value)` renders a parcel identifier as the string form used for joins: `int` and `bson.Int64` become their decimal string; strings keep their leading zeros and punctuation, losing only surrounding whitespace; absence (`None`, empty, whitespace-only) stays absent rather than becoming a joinable `""`.
+
+It was private to `scripts/audit_thermal_load_coverage_tool.py` as `_norm`. It lives here because `scripts/normalize_thermal_parcel_id_types_tool.py` (T-02) *writes* the strings the audit then verifies — if the two definitions drifted, the audit would stop verifying the thing that was written.
+
+**This is deliberately not the normalization in `scripts/enrich_demographics_from_bolt.py`**, which strips dashes and spaces for fuzzy CSV matching. Applying that here would turn `"24-01889-000"` into `"2401889000"` and break the very join T-02 repairs. Normalization here does exactly one thing: render the value as its string form.
+
+**Tested**: `tests/test_parcel_id_normalization.py` — int, `Int64`, leading zeros, embedded punctuation, whitespace, and the three shapes of absence. The audit was re-run after extraction and all eleven runbook baseline numbers were byte-identical.
