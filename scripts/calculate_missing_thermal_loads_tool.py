@@ -31,6 +31,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import argparse
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import numpy as np
@@ -38,8 +39,14 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
+from src.tools.county_weather import (MissingWeatherDataError, UnknownCountyError,
+                                      centroid, normalize_county, resolve_weather_file)
 from src.tools.mongo import get_empower_db
 from src.utils.log_manager import LogManager
+
+# Recorded when a weather file carries no provenance sidecar. Honest, and
+# still actionable: 'unknown' sorts as stale for a later refresh.
+SOURCE_TAG_UNKNOWN = 'unknown'
 
 logger = LogManager().get_logger(__name__)
 
@@ -215,24 +222,35 @@ def get_missing_parcels(db, county: str) -> List[str]:
     electrical_coll = f"{county}ElectricalDB"
     thermal_coll = f"{county}ThermalLoads"
 
-    # Get all parcel_ids from electrical
-    electrical_parcels = set(
-        doc['parcel_id'] for doc in db[electrical_coll].find({}, {'parcel_id': 1})
-    )
+    # Only parcel-linked records can receive thermal loads -- thermal loads are
+    # keyed by parcel. Unlinked utility accounts (parcel_id null/absent) are
+    # EXCLUDED here, never deleted: they carry real addresses and real usage and
+    # recovering them by address matching is T-14. The $nin filter is a
+    # performance optimisation; the truthiness guard is what makes this correct.
+    unlinked = db[electrical_coll].count_documents({'parcel_id': {'$in': [None, '']}})
+    electrical_parcels = {
+        doc.get('parcel_id')
+        for doc in db[electrical_coll].find({'parcel_id': {'$nin': [None, '']}},
+                                            {'parcel_id': 1})
+        if doc.get('parcel_id')
+    }
 
-    # Get all parcel_ids from thermal
-    thermal_parcels = set(
-        doc['parcel_id'] for doc in db[thermal_coll].find({}, {'parcel_id': 1})
-    )
+    thermal_parcels = {
+        doc.get('parcel_id')
+        for doc in db[thermal_coll].find({}, {'parcel_id': 1})
+        if doc.get('parcel_id')
+    }
 
-    # Find missing
     missing = electrical_parcels - thermal_parcels
 
     logger.info(f"Found {len(electrical_parcels):,} electrical records")
+    if unlinked:
+        logger.info(f"Excluded {unlinked:,} electrical records with no parcel_id "
+                    f"(unmatched utility accounts - see T-14)")
     logger.info(f"Found {len(thermal_parcels):,} thermal records")
     logger.info(f"Missing thermal data: {len(missing):,} parcels")
 
-    return sorted(list(missing))
+    return sorted(missing)
 
 
 def get_electrical_data(db, county: str, parcel_ids: List[str], batch_size: int = 1000) -> Dict[str, Dict]:
@@ -363,30 +381,49 @@ def calculate_thermal_loads_for_parcel(
     return billing_data, slope_data
 
 
-def insert_thermal_loads(
-    db,
-    county: str,
-    parcel_id: str,
-    billing_data: List[Dict],
-    slope_data: Dict,
-    dry_run: bool = False
-) -> bool:
+def load_weather_for_county(county: str, weather_file: Optional[str] = None,
+                            weather_dir: Optional[Path] = None) -> Tuple['WeatherDataProcessor', Dict]:
+    """Load the weather series for a county and describe where it came from.
+
+    Raises rather than substituting another county's weather. The previous
+    behaviour applied one Columbus station file to every county, so a Cleveland
+    or Dayton slope was computed against Franklin County degree-hours.
     """
-    Insert thermal load data into MongoDB.
+    path = resolve_weather_file(county, weather_file=weather_file, weather_dir=weather_dir)
+    processor = WeatherDataProcessor.from_clean_csv(str(path))
+    lat, lon = centroid(county)
 
-    Args:
-        db: MongoDB database connection
-        county: County name
-        parcel_id: Parcel ID
-        billing_data: List of billing period thermal data
-        slope_data: Regression results
-        dry_run: If True, don't actually insert
+    meta_path = Path(str(path).replace('.csv', '.meta.json'))
+    source = SOURCE_TAG_UNKNOWN
+    if meta_path.exists():
+        try:
+            source = json.loads(meta_path.read_text()).get('source', source)
+        except (ValueError, OSError):
+            pass
+    elif weather_file:
+        source = f'file:{Path(weather_file).name}'
 
-    Returns:
-        True if successful
+    index = processor.weather.index
+    provenance = {
+        'weather_source': source,
+        'weather_location': {'county': normalize_county(county), 'lat': lat, 'lon': lon},
+        'weather_range': {
+            'start': index.min().isoformat() if len(index) else None,
+            'end': index.max().isoformat() if len(index) else None,
+            'observations': int(len(index)),
+        },
+    }
+    return processor, provenance
+
+
+def build_thermal_document(parcel_id: str, billing_data: List[Dict], slope_data: Dict,
+                           weather_provenance: Optional[Dict] = None) -> Dict:
+    """Assemble the ThermalLoads document.
+
+    NOTE: the gas sentinels and the insert-only write path are known defects
+    tracked as T-01 and T-03 in the remediation runbook. They are deliberately
+    left alone here; T-00 only adds weather provenance.
     """
-    thermal_coll = f"{county}ThermalLoads"
-
     document = {
         'parcel_id': parcel_id,
         'kwh_hl_cl_loads': billing_data,
@@ -404,8 +441,39 @@ def insert_thermal_loads(
         'gas_cl_intercept': -1,
         'gas_cl_r2': -1,
         'calculated_at': datetime.now(),
-        'calculation_source': 'calculate_missing_thermal_loads_tool.py'
+        'calculation_source': 'calculate_missing_thermal_loads_tool.py',
     }
+    if weather_provenance:
+        document.update(weather_provenance)
+    return document
+
+
+def insert_thermal_loads(
+    db,
+    county: str,
+    parcel_id: str,
+    billing_data: List[Dict],
+    slope_data: Dict,
+    dry_run: bool = False,
+    weather_provenance: Optional[Dict] = None
+) -> bool:
+    """
+    Insert thermal load data into MongoDB.
+
+    Args:
+        db: MongoDB database connection
+        county: County name
+        parcel_id: Parcel ID
+        billing_data: List of billing period thermal data
+        slope_data: Regression results
+        dry_run: If True, don't actually insert
+
+    Returns:
+        True if successful
+    """
+    thermal_coll = f"{county}ThermalLoads"
+
+    document = build_thermal_document(parcel_id, billing_data, slope_data, weather_provenance)
 
     if dry_run:
         return True
@@ -458,30 +526,21 @@ def main():
         missing_parcels = missing_parcels[:args.limit]
         print(f"  Limited to {args.limit} parcels for processing", flush=True)
 
-    # Load weather data
+    # Load weather data -- the station follows --county, and never falls back
+    # to another county's weather (see T-00 in the remediation runbook).
     print("\n  Loading weather data...", flush=True)
-    if args.weather_file:
-        weather = WeatherDataProcessor.from_clean_csv(args.weather_file)
-    else:
-        # Default: use pre-processed weather file
-        default_weather = Path(__file__).parent.parent / 'data' / 'franklin_weather_hourly.csv'
-        if default_weather.exists():
-            weather = WeatherDataProcessor.from_clean_csv(str(default_weather))
-        else:
-            # Fallback: look for NOAA files in warnd's Downloads
-            weather_files = [
-                '/home/warnd/Downloads/72428014821(2).csv',  # 2023
-                '/home/warnd/Downloads/72428014821(1).csv',  # 2024
-            ]
-            existing_files = [f for f in weather_files if Path(f).exists()]
-            if not existing_files:
-                print("  ERROR: No weather files found!")
-                print("  Please provide weather data with --weather-file option")
-                return 1
-            weather = WeatherDataProcessor.from_noaa_files(existing_files)
+    try:
+        weather, weather_provenance = load_weather_for_county(args.county, args.weather_file)
+    except (UnknownCountyError, MissingWeatherDataError) as exc:
+        print(f"\n  ERROR: {exc}\n")
+        return 1
 
-    print(f"  Weather data loaded: {len(weather.weather):,} hourly observations", flush=True)
-    print(f"  Date range: {weather.weather.index.min()} to {weather.weather.index.max()}", flush=True)
+    loc = weather_provenance['weather_location']
+    rng = weather_provenance['weather_range']
+    print(f"  Weather data loaded: {rng['observations']:,} hourly observations", flush=True)
+    print(f"  Source: {weather_provenance['weather_source']} "
+          f"@ {loc['county']} ({loc['lat']}, {loc['lon']})", flush=True)
+    print(f"  Date range: {rng['start']} to {rng['end']}", flush=True)
 
     # Fetch electrical data for missing parcels
     print("\n  Fetching electrical billing data...", flush=True)
@@ -520,7 +579,8 @@ def main():
                 print("insufficient data")
             continue
 
-        if insert_thermal_loads(db, args.county, parcel_id, billing_data, slope_data, args.dry_run):
+        if insert_thermal_loads(db, args.county, parcel_id, billing_data, slope_data,
+                                args.dry_run, weather_provenance):
             stats['success'] += 1
             if args.verbose:
                 hl_slope = slope_data.get('kwh_hl_slope', 0)

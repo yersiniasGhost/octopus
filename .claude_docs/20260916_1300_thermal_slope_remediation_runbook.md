@@ -24,7 +24,9 @@ findings document in context to run a task — everything needed is repeated her
    in the venv, so a bare `python -m pytest` fails with `unrecognized arguments: --cov=app` before
    collecting anything. Either run `python -m pytest tests/ -q -o addopts=""` or
    `pip install pytest-cov` once and drop the override. Baseline 2026-09-16: **111 passed**.
-   (The `--cov=app` target is itself stale — there is no `app` package in this repo.)
+   (Corrected 2026-09-21: there **is** an `app` package — `tests/test_applicant_dashboard.py`
+   imports `app.services.campaign_data_service` — so `--cov=app` is a valid target. The only
+   problem is that `pytest-cov` is not installed. Baseline after T-00: **155 passed**.)
 
 ### Environment facts (measured 2026-09-16)
 
@@ -123,13 +125,22 @@ proven rollback is how the 126,987 gas records in T-01 get lost permanently.
 
 **Priority:** Blocker for T-07 and T-09. Neither can run without this.
 
-**Issue.** `calculate_missing_thermal_loads_tool.py` loads weather in this order:
+**Issue.** `calculate_missing_thermal_loads_tool.py` loaded weather in this order:
 1. `--weather-file` if given
-2. `data/franklin_weather_hourly.csv` — **does not exist**
-3. Hardcoded fallback to `/home/warnd/Downloads/72428014821(2).csv` — **another user's home directory, not present**
+2. `data/franklin_weather_hourly.csv` — does not exist
+3. Hardcoded fallback to `/home/warnd/Downloads/72428014821(2).csv`
 
-There is no hourly temperature CSV anywhere in the repository. The tool exits with
-`ERROR: No weather files found!` before touching the database.
+**Correction (2026-09-21):** those NOAA files **are present and readable** — this runbook
+originally said they were not. That makes the defect worse, not better: the fallback loads
+successfully and silently. Coverage is `72428014821.csv` = 2008, `(2).csv` = 2023,
+`(1).csv` = 2024-01-01 → **2024-11-11**, and the fallback list uses only the last two.
+
+Measured billing-period span the slopes must regress against: **2015-02-13 (Cuyahoga) →
+2026-08-09 (Montgomery)**. So roughly 21 months at the recent end had no weather at all, and
+Cuyahoga was missing eight years at the old end. `heating_load()` returns `0.0` when fewer
+than two observations fall in the window, so an uncovered billing period contributes a silent
+zero to the regression rather than raising. Together with T-12 coercing failures to `0.0`,
+there were two independent paths manufacturing fake zeros.
 
 **Second issue — wrong station for five counties.** Station `72428014821` is John Glenn Columbus
 International (KCMH), in **Franklin County**. The tool applies whatever file it loads to whatever
@@ -137,17 +148,50 @@ International (KCMH), in **Franklin County**. The tool applies whatever file it 
 Ottawa (Port Clinton, Lake Erie), Hancock (Findlay) and Athens (Appalachian southeast). Columbus
 degree-hours do not describe any of them. Running as-is produces slopes that look valid and are wrong.
 
-**Build.**
-- Source NOAA hourly data per county — one station per county, or nearest-station mapping.
-- Add a `--weather-map` / per-county lookup so the station follows `--county`.
-- Delete the `/home/warnd/` fallback. Fail loudly instead of silently reaching into a stale path.
-- Record the station id on every document written, so a slope can be traced to its weather source.
+**Build — DONE 2026-09-21.** NOAA per-station sourcing was **rejected** in favour of the
+Open-Meteo archive already in use on this branch (`scripts/backfill_campaign_weather_tool.py`):
+free, no API key, hourly °F, serves 1940 → ~5 days ago, and its `COUNTY_CENTROIDS` table already
+covers exactly the 25 thermal counties. Trade-off accepted: ERA5 reanalysis on a ~9–25 km grid
+rather than physical station observations, so recomputed Franklin slopes will shift slightly
+against the 44,851 records stamped `2026-01-19`. The complete 2023 NOAA Franklin file remains on
+disk if that comparison is ever wanted.
 
-**Test.** `tests/test_thermal_weather_selection.py`
-- given county X, the correct station file is chosen
-- an unmapped county raises rather than falling back to Franklin
-- `WeatherDataProcessor.from_clean_csv` parses the acquired format
-- heating_load / cooling_load integrate to known values on a hand-checked 24-hour window
+- `src/tools/county_weather.py` — `COUNTY_CENTROIDS`, `normalize_county`, `ARCHIVE_URL`,
+  `SOURCE_TAG`, `centroid()`, `weather_csv_path()`, `resolve_weather_file()`. Extracted from
+  `backfill_campaign_weather_tool.py`, which now imports them. One table, not two.
+- `scripts/fetch_county_weather_hourly_tool.py` — `--county|--all`, `--start`, `--end`,
+  `--dry-run` default. Writes `data/weather/{County}_hourly.csv` (`datetime,T`) plus a
+  `.meta.json` provenance sidecar. Chunked by calendar year so one failure costs one year.
+- Calculation tool: resolution is now `--weather-file` → `data/weather/{County}_hourly.csv` →
+  **raise**. The `/home/warnd/` fallback is deleted and an unmapped county raises rather than
+  silently using Franklin. Every written document carries `weather_source`,
+  `weather_location` and `weather_range`.
+- **Note:** `data/` is gitignored, so the fetched CSVs are not committed. Reproducibility comes
+  from the fetch tool plus the sidecar. The `raise` is what keeps that failure loud.
+
+**Also fixed inside T-00 — unlinked records crashed candidate selection.**
+`get_missing_parcels()` built its electrical set with no null filter, so `parcel_id: None`
+entered the set and `sorted()` raised
+`TypeError: '<' not supported between instances of 'NoneType' and 'str'` — for **all six**
+counties T-07 targets, not just Montgomery. The tool has therefore been unrunnable since the
+pre-enrollment ingest in `fbed58c` introduced null-`parcel_id` documents, which explains why
+nothing has been computed since the Franklin batch of `2026-01-19`.
+Fix: skip falsy `parcel_id` when building both sets, and log how many were excluded. Nothing is
+deleted — those records carry real addresses and real usage, and recovering them is T-14. This
+makes the calculator agree with the audit tool, which already excludes `no_parcel_id` from
+`eligible`.
+
+**Test — DONE.** 31 tests across three files, suite 124 → **155 passed**.
+- `tests/test_thermal_weather_selection.py` (15) — the station follows `--county`; an unmapped
+  county raises and the message never mentions Franklin; a mapped-but-unfetched county raises
+  and names the fetch tool; `--weather-file` overrides; all 25 thermal counties have a centroid;
+  `from_clean_csv` parses the fetched format; provenance distinguishes two counties;
+  heating/cooling degree-hours hand-checked over a flat 24-hour window (230.0 each);
+  an uncovered window returns 0.0 — the fail-open behaviour, documented deliberately.
+- `tests/test_county_weather_fetch.py` (9) — year chunking, payload parsing, nulls dropped while
+  a genuine 0.0 °F reading survives, metadata sidecar.
+- `tests/test_thermal_missing_parcels.py` (7) — null / absent / empty-string `parcel_id`
+  excluded, no crash, thermal-side nulls don't mask real parcels.
 
 **Dry run.**
 ```bash
@@ -159,9 +203,15 @@ Expect: weather loads, observation count and date range print, 5 parcels compute
 the aug2026 delivery, so weather must too. A weather file ending in 2024 silently truncates
 `heating_load()` to zero for later periods.
 
-**Done when:** the dry run above completes for Franklin *and* Montgomery with different stations, and
-r² on the 5 sample parcels is plausible (Franklin baseline: compare against the 44,851 records stamped
-`2026-01-19`).
+**Done when:** the dry run above completes for Franklin *and* Montgomery against **different
+county weather series**, and r² on the 5 sample parcels is plausible (Franklin baseline: compare
+against the 44,851 records stamped `2026-01-19`).
+
+**Status 2026-09-21:** code and tests complete; weather not yet fetched. Candidate selection now
+runs clean on real data — Montgomery 31,846 missing (198,762 unlinked excluded), Franklin 18,641
+(216,887 excluded), Athens 293 (18,168 excluded) — and each then stops with a clear
+"no weather data for X, fetch it first". Those counts remain above the audit's 31,107 / 17,671 /
+283; the residual is T-02 type mismatches and T-04 phantoms, as expected.
 
 ---
 
@@ -414,11 +464,40 @@ python scripts/audit_thermal_load_coverage_tool.py --check duplicates
 
 ---
 
+## Sequencing change — T-14 moves before T-07 (decided 2026-09-21)
+
+T-14 was originally deferred as a separate project to run after everything else. Measurement
+during T-00 changed that call.
+
+**Why it moves earlier.** New parcel links are *additive*: they enlarge the population of
+computable parcels without invalidating anything already computed. T-00 is county-keyed, so
+weather is unaffected. T-01/T-02/T-03/T-04/T-05/T-06/T-10/T-12 are code and integrity fixes on
+existing data. T-09 refreshes existing slopes. **Only T-07 is affected, and only by having more
+to do.** So the cost of leaving T-14 last is not rework — it is running the compute twice.
+
+**Why it must not move earlier than P0.** Landing T-14 first pushes a large influx through a
+pipeline that still overwrites 126,987 gas regressions with `-1`, has no unique index so
+duplicates compound, keeps one meter per parcel, writes `0.0` on regression failure and — before
+T-00 — applied Columbus degree-hours to Cleveland. That multiplies the damage by the size of the
+influx. P0 is fixed-cost; T-07 scales with population. Cheap work first, expensive work last and
+once.
+
+**Revised order:** P0 (T-00 → T-01, T-12, T-04, T-06, T-02, T-03, T-05) → T-10, T-08 →
+**T-14 (25-county scope only)** → T-07 once → T-09.
+
+**Also note:** T-06's collision rule should be settled before T-14 lands, since address matching
+will *increase* multi-meter collisions — characterising them on a population about to change
+wastes the analysis.
+
+---
+
 ## Phase P1 — Compute the genuine gap
 
 ### T-07 — 60,733 parcels have no thermal record
 
-**Priority:** High. **Depends on:** T-00 (weather), T-01 → T-06.
+**Priority:** High. **Depends on:** T-00 (weather), T-01 → T-06, T-10, T-08, and — per the
+sequencing change above — **T-14a**, so the compute runs once over the full population
+(~60,733 currently linked plus ~99,000 recoverable) rather than twice.
 
 | County | Missing | Naive (`parcel_id`) |
 |---|---:|---:|
@@ -641,10 +720,28 @@ them as work.
 `DUKE::45206|2946 CLEINVIEW AVE`, `FE:OE:S335963995`. They arrived with the AEP/AES/Duke/FirstEnergy
 pre-enrollment ingest in commit `fbed58c` and were never address-matched.
 
-Seventy-eight percent of the electrical corpus can never receive thermal loads. Butler (97,927),
-Hamilton (267,039), Stark (146,932) and Summit (182,957) have zero eligible parcels between them.
+**Scope correction (2026-09-21).** Only **25 of the 88** ElectricalDB counties have a
+`*CountyResidential` parcel table — and they are exactly the 25 that already have ThermalLoads.
+The other **63 counties have no parcel table at all**, so their 2,466,129 records cannot be
+matched by any amount of matcher work. Butler, Hamilton, Stark and Summit all have electrical
+data and nothing to match it against.
 
-Scope as its own project using `src/tools/residence_matcher.py`. Do not start it inside this runbook.
+This splits T-14 into two distinct pieces:
+
+- **T-14a — address matching, 25 counties.** 792,059 unlinked records against tables that exist.
+  A 3,000-record Montgomery sample against `MontgomeryCountyResidential` found **13.3% whose
+  exact address is already in the parcel table** (375/400 also agreeing on zip, of which 154 map
+  to more than one parcel and need a tie-break), 69.6% where the street exists but that house
+  number does not, and 17.1% where the street is absent. Formatting is *not* the obstacle —
+  `1935 OAKDALE AVE` is written exactly like `1942 OAKDALE AVE`, which is present. Extrapolated,
+  roughly **99,000 recoverable parcels**, of which ~7.4% need nothing but an exact join the
+  current pipeline is not doing. Caveat: one county, 3,000 records in natural rather than random
+  order. Use `src/tools/residence_matcher.py`.
+- **T-14b — parcel data acquisition, 63 counties.** Not a matching problem. Nothing is actionable
+  until parcel tables are obtained. Keep out of this runbook.
+
+Note `MontgomeryCountyResidential` holds 212,544 documents but only 160,280 distinct addresses,
+so the parcel side has duplication of its own.
 
 ---
 

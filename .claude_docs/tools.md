@@ -283,3 +283,22 @@ python src/scripts/collection_fingerprint_tool.py compare exports/morrow_before.
 **Cost**: streams and hashes every document. Instant on Morrow (1,124 docs); expect a few seconds on Cuyahoga (260,939). Intended for targeted rollback proofs, not routine monitoring.
 
 **Tested**: `tests/test_collection_fingerprint.py`, 13 tests — order independence, BSON type handling, detection of a dropped index, an added index, a lost `unique` flag, a count change, and changed content at an identical count. Exercised for real in the Task 0 rollback drill.
+
+## county_weather.py
+
+**Purpose**: Ohio county weather geography and file conventions, shared by every tool that attributes weather to a county.
+
+**Location**: `src/tools/county_weather.py`
+
+Holds `COUNTY_CENTROIDS` (the 25 counties in CountyKeys), `normalize_county`, the Open-Meteo `ARCHIVE_URL` and `SOURCE_TAG`, and the weather-file conventions used by the thermal pipeline. These were originally private to `scripts/backfill_campaign_weather_tool.py`; they live here because `scripts/fetch_county_weather_hourly_tool.py` and `scripts/calculate_missing_thermal_loads_tool.py` need the identical mapping. Two tables of Ohio county coordinates that could drift apart is the same class of bug as the one this module exists to prevent.
+
+| Function | Effect |
+|---|---|
+| `normalize_county(key)` | `'Franklin County'`, `'FranklinCounty'`, `'  Franklin  '` → `'Franklin'`. |
+| `centroid(county)` | `(lat, lon)`, or raises `UnknownCountyError`. Never returns a default. |
+| `weather_csv_path(county, dir=None)` | `data/weather/{County}_hourly.csv`. |
+| `resolve_weather_file(county, weather_file=None, weather_dir=None)` | Explicit file wins; otherwise the county's fetched file; otherwise raises `UnknownCountyError` or `MissingWeatherDataError` naming the fetch tool. |
+
+**There is deliberately no fallback.** A silent fallback is what applied Columbus degree-hours to Cleveland, Dayton and Appalachian southeast Ohio. `centroid()` is checked before any path is considered, so an unmapped county reports "no centroid" rather than the misleading "file not found".
+
+**Tested**: `tests/test_thermal_weather_selection.py` (selection, provenance, centroid coverage for all 25 thermal counties) and `tests/test_campaign_weather.py` (the original consumer, still green after extraction).

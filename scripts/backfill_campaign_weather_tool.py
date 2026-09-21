@@ -25,13 +25,20 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 from pymongo import MongoClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.tools.county_weather import (ARCHIVE_URL, COUNTY_CENTROIDS,  # noqa: E402
+                                      SOURCE_TAG, normalize_county)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -42,22 +49,7 @@ HDD_BASE_F = 65.0
 CDD_BASE_F = 65.0
 FREEZE_THRESHOLD_F = 32.0
 HOT_THRESHOLD_F = 90.0
-ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-SOURCE_TAG = "open-meteo-archive"
 
-# Approximate geographic centroids (lat, lon) for the 25 Ohio counties in
-# CountyKeys. County-level weather does not need parcel precision.
-COUNTY_CENTROIDS = {
-    "Allen": (40.77, -84.11), "Athens": (39.33, -82.05), "Belmont": (40.02, -80.99),
-    "Coshocton": (40.30, -81.92), "Cuyahoga": (41.48, -81.68), "Fayette": (39.56, -83.46),
-    "Franklin": (39.97, -83.01), "Guernsey": (40.05, -81.49), "Hancock": (41.00, -83.67),
-    "Hardin": (40.66, -83.66), "Harrison": (40.29, -81.09), "Holmes": (40.56, -81.93),
-    "Huron": (41.14, -82.60), "Lawrence": (38.60, -82.53), "Marion": (40.59, -83.16),
-    "Montgomery": (39.75, -84.29), "Morgan": (39.62, -81.85), "Morrow": (40.52, -82.79),
-    "Muskingum": (39.96, -81.94), "Ottawa": (41.53, -82.94), "Putnam": (41.02, -84.13),
-    "Richland": (40.77, -82.53), "Ross": (39.34, -82.94), "Scioto": (38.80, -83.02),
-    "Wyandot": (40.84, -83.30),
-}
 
 
 # ---------------------------------------------------------------------------
@@ -70,19 +62,6 @@ def compute_window(sent_at: datetime, days_prior: int = WINDOW_DAYS):
     end = sent_at.date()
     start = end - timedelta(days=days_prior)
     return start, end
-
-
-def normalize_county(county_key: str) -> str:
-    """Normalize a linkage.county_key to a COUNTY_CENTROIDS key.
-
-    Handles values like 'Franklin', 'FranklinCounty', 'Franklin County'."""
-    if not county_key:
-        return ""
-    name = str(county_key).strip()
-    for suffix in (" County", "County"):
-        if name.endswith(suffix):
-            name = name[: -len(suffix)].strip()
-    return name
 
 
 def degree_days(daily_means):
