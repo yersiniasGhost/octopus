@@ -508,7 +508,10 @@ def build_thermal_document(parcel_id: str, billing_data: List[Dict], model: Dict
     not written -- see LEGACY_SLOPE_FIELDS, which thermal_update_ops removes.
 
     Gas fields are deliberately absent. They are seeded only on insert, so a
-    recompute cannot overwrite the 126,987 real gas regressions in Cuyahoga.
+    recompute cannot overwrite the 126,438 real gas regressions in Cuyahoga.
+    That count was 126,987 until T-03's electric-first keep rule dropped 549
+    duplicate documents carrying a fitted gas model; they survive whole in
+    exports/t03_dedupe_losers_*.json.
     """
     document = {
         'parcel_id': parcel_id,
@@ -533,9 +536,10 @@ def build_thermal_document(parcel_id: str, billing_data: List[Dict], model: Dict
 def thermal_update_ops(document: Dict) -> Dict:
     """Build the update that replaces a parcel's electric slopes in place.
 
-    Replace, never insert a second copy: the collections have no unique index
-    (T-03) and Cuyahoga already carries 875 duplicate parcel_ids, so this is
-    applied with update_many and every copy receives identical values.
+    Replace, never insert a second copy: the collections carry a unique index on
+    parcel_id (T-03), so this is applied with update_one and the database itself
+    rejects a second copy. Until T-03 there was no index and Cuyahoga held 875
+    duplicate parcel_ids, so it was applied with update_many instead.
 
     $set carries the electric fields only. $unset removes the superseded
     per-driver intercepts and r2. $setOnInsert seeds the gas sentinels, so a
@@ -560,10 +564,15 @@ def write_thermal_loads(db, county: str, parcel_id: str, billing_data: List[Dict
                         weather_provenance: Optional[Dict] = None) -> bool:
     """Replace a parcel's electric thermal loads in place.
 
-    update_many, not insert_one: the collections carry no unique index on
-    parcel_id (T-03) and Cuyahoga already holds 875 duplicates, so every copy of
-    a parcel receives identical corrected values rather than a further duplicate
-    being appended. upsert=True creates the record when the parcel is new.
+    update_one, not insert_one: every *ThermalLoads collection now carries a
+    unique index on parcel_id (T-03), so the filter matches at most one document
+    and uniqueness is the database's guarantee rather than this function's
+    convention. upsert=True creates the record when the parcel is new.
+
+    This was update_many until T-03. That was a workaround for the missing index
+    while CuyahogaThermalLoads still held 875 duplicate parcels: fanning the
+    update across every copy kept them from drifting apart. Both the duplicates
+    and the reason are gone.
     """
     thermal_coll = f"{county}ThermalLoads"
     document = build_thermal_document(parcel_id, billing_data, model, weather_provenance)
@@ -572,8 +581,8 @@ def write_thermal_loads(db, county: str, parcel_id: str, billing_data: List[Dict
         return True
 
     try:
-        db[thermal_coll].update_many({'parcel_id': parcel_id},
-                                     thermal_update_ops(document), upsert=True)
+        db[thermal_coll].update_one({'parcel_id': parcel_id},
+                                    thermal_update_ops(document), upsert=True)
         return True
     except Exception as exc:
         logger.error(f"Failed to write {parcel_id}: {exc}")

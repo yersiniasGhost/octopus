@@ -349,7 +349,9 @@ in `CuyahogaThermalLoads`**, and downstream percentile ranking double-counts the
 **Build.** `scripts/dedupe_thermal_loads_tool.py`
 - `--dry-run` default; `--county`; `--execute`
 - keep rule: newest `calculated_at`; tie-break highest `kwh_hl_r2`; then longest `kwh_hl_cl_loads`
-- **never** drop a doc carrying real gas slopes in favour of one that does not — cross-check T-01
+- ~~**never** drop a doc carrying real gas slopes in favour of one that does not — cross-check T-01~~
+  **Superseded 2026-09-21 — see "Amendment" below.** The keep rule is electric-first:
+  newest `calculated_at` → highest `kwh_hl_r2` → longer `kwh_hl_cl_loads` → `str` `parcel_id` → lowest `_id`.
 - write the losers to `exports/` as JSON before deleting
 
 Then create the unique index and convert the write path to `update_one(..., upsert=True)`.
@@ -380,7 +382,32 @@ python scripts/audit_thermal_load_coverage_tool.py --check duplicates
 
 **Rollback.** `restore cp03-pre-dedupe --collection CuyahogaThermalLoads`
 
-**Done when:** zero thermal duplicates, unique index in place on all 25, upsert path live, gas count still 126,987.
+**Done when (amended):** zero thermal duplicates, unique index `unique: true` on all 25,
+`update_one` upsert path live, and **`real_gas_slopes` = 126,438**.
+
+#### Amendment — 2026-09-21, electric-first
+
+Direction given 2026-09-21: **deprioritize gas, electric consumption is the focus.** Gas will be
+re-added more intelligently later. The original absolute constraint "never drop a doc carrying real
+gas slopes" was therefore dropped, and with it the original "gas count still 126,987".
+
+Across the 875 pairs the electric-first rule resolved: 390 to the `int` doc on higher `kwh_hl_r2`,
+270 to the `int` doc because the `str` doc held no electric model at all (gas-only parcel), and 215
+to the `str` doc on higher `kwh_hl_r2`. No document in any pair carried `calculated_at`, so the
+primary rule never fired — every pair resolved on r² alone.
+
+**549 dropped documents carried a fitted gas model**, so `real_gas_slopes` fell 126,987 → 126,438.
+**This is intended; do not read 126,438 as a regression.** Recovery paths: checkpoint
+`cp03-pre-dedupe`, the whole-document export `exports/t03_dedupe_losers_*.json`, or re-derivation
+from gas billing data. The 270 gas-only parcels are cleanly identifiable in that export
+(`kwh_hl_r2` absent + `gas_hl_slope` real) and are the natural starting population for the gas work.
+
+**Also amended: two `slopes` lines the T-03 kickoff predicted as "unchanged" necessarily moved.**
+`null_or_absent` and `exactly_zero` count **`kwh_hl_slope`** (electric), not gas, via raw
+`count_documents` with no normalization — so removing 875 documents had to move them. Measured
+against the 875 losers: 270 carried a null/absent `kwh_hl_slope` and 10 carried exactly zero, giving
+`null_or_absent` 16,279 → **16,009** and `exactly_zero` 6,151 → **6,141**. Both are fully accounted
+for; neither is a regression.
 
 ---
 
