@@ -42,6 +42,7 @@ from sklearn.metrics import r2_score
 from src.tools.county_weather import (MissingWeatherDataError, UnknownCountyError,
                                       centroid, normalize_county, resolve_weather_file)
 from src.tools.mongo import get_empower_db
+from src.tools.parcel_id import normalize_parcel_id
 from src.utils.log_manager import LogManager
 
 # Recorded when a weather file carries no provenance sidecar. Honest, and
@@ -62,6 +63,10 @@ THERMAL_MODEL_PER_DAY = 'hl+cl/day'
 # heating coefficient from -0.00637 to +0.00565. These are gaps, not periods.
 PERIOD_MIN_DAYS = 25
 PERIOD_MAX_DAYS = 40
+
+# The two degree-hour integrations. Heating counts hours at or below its base,
+# cooling hours strictly above its own.
+DEGREE_HOUR_MODES = ('heating', 'cooling')
 
 # Fields the single model replaces. A joint fit has one intercept and one r2,
 # so the per-driver pair no longer exists and is removed rather than duplicated.
@@ -84,6 +89,22 @@ class WeatherDataProcessor:
         self.weather = weather_df
         # Assuming hourly data
         self.dt = 1.0  # hours
+
+        # Degree-hour integration is precomputed per (mode, threshold) rather than
+        # walked per billing period -- see cumulative_degree_hours. Built here
+        # because both loaders are classmethods returning cls(...), so self.weather
+        # is never reassigned and the index can never go stale.
+        self._dh_cache: Dict[Tuple[str, float], np.ndarray] = {}
+        temps = (weather_df['T'].to_numpy(dtype=float) if len(weather_df)
+                 else np.empty(0, dtype=float))
+        keep = ~np.isnan(temps)
+        self._dh_temps = temps[keep]
+        self._dh_times = weather_df.index[keep]
+        # searchsorted needs a monotonic index. Both loaders sort; a caller that
+        # hands over an unsorted frame falls back to the original row walk, because
+        # a window over unsorted rows is not contiguous and no cumulative sum can
+        # reproduce it.
+        self._dh_sorted = bool(len(weather_df)) and weather_df.index.is_monotonic_increasing
 
     @classmethod
     def from_noaa_files(cls, file_paths: List[str]) -> 'WeatherDataProcessor':
@@ -145,160 +166,249 @@ class WeatherDataProcessor:
         df = df.sort_index()
         return cls(df)
 
-    def heating_load(self, start: pd.Timestamp, end: pd.Timestamp, threshold: float = 62.0) -> float:
+    def cumulative_degree_hours(self, threshold: float, mode: str = 'heating') -> np.ndarray:
+        """Cumulative degree-hours over every hourly pair, built once per county.
+
+        Entry i holds the degree-hours accrued over the first i pairs, so any
+        window's total is a difference of two entries: O(1) per billing period
+        instead of a walk over its ~730 hourly rows. Length matches the number of
+        non-NaN readings, and entry 0 is zero.
+
+        Two behaviours of the loop this replaces are preserved deliberately, and
+        both are load-bearing for the 794,636 documents already in the database:
+
+        * A pair accrues only when BOTH endpoints are past the base temperature.
+          A single hour the other side of the base breaks the run.
+        * A NaN reading is transparent to the pairing rather than breaking it, so
+          the readings either side of a gap pair with each other and the gap
+          contributes one dt regardless of its true length. This under-counts
+          across gaps; correcting it would move every slope in the database and
+          belongs to its own task, not to a speed change.
         """
-        Calculate heating degree-hours between two timestamps.
+        if mode not in DEGREE_HOUR_MODES:
+            raise ValueError(f"mode must be one of {DEGREE_HOUR_MODES}, got {mode!r}")
 
-        Uses trapezoidal integration for temperatures below threshold.
+        key = (mode, float(threshold))
+        if key not in self._dh_cache:
+            s = self._dh_temps
+            prev, cur = s[:-1], s[1:]
+            if mode == 'heating':
+                accrues = (prev <= threshold) & (cur <= threshold)
+                contribution = threshold - (prev + cur) / 2.0
+            else:
+                accrues = (prev > threshold) & (cur > threshold)
+                contribution = (prev + cur) / 2.0 - threshold
+            paired = np.where(accrues, contribution, 0.0) * self.dt
+            self._dh_cache[key] = np.concatenate([[0.0], np.cumsum(paired)])
+        return self._dh_cache[key]
 
-        Args:
-            start: Start timestamp
-            end: End timestamp
-            threshold: Base temperature (default 62°F)
+    def _degree_hours(self, start: pd.Timestamp, end: pd.Timestamp,
+                      threshold: float, mode: str) -> float:
+        """Degree-hours across [start, end] from the cumulative index."""
+        if not self._dh_sorted:
+            return self._degree_hours_by_row_walk(start, end, threshold, mode)
 
-        Returns:
-            Heating degree-hours (positive value)
-        """
-        tdf = self.weather[(self.weather.index >= start) & (self.weather.index <= end)]
-
-        if len(tdf) < 2:
+        # The original guarded on the RAW slice, NaNs included, so that guard is
+        # reproduced against the full index before consulting the non-NaN one.
+        raw = self.weather.index
+        if raw.searchsorted(end, 'right') - raw.searchsorted(start, 'left') < 2:
             return 0.0
 
+        lo = self._dh_times.searchsorted(start, 'left')
+        hi = self._dh_times.searchsorted(end, 'right')
+        if hi - lo < 2:
+            return 0.0
+
+        cum = self.cumulative_degree_hours(threshold, mode)
+        return max(0.0, float(cum[hi - 1] - cum[lo]))
+
+    def _degree_hours_by_row_walk(self, start: pd.Timestamp, end: pd.Timestamp,
+                                  threshold: float, mode: str) -> float:
+        """Row-by-row fallback, for an index that is not monotonic."""
+        tdf = self.weather[(self.weather.index >= start) & (self.weather.index <= end)]
+        if len(tdf) < 2:
+            return 0.0
+        heating = mode == 'heating'
         integral = 0.0
         prev_temp = None
-        in_heating_period = False
-
-        for idx, row in tdf.iterrows():
-            temp = row['T']
+        in_period = False
+        for temp in tdf['T']:
             if pd.isna(temp):
                 continue
-
-            if temp <= threshold:
-                if prev_temp is not None and in_heating_period:
-                    # Trapezoidal integration: (threshold - avg_temp) * dt
-                    avg_temp = (temp + prev_temp) / 2
-                    integral += (threshold - avg_temp) * self.dt
-                in_heating_period = True
+            if (temp <= threshold) if heating else (temp > threshold):
+                if prev_temp is not None and in_period:
+                    avg = (temp + prev_temp) / 2
+                    integral += ((threshold - avg) if heating else (avg - threshold)) * self.dt
+                in_period = True
             else:
-                in_heating_period = False
-
+                in_period = False
             prev_temp = temp
-
         return max(0.0, integral)
+
+    def heating_load(self, start: pd.Timestamp, end: pd.Timestamp, threshold: float = 62.0) -> float:
+        """Heating degree-hours between two timestamps, base 62F by default."""
+        return self._degree_hours(start, end, threshold, 'heating')
 
     def cooling_load(self, start: pd.Timestamp, end: pd.Timestamp, threshold: float = 72.0) -> float:
-        """
-        Calculate cooling degree-hours between two timestamps.
+        """Cooling degree-hours between two timestamps, base 72F by default."""
+        return self._degree_hours(start, end, threshold, 'cooling')
 
-        Uses trapezoidal integration for temperatures above threshold.
 
-        Args:
-            start: Start timestamp
-            end: End timestamp
-            threshold: Base temperature (default 72°F)
 
-        Returns:
-            Cooling degree-hours (positive value)
-        """
-        tdf = self.weather[(self.weather.index >= start) & (self.weather.index <= end)]
+def _key_value(doc: Dict) -> Optional[str]:
+    """The parcel_key of a document, or None when it carries none."""
+    value = doc.get('parcel_key')
+    # Normalized with the same function the audit verifies with, so a parcel_key
+    # stored as int on one side cannot fail to match its string twin (T-02).
+    return normalize_parcel_id(value) if value not in (None, '') else None
 
-        if len(tdf) < 2:
-            return 0.0
 
-        integral = 0.0
-        prev_temp = None
-        in_cooling_period = False
+def _id_value(doc: Dict) -> Optional[str]:
+    """The normalized parcel_id of a document, or None when it carries none."""
+    value = doc.get('parcel_id')
+    return normalize_parcel_id(value) if value not in (None, '') else None
 
-        for idx, row in tdf.iterrows():
-            temp = row['T']
-            if pd.isna(temp):
-                continue
 
-            if temp > threshold:
-                if prev_temp is not None and in_cooling_period:
-                    # Trapezoidal integration: (avg_temp - threshold) * dt
-                    avg_temp = (temp + prev_temp) / 2
-                    integral += (avg_temp - threshold) * self.dt
-                in_cooling_period = True
-            else:
-                in_cooling_period = False
+def _thermal_join_index(db, county: str) -> Tuple[Dict[str, object], Dict[str, object]]:
+    """Every address a thermal parcel answers to -> the parcel_id it is stored under.
 
-            prev_temp = temp
+    Two indexes rather than one chosen key. parcel_key is the normalized field and
+    is the only one that resolves Fayette, whose sides differ by zero-padding that
+    normalize_parcel_id preserves; but four counties (Montgomery, Scioto, Hardin,
+    Ross) carry parcel_key on neither side, and some rows carry it only on one. A
+    parcel is treated as present when it matches under EITHER, which is the safe
+    direction: a false 'missing' inserts a duplicate, a false 'present' merely
+    updates a record that was going to be recomputed anyway.
+    """
+    by_key: Dict[str, object] = {}
+    by_id: Dict[str, object] = {}
+    for doc in db[f"{county}ThermalLoads"].find({}, {'parcel_id': 1, 'parcel_key': 1}):
+        stored = doc.get('parcel_id')
+        if stored in (None, ''):
+            continue
+        key, ident = _key_value(doc), _id_value(doc)
+        if key is not None:
+            by_key.setdefault(key, stored)
+        if ident is not None:
+            by_id.setdefault(ident, stored)
+    return by_key, by_id
 
-        return max(0.0, integral)
+
+def _linked_electrical_rows(db, county: str) -> Tuple[List[Dict], int]:
+    """Parcel-linked electrical rows, plus the count of unlinked ones excluded.
+
+    Unlinked utility accounts (parcel_id null/absent) are EXCLUDED, never deleted:
+    they carry real addresses and real usage, and recovering them by address
+    matching is T-14. The server-side filter is a performance optimisation; the
+    truthiness guard below is what makes this correct.
+    """
+    collection = db[f"{county}ElectricalDB"]
+    unlinked = collection.count_documents({'parcel_id': {'$in': [None, '']}})
+    rows = [doc for doc in collection.find({'parcel_id': {'$nin': [None, '']}},
+                                           {'parcel_id': 1, 'parcel_key': 1})
+            if doc.get('parcel_id') not in (None, '')]
+    return rows, unlinked
+
+
+def _resolve_to_thermal(doc: Dict, by_key: Dict, by_id: Dict) -> Tuple[Optional[object], str]:
+    """The thermal parcel_id this electrical row belongs to, and how it was found."""
+    key = _key_value(doc)
+    if key is not None and key in by_key:
+        return by_key[key], 'parcel_key'
+    ident = _id_value(doc)
+    if ident is not None and ident in by_id:
+        return by_id[ident], 'parcel_id'
+    return None, 'unmatched'
+
+
+def _join_electrical_to_thermal(db, county: str) -> Tuple[List[Dict], Dict, Dict, Dict[str, int]]:
+    rows, unlinked = _linked_electrical_rows(db, county)
+    by_key, by_id = _thermal_join_index(db, county)
+    stats = {'parcel_key': 0, 'parcel_id': 0, 'unmatched': 0, 'unlinked': unlinked}
+    return rows, by_key, by_id, stats
+
+
+def _log_join(county: str, stats: Dict[str, int]) -> None:
+    logger.info(f"{county}: joined on parcel_key for {stats['parcel_key']:,} record(s), "
+                f"on normalized parcel_id for {stats['parcel_id']:,}, "
+                f"{stats['unmatched']:,} with no thermal record")
+    if stats['unlinked']:
+        logger.info(f"Excluded {stats['unlinked']:,} electrical records with no parcel_id "
+                    f"(unmatched utility accounts - see T-14)")
 
 
 def get_missing_parcels(db, county: str) -> List[str]:
+    """Parcels with electrical data and no thermal record, joined on the right key.
+
+    Subtracting raw parcel_id sets reported 1,622 parcels missing that already had
+    slopes (T-04), and a recompute then inserted a second document for each under
+    the other spelling. Resolution goes through _resolve_to_thermal so this and
+    get_target_parcels can never disagree about what 'already present' means.
     """
-    Find parcels in ElectricalDB that don't have ThermalLoads records.
+    rows, by_key, by_id, stats = _join_electrical_to_thermal(db, county)
 
-    Args:
-        db: MongoDB database connection
-        county: County name (e.g., 'Franklin')
+    missing: Dict[str, object] = {}
+    for doc in rows:
+        target, how = _resolve_to_thermal(doc, by_key, by_id)
+        stats[how] += 1
+        if target is None:
+            missing[str(doc['parcel_id'])] = doc['parcel_id']
 
-    Returns:
-        List of parcel_ids missing thermal data
-    """
-    electrical_coll = f"{county}ElectricalDB"
-    thermal_coll = f"{county}ThermalLoads"
-
-    # Only parcel-linked records can receive thermal loads -- thermal loads are
-    # keyed by parcel. Unlinked utility accounts (parcel_id null/absent) are
-    # EXCLUDED here, never deleted: they carry real addresses and real usage and
-    # recovering them by address matching is T-14. The $nin filter is a
-    # performance optimisation; the truthiness guard is what makes this correct.
-    unlinked = db[electrical_coll].count_documents({'parcel_id': {'$in': [None, '']}})
-    electrical_parcels = {
-        doc.get('parcel_id')
-        for doc in db[electrical_coll].find({'parcel_id': {'$nin': [None, '']}},
-                                            {'parcel_id': 1})
-        if doc.get('parcel_id')
-    }
-
-    thermal_parcels = {
-        doc.get('parcel_id')
-        for doc in db[thermal_coll].find({}, {'parcel_id': 1})
-        if doc.get('parcel_id')
-    }
-
-    missing = electrical_parcels - thermal_parcels
-
-    logger.info(f"Found {len(electrical_parcels):,} electrical records")
-    if unlinked:
-        logger.info(f"Excluded {unlinked:,} electrical records with no parcel_id "
-                    f"(unmatched utility accounts - see T-14)")
-    logger.info(f"Found {len(thermal_parcels):,} thermal records")
+    _log_join(county, stats)
     logger.info(f"Missing thermal data: {len(missing):,} parcels")
+    # key=str: a county may mix int and str parcel_ids. Ordering is only for
+    # reproducible batching.
+    return sorted(missing.values(), key=str)
 
-    # key=str: Cuyahoga mixes int and str parcel_ids (T-02), which cannot be
-    # compared directly. Ordering is only for reproducible batching.
-    return sorted(missing, key=str)
+
+def get_thermal_write_map(db, county: str) -> Dict[str, object]:
+    """{electrical parcel_id (as str) -> thermal parcel_id to write}."""
+    rows, by_key, by_id, _stats = _join_electrical_to_thermal(db, county)
+    write: Dict[str, object] = {}
+    seen: set = set()
+    for doc in rows:
+        target, _how = _resolve_to_thermal(doc, by_key, by_id)
+        if target is None or str(target) in seen:
+            continue
+        seen.add(str(target))
+        write[str(doc['parcel_id'])] = target
+    return write
 
 
 def get_target_parcels(db, county: str, recompute_all: bool = False) -> List[str]:
     """Select the parcels to compute for.
 
-    Default: parcels with electrical data and no ThermalLoads record.
-    recompute_all: every parcel-linked electrical record, so existing slopes are
-    revisited too. That is the mode the single-model migration runs in -- the
-    superseded records are updated in place, never duplicated.
+    The two modes partition the work rather than overlapping:
+    Default: parcels with electrical data and NO ThermalLoads record -- creating
+    those is T-07.
+    recompute_all: one electrical parcel_id for every parcel that ALREADY has a
+    ThermalLoads record, so existing slopes are refreshed in place. Never inserts,
+    which is what makes T-15's acceptance criterion -- document counts unchanged --
+    literally true.
+
+    Returned in the ELECTRICAL spelling, because that is what get_electrical_data
+    looks billing data up by. Pair with get_thermal_write_map to find the parcel_id
+    each result must actually be written to; in several counties the two differ.
     """
     if not recompute_all:
         return get_missing_parcels(db, county)
 
-    electrical_coll = f"{county}ElectricalDB"
-    unlinked = db[electrical_coll].count_documents({'parcel_id': {'$in': [None, '']}})
-    parcels = {
-        doc.get('parcel_id')
-        for doc in db[electrical_coll].find({'parcel_id': {'$nin': [None, '']}},
-                                            {'parcel_id': 1})
-        if doc.get('parcel_id')
-    }
-    logger.info(f"Recompute mode: {len(parcels):,} parcel-linked electrical records")
-    if unlinked:
-        logger.info(f"Excluded {unlinked:,} electrical records with no parcel_id "
-                    f"(unmatched utility accounts - see T-14)")
-    return sorted(parcels, key=str)
+    rows, by_key, by_id, stats = _join_electrical_to_thermal(db, county)
+    targets: Dict[str, object] = {}
+    seen: set = set()
+    for doc in rows:
+        target, how = _resolve_to_thermal(doc, by_key, by_id)
+        stats[how] += 1
+        if target is None or str(target) in seen:
+            continue
+        seen.add(str(target))
+        targets[str(doc['parcel_id'])] = doc['parcel_id']
+
+    _log_join(county, stats)
+    logger.info(f"Recompute mode: {len(targets):,} existing thermal record(s) to refresh; "
+                f"{stats['unmatched']:,} electrical parcel(s) have no thermal record and are "
+                f"left to T-07")
+    return sorted(targets.values(), key=str)
 
 
 def get_electrical_data(db, county: str, parcel_ids: List[str], batch_size: int = 1000) -> Dict[str, Dict]:
@@ -656,6 +766,13 @@ def main():
     electrical_data = get_electrical_data(db, args.county, missing_parcels)
     print(f"  Found billing data for {len(electrical_data):,} of {len(missing_parcels):,} parcels", flush=True)
 
+    # In recompute mode the parcel_id to WRITE to is not always the one the billing
+    # data was found under: several counties spell the same parcel differently on the
+    # two sides. Writing under the electrical spelling inserts a second document that
+    # the unique index cannot see, which is what produced 1,622 phantoms on the first
+    # migration attempt.
+    write_targets = get_thermal_write_map(db, args.county) if args.recompute_all else {}
+
     # Process parcels
     print("\n  Calculating thermal loads...", flush=True)
     stats = {
@@ -688,8 +805,8 @@ def main():
                 print("insufficient data")
             continue
 
-        if write_thermal_loads(db, args.county, parcel_id, billing_data, slope_data,
-                               args.dry_run, weather_provenance):
+        if write_thermal_loads(db, args.county, write_targets.get(str(parcel_id), parcel_id),
+                               billing_data, slope_data, args.dry_run, weather_provenance):
             stats['success'] += 1
             if args.verbose:
                 hl = slope_data.get('kwh_hl_slope')

@@ -17,38 +17,10 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+sys.path.insert(0, os.path.dirname(__file__))
 
 import calculate_missing_thermal_loads_tool as calc  # noqa: E402
-
-
-class FakeCollection:
-    """Returns every document regardless of filter.
-
-    Deliberately ignores the query filter so these tests exercise the in-Python
-    guard rather than a re-implementation of MongoDB semantics. The server-side
-    filter in get_missing_parcels is a performance optimisation; the guard is
-    what makes the result correct.
-    """
-
-    def __init__(self, docs):
-        self._docs = docs
-
-    def find(self, _filter=None, _projection=None):
-        return iter(self._docs)
-
-    def count_documents(self, _filter=None):
-        return len(self._docs)
-
-
-class FakeDB:
-    def __init__(self, electrical, thermal):
-        self._cols = {
-            'TestvilleElectricalDB': FakeCollection(electrical),
-            'TestvilleThermalLoads': FakeCollection(thermal),
-        }
-
-    def __getitem__(self, name):
-        return self._cols[name]
+from mongo_fakes import FakeDB  # noqa: E402
 
 
 def _missing(electrical, thermal):
@@ -113,11 +85,16 @@ def test_default_mode_selects_only_parcels_without_thermal_loads():
     assert result == ['B']
 
 
-def test_recompute_mode_selects_every_linked_parcel():
-    """The single-model migration has to revisit records that already exist."""
+def test_recompute_mode_selects_parcels_that_already_have_a_record():
+    """The single-model migration revisits records that already exist -- only those.
+
+    This previously also asserted 'B', a parcel with no thermal record, which made
+    recompute insert as a side effect. That is T-07's work and it broke T-15's own
+    criterion that document counts not change; see tests/test_thermal_join_key.py.
+    """
     result = _targets([{'parcel_id': 'A'}, {'parcel_id': 'B'}], [{'parcel_id': 'A'}], True)
 
-    assert result == ['A', 'B']
+    assert result == ['A']
 
 
 def test_recompute_mode_still_excludes_unlinked_records():
@@ -143,7 +120,9 @@ def test_mixed_int_and_string_parcel_ids_sort_without_raising():
     untouched, because normalizing the stored type is T-02's migration.
     """
     result = _targets([{'parcel_id': 'B1'}, {'parcel_id': 2401889000},
-                       {'parcel_id': 'A1'}], [], True)
+                       {'parcel_id': 'A1'}],
+                      [{'parcel_id': 'B1'}, {'parcel_id': 2401889000},
+                       {'parcel_id': 'A1'}], True)
 
     assert len(result) == 3
     assert 2401889000 in result

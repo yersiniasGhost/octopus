@@ -444,7 +444,41 @@ python scripts/audit_thermal_load_coverage_tool.py --check joinkey
 `phantom` must total **1,622** before the fix and the tool must agree with `missing_by_parcel_key`
 after it.
 
-**Done when:** the tool's missing count equals the audit's `best` column for all 25 counties.
+**Done when (amended):** ~~the tool's missing count equals the audit's `best` column for all 25
+counties.~~ It cannot: the audit counts only electrical rows at or above `MIN_PERIODS` and only
+those carrying a `parcel_key`, while the tool targets every parcel-linked row. The gap is exactly
+that population — Franklin 971, Cuyahoga 241, Ottawa 11 — and is harmless, because a short-history
+parcel produces no fit and is never written. **Amended criterion:** the tool's missing count minus
+its short-history rows equals the audit's `best`, and the phantom counties read zero. Measured
+2026-09-23: **Fayette 0, Huron 0** (were 1,127 and 257).
+
+#### Completed 2026-09-23 — and the half this section did not describe
+
+The fix here is a per-document dual index rather than the per-county key choice described above:
+`parcel_key` when a document carries one, normalized `parcel_id` otherwise, with a parcel counted
+present if it matches under **either**. That handles the four key-less counties and the rows that
+carry a key on only one side through the same code path, with no county list to maintain.
+
+**This section described only half the defect, and the missing half caused an incident.**
+`get_missing_parcels` governs *reporting*. But `--recompute-all` never calls it — it targeted every
+electrical parcel and upserted on the electrical spelling, so fixing only what this section named
+would have left the insert path untouched. Running T-15 before this task inserted **1,622 phantom
+duplicates** (Fayette 1,127, Huron 257, Hancock 237, Cuyahoga 1), invisible to the T-03 unique index
+because the two spellings genuinely differ as strings. Rolled back from `cp10-pre-singlemodel`.
+
+Two further consequences, both now pinned by tests:
+
+1. **The two modes must not overlap.** `--recompute-all` created the ~60,733 absent parcels, which
+   is **T-07's** task, while T-15's own criterion demands unchanged document counts. Recompute now
+   refreshes only parcels that already have a record; creating absent ones stays with T-07.
+2. **A parcel needs both spellings, for different purposes.** The ELECTRICAL spelling finds its
+   billing data; the THERMAL spelling is the upsert filter. Returning one value for both silently
+   found no billing data for all 1,127 Fayette parcels, which `main()` then counted as "insufficient
+   data" — a quieter failure than the phantoms it replaced. `get_thermal_write_map()` carries the
+   pairing.
+
+**Test.** `tests/test_thermal_join_key.py` (13), plus `tests/mongo_fakes.py` sharing the collection
+stand-ins with `tests/test_thermal_missing_parcels.py`.
 
 ---
 
@@ -847,9 +881,12 @@ S5's out-of-sample r² of -0.760 on Franklin.
 - Clean-break schema: `kwh_hl_slope`, `kwh_cl_slope`, `kwh_intercept`, `kwh_r2`, `kwh_model`,
   `kwh_periods`, `kwh_periods_dropped`. The legacy `kwh_hl_intercept`, `kwh_cl_intercept`,
   `kwh_hl_r2`, `kwh_cl_r2` are `$unset`.
-- `write_thermal_loads()` — `update_many(..., upsert=True)`, replacing rather than inserting.
+- `write_thermal_loads()` — ~~`update_many(..., upsert=True)`~~ **`update_one(..., upsert=True)` since
+  T-03 (2026-09-23)**, replacing rather than inserting. `update_many` was a workaround for the
+  absent unique index; the index now guarantees one document per parcel.
   Gas fields moved to `$setOnInsert`, which resolves **T-01**: a recompute can no longer
-  overwrite Cuyahoga's 126,987 real gas regressions.
+  overwrite Cuyahoga's real gas regressions — **126,438** of them since T-03's electric-first
+  keep rule, not the 126,987 recorded when this was written.
 - `--recompute-all` selects every parcel-linked record, not only missing ones.
 - Downstream rewired: `generate_campaign_list_by_energy_percentile_tool.py` (now reads
   `kwh_r2`) and `enrich_thermal_loads.py` (new fields, legacy `$unset` on participants).
@@ -857,7 +894,10 @@ S5's out-of-sample r² of -0.760 on Franklin.
 **Test.** `tests/test_thermal_joint_model.py` (19), `tests/test_billing_period_validity.py`
 (7), `tests/test_thermal_missing_parcels.py` (13). Suite **187 passing**.
 
-**Migration — NOT RUN. Blocked on:**
+**Migration — RUN 2026-09-23.** All three blockers below cleared; see "Migration record" at the
+end of this section. The three are kept for the reasoning they carry.
+
+**Blockers (all resolved):**
 1. **T-02.** Nine counties store `parcel_id` as `int`/`Int64` in ThermalLoads against `str` in
    ElectricalDB, so the upsert filter matches nothing and inserts a duplicate instead of
    replacing. 67,307 documents. Belmont, Coshocton, Guernsey, Harrison, Holmes, Lawrence,
@@ -868,9 +908,48 @@ S5's out-of-sample r² of -0.760 on Franklin.
 
 **Checkpoint when it runs:** `cp10-pre-singlemodel` (ThermalLoads).
 
-**Done when:** every thermal document carries `kwh_model`, the legacy fields are gone,
-Cuyahoga's `real_gas_slopes` still totals 126,987, and document counts are unchanged
-(a rise means the T-02 duplication path is live — stop immediately).
+**Done when (amended):** ~~every thermal document carries `kwh_model`, the legacy fields are gone,
+Cuyahoga's `real_gas_slopes` still totals 126,987~~, and **document counts are unchanged**
+(a rise means an insert path is live — stop immediately).
+
+The first two clauses assume every document is migratable, and 20,262 are not: 16,580 have no
+electrical counterpart at all and 3,682 cannot be fitted. Those keep their legacy fields because
+nothing was written to them. The gas count is **126,438** since T-03, not 126,987.
+
+**Amended criterion:** document counts identical at 794,636 · zero failed writes ·
+`real_gas_slopes` 126,438 · every document that HAS billing data and yields a fit carries
+`kwh_model` · un-migrated documents fully accounted for as no-electrical-data or no-fit.
+
+#### Migration record — 2026-09-23
+
+Checkpoint `cp10-pre-singlemodel` (25 collections, 134.4 MB). Run county-by-county, smallest first.
+
+| | before | after |
+|---|---:|---:|
+| documents | 794,636 | **794,636** |
+| carry `kwh_model` | 0 | **774,374** |
+| `staleness` with_calculated_at | 44,851 | **774,374** |
+| `staleness` without_provenance | 749,785 | **20,262** |
+| `slopes` null_or_absent | 16,009 | **14,698** |
+| `slopes` exactly_zero | 6,141 | **2,331** |
+| `slopes` real_gas_slopes | 126,438 | **126,438** |
+| `coverage` missing (best) | 60,733 | **60,733** |
+| failed writes | — | **0** |
+
+Un-migrated 20,262 = 16,580 with no electrical counterpart + 3,682 that cannot be fitted.
+T-15 therefore also resolves most of **T-10** (provenance) and moves **T-11** (null/zero heating
+slopes 22,150 → 17,029). `coverage` is deliberately unchanged: creating the absent 60,733 is T-07.
+
+**Participant refresh.** The 3,265 embedded copies were refreshed with `--only-refresh`, a mode
+added for this: the tool's default skipped exactly the stale records, and `--force` would also have
+written a new thermal block to 11,068 participants that never had one. After: 3,265 carry
+`thermal.kwh_model`, zero carry legacy `thermal.kwh_hl_r2`, and the population is still 3,265.
+
+**Performance.** The recompute was ~66 hours before this run and ~1.6 after. `heating_load` and
+`cooling_load` were 98% of runtime, walking each billing period's ~730 hourly rows with
+`DataFrame.iterrows()`. Degree-hours are now integrated once per county into a cumulative sum, so a
+period is a difference of two entries — see `cumulative_degree_hours`. Verified bit-for-bit against
+the previous implementation: 249 real parcels, zero disagreements, slopes matching to 1e-13.
 
 ---
 

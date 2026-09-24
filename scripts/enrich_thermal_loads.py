@@ -126,6 +126,35 @@ def normalize_county(county_key: str) -> str:
     return county_key
 
 
+def refreshes_existing(args) -> bool:
+    """Whether this run is allowed to overwrite an existing thermal block."""
+    return bool(getattr(args, 'force', False) or getattr(args, 'only_refresh', False))
+
+
+def build_participant_query(args) -> dict:
+    """The participant selection for one run.
+
+    Three scopes, deliberately non-overlapping:
+      default        -- participants with no thermal block yet (first enrichment)
+      --only-refresh -- participants that already carry one (T-15 staleness repair)
+      --force        -- both
+
+    --only-refresh must not carry the default's 'enriched_at does not exist'
+    filter: the two are contradictory and together select nothing.
+    """
+    query = {}
+    if getattr(args, 'county', None):
+        query['$or'] = [
+            {'linkage.county_key': args.county},
+            {'linkage.county_key': f'{args.county}County'}
+        ]
+    if getattr(args, 'only_refresh', False):
+        query['thermal'] = {'$exists': True}
+    elif not getattr(args, 'force', False):
+        query['thermal.enriched_at'] = {'$exists': False}
+    return query
+
+
 def enrich_participants(campaign_db, thermal_lookup: dict, args) -> dict:
     """
     Enrich participants with thermal load data.
@@ -149,19 +178,7 @@ def enrich_participants(campaign_db, thermal_lookup: dict, args) -> dict:
         'by_county': defaultdict(lambda: {'matched': 0, 'no_data': 0})
     }
 
-    # Build query - use county_key field
-    query = {}
-    if args.county:
-        # Match both normalized and with-County-suffix variants
-        query['$or'] = [
-            {'linkage.county_key': args.county},
-            {'linkage.county_key': f'{args.county}County'}
-        ]
-
-    # Skip already enriched unless --force
-    if not args.force:
-        query['thermal.enriched_at'] = {'$exists': False}
-
+    query = build_participant_query(args)
     participants = campaign_db.participants.find(query)
 
     for participant in participants:
@@ -178,7 +195,7 @@ def enrich_participants(campaign_db, thermal_lookup: dict, args) -> dict:
         stats['with_parcel_id'] += 1
 
         # Check if already enriched
-        if participant.get('thermal', {}).get('enriched_at') and not args.force:
+        if participant.get('thermal', {}).get('enriched_at') and not refreshes_existing(args):
             stats['already_enriched'] += 1
             continue
 
@@ -273,6 +290,9 @@ def main():
                        help='Preview changes without writing')
     parser.add_argument('--county', type=str,
                        help='Only process specific county')
+    parser.add_argument('--only-refresh', action='store_true',
+                        help='Re-enrich ONLY participants that already carry a thermal '
+                             'block, leaving un-enriched participants untouched')
     parser.add_argument('--force', action='store_true',
                        help='Re-enrich already enriched participants')
     parser.add_argument('--verbose', action='store_true',
