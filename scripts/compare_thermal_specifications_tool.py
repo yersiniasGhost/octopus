@@ -171,7 +171,7 @@ def evaluate(county: str, sample: int, verbose: bool = False) -> Dict:
     db = get_empower_db()
     weather, provenance = calc.load_weather_for_county(county)
     parcels = calc.get_target_parcels(db, county, recompute_all=True)[:sample]
-    electrical = calc.get_electrical_data(db, county, parcels)
+    electrical, _multi_meter, _keys = calc.get_electrical_data(db, county, parcels)
     gas = gas_metered_parcels(db, county)
 
     histories = {}

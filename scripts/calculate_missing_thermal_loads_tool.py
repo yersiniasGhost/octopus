@@ -33,6 +33,7 @@ sys.path.insert(0, str(project_root))
 import argparse
 import json
 from datetime import datetime
+from collections import Counter
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
@@ -411,28 +412,51 @@ def get_target_parcels(db, county: str, recompute_all: bool = False) -> List[str
     return sorted(targets.values(), key=str)
 
 
-def get_electrical_data(db, county: str, parcel_ids: List[str], batch_size: int = 1000) -> Dict[str, Dict]:
-    """
-    Fetch electrical billing data for specified parcels in batches.
+def get_electrical_data(db, county: str, parcel_ids: List[str],
+                        batch_size: int = 1000) -> Tuple[Dict[str, Dict], Dict[str, int], Dict[str, object]]:
+    """Fetch electrical billing data, holding back parcels that own several meters.
+
+    Returns ``(data, collisions, parcel_keys)``. A parcel with more than one
+    *eligible* electrical document is left out of ``data`` and named in
+    ``collisions`` against its document count.
+
+    ``parcel_keys`` carries the electrical side's ``parcel_key`` for each parcel
+    that has one, so a created thermal document can hold both spellings. It is
+    gathered here rather than in a second pass because this scan already has the
+    document in hand. Counties with no parcel_key at all -- Montgomery, Scioto,
+    Hardin, Ross -- simply contribute no entries.
+
+    This used to be ``data[parcel_id] = time_series`` inside the cursor loop, so
+    whichever document the cursor happened to yield last won and the rest were
+    dropped without a word -- 16,419 excess documents across 19 counties (T-06).
+    On a recompute that corrupts a slope that already exists; on T-07 it
+    manufactures a new record fitted on partial household load carrying nothing
+    to say so. Choosing between summing concurrent meters, deduping a
+    re-delivered series and keeping distinct units apart is T-06's decision and
+    is not guessed at here.
+
+    The collisions come back to the caller instead of being logged away, so they
+    can be reported as their own bucket. A genuine exclusion tallied as
+    "insufficient data" is precisely how 1,127 Fayette parcels stayed invisible
+    through a run with clean counts and a zero exit code.
 
     Args:
         db: MongoDB database connection
         county: County name
         parcel_ids: List of parcel IDs to fetch
         batch_size: Number of IDs per query batch
-
-    Returns:
-        Dict mapping parcel_id to billing data
     """
     electrical_coll = f"{county}ElectricalDB"
-    data = {}
+    data: Dict[str, Dict] = {}
+    parcel_keys: Dict[str, object] = {}
+    eligible_docs: Counter = Counter()
 
     # Process in batches to avoid massive $in queries
     for i in range(0, len(parcel_ids), batch_size):
         batch = parcel_ids[i:i + batch_size]
         cursor = db[electrical_coll].find(
             {'parcel_id': {'$in': batch}},
-            {'parcel_id': 1, 'time_series_elec': 1}
+            {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1}
         )
 
         for doc in cursor:
@@ -440,9 +464,18 @@ def get_electrical_data(db, county: str, parcel_ids: List[str], batch_size: int 
             time_series = doc.get('time_series_elec', {})
 
             if time_series and len(time_series) >= 2:
+                eligible_docs[parcel_id] += 1
                 data[parcel_id] = time_series
+                key = doc.get('parcel_key')
+                if key is not None:
+                    parcel_keys[parcel_id] = key
 
-    return data
+    collisions = {pid: n for pid, n in eligible_docs.items() if n > 1}
+    for pid in collisions:
+        data.pop(pid, None)
+        parcel_keys.pop(pid, None)
+
+    return data, collisions, parcel_keys
 
 
 def calculate_thermal_loads_for_parcel(
@@ -610,7 +643,8 @@ def load_weather_for_county(county: str, weather_file: Optional[str] = None,
 
 
 def build_thermal_document(parcel_id: str, billing_data: List[Dict], model: Dict,
-                           weather_provenance: Optional[Dict] = None) -> Dict:
+                           weather_provenance: Optional[Dict] = None,
+                           parcel_key: Optional[object] = None) -> Dict:
     """Assemble the electric half of a ThermalLoads document.
 
     Single-model schema: one heating coefficient, one cooling coefficient, one
@@ -636,6 +670,11 @@ def build_thermal_document(parcel_id: str, billing_data: List[Dict], model: Dict
         'calculated_at': datetime.now(),
         'calculation_source': 'calculate_missing_thermal_loads_tool.py',
     }
+    if parcel_key is not None:
+        # Both spellings, or the document is invisible to every parcel_key join
+        # while still being counted by count_documents. Absent beats null: a null
+        # key is indexed and joins against other nulls.
+        document['parcel_key'] = parcel_key
     if model.get('calculation_error'):
         document['calculation_error'] = model['calculation_error']
     if weather_provenance:
@@ -671,7 +710,8 @@ def thermal_update_ops(document: Dict) -> Dict:
 
 def write_thermal_loads(db, county: str, parcel_id: str, billing_data: List[Dict],
                         model: Dict, dry_run: bool = False,
-                        weather_provenance: Optional[Dict] = None) -> bool:
+                        weather_provenance: Optional[Dict] = None,
+                        parcel_key: Optional[object] = None) -> bool:
     """Replace a parcel's electric thermal loads in place.
 
     update_one, not insert_one: every *ThermalLoads collection now carries a
@@ -685,7 +725,8 @@ def write_thermal_loads(db, county: str, parcel_id: str, billing_data: List[Dict
     and the reason are gone.
     """
     thermal_coll = f"{county}ThermalLoads"
-    document = build_thermal_document(parcel_id, billing_data, model, weather_provenance)
+    document = build_thermal_document(parcel_id, billing_data, model, weather_provenance,
+                                      parcel_key)
 
     if dry_run:
         return True
@@ -763,8 +804,15 @@ def main():
 
     # Fetch electrical data for missing parcels
     print("\n  Fetching electrical billing data...", flush=True)
-    electrical_data = get_electrical_data(db, args.county, missing_parcels)
+    electrical_data, meter_collisions, parcel_keys = get_electrical_data(
+        db, args.county, missing_parcels)
     print(f"  Found billing data for {len(electrical_data):,} of {len(missing_parcels):,} parcels", flush=True)
+    if meter_collisions:
+        excess = sum(n - 1 for n in meter_collisions.values())
+        print(f"  Held back {len(meter_collisions):,} multi-meter parcel(s) carrying "
+              f"{excess:,} extra meter(s) - see T-06", flush=True)
+        logger.info(f"{args.county}: excluded {len(meter_collisions):,} multi-meter parcel(s): "
+                    f"{sorted(meter_collisions.items(), key=lambda kv: -kv[1])[:10]}")
 
     # In recompute mode the parcel_id to WRITE to is not always the one the billing
     # data was found under: several counties spell the same parcel differently on the
@@ -779,10 +827,15 @@ def main():
         'processed': 0,
         'success': 0,
         'failed': 0,
-        'insufficient_data': 0
+        'insufficient_data': 0,
+        'multi_meter': 0
     }
 
     for i, parcel_id in enumerate(missing_parcels):
+        if parcel_id in meter_collisions:
+            stats['multi_meter'] += 1
+            continue
+
         if parcel_id not in electrical_data:
             stats['insufficient_data'] += 1
             continue
@@ -806,7 +859,8 @@ def main():
             continue
 
         if write_thermal_loads(db, args.county, write_targets.get(str(parcel_id), parcel_id),
-                               billing_data, slope_data, args.dry_run, weather_provenance):
+                               billing_data, slope_data, args.dry_run, weather_provenance,
+                               parcel_keys.get(parcel_id)):
             stats['success'] += 1
             if args.verbose:
                 hl = slope_data.get('kwh_hl_slope')
@@ -830,6 +884,7 @@ def main():
     print(f"  Processed:                {stats['processed']:,}")
     print(f"  Successfully calculated:  {stats['success']:,}")
     print(f"  Insufficient data:        {stats['insufficient_data']:,}")
+    print(f"  Multi-meter (excluded):   {stats['multi_meter']:,}")
     print(f"  Failed writes:            {stats['failed']:,}")
 
     if args.dry_run:
