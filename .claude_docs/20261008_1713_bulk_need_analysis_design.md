@@ -1,6 +1,7 @@
 # Bulk Need Analysis — Design Spec
 
-**Date:** 2026-10-08 · **Branch:** `feature/need-analysis` · **Status:** draft for review
+**Date:** 2026-10-08 · **Branch:** `feature/need-analysis` · **Status:** approved 2026-10-12, amended
+the same day from P1 data profiling (§14)
 **Repos:** octopus (analysis engine, Python) → bolt-od (explorer UI, tool of record)
 
 ---
@@ -41,8 +42,15 @@ Verified against `empower_development` / `schema.md` (2026-09-24 profile):
 - `{County}CountyResidential` exists for 25 counties; `{County}CountyDemographic` for 21 (Franklin 48k,
   Cuyahoga 10k, most others < 2k); `{County}ThermalLoads` for ~25; gas only `CuyahogaGasDB`;
   `CuyahogaMultiTenant`, `OttawaMultiTenant` exist.
-- ~28 % of ElectricalDB docs (Franklin sample) have null `parcel_id` → cannot join to parcel layers.
-- Missing values are encoded four ways: absent field, `null`, sentinel `-1`, empty string `''`.
+- ElectricalDB docs with null `parcel_id` (measured 2026-10-12): Franklin 216,887 / 475,376 (46 %),
+  Cuyahoga 139,341 / 396,338 (35 %), Adams 8,283 / 8,283 (100 %) → cannot join to parcel layers.
+- Missing values are encoded at least seven ways: absent field, `null`, sentinel `-1`, empty string `''`,
+  float `NaN` (Cuyahoga Demographic: 412–472 per field), the strings `'nan'` / `'Unknown'`, and
+  field-specific sentinels (Cuyahoga `poverty_level_percent = 0` co-occurs with `NaN` income).
+- Some meters stopped reporting years ago (Cuyahoga: last readings in 2016, 2023, 2024).
+- Demographic collections hold several docs for some parcels (Franklin: up to 35 on one `parcel_key`).
+- **Gas is excluded from this analysis (decision 2026-10-12).** `CuyahogaGasDB` readings end 2016-02, and
+  membership tracks ingest batch, not fuel (thermal runbook §fuel separation: AUC 0.45–0.55).
 - Field names drift per county (`md_householdsize` vs `household_size`, `County` vs `county`, etc.).
 - No enrollment / rate-code / PIPP / arrears fields exist anywhere.
 - Thermal docs exclude multi-meter parcels (T-06).
@@ -73,19 +81,19 @@ Flat, **sparse** (absent field = missing), readable field names, ints where prec
   "link": 43,                            // source bitmask, see §5.4
   "multi_unit": true,
   // --- features (each present only if known) ---
-  "income_est": 42000, "hh_size": 3, "fpl_pct": 168, "smi_pct": 52,
+  "income_est": 42000, "hh_size": 3, "fpl_pct": 168, "ami_pct": 42,
   "annual_kwh": 11840, "annual_cost": 1720, "energy_burden": 4.1, "burden_basis": 0,
-  "usage_pctile": 71, "peak_ratio": 1.84, "months_usage": 12,
+  "usage_pctile": 71, "peak_ratio": 1.84, "months_usage": 12, "last_read": 202607,
   "hl_slope": 0.142, "cl_slope": 0.311, "thermal_r2": 0.82, "hl_per_sqft": 0.000094,
   "year_built": 1958, "sqft": 1510, "stories": 1, "home_value": 154000,
   "owner": true, "senior": false, "children": true, "length_residence": 7,
-  "heat_fuel": 2, "gas_annual": 640,
+  "heat_fuel": 1,
   // --- quality ---
   "missing": [3, 17],                    // field codes linked-but-blank (sentinel/empty), §5.4
   // --- rule outputs ---
-  "dims": [2, 0, 0, 0, 2, 2],            // levels, order fixed in §6
-  "proxy": 32,                           // bitmask: which dims came from proxies
-  "dim_sum": 6                           // sum of known levels (-1 excluded), for sorting
+  "dims": [2, 0, 0, 0, 2, 0],            // levels, order fixed in §6
+  "proxy": 0,                            // bitmask: which dims came from proxies
+  "dim_sum": 4                           // sum of known levels (-1 excluded), for sorting
 }
 ```
 
@@ -107,32 +115,42 @@ Indexes: `{county:1}`, `{parcel_key:1}`, `{county:1, "dims.0":1}` … one per di
 
 ### 5.4 Encodings (defined once in `registry/fields.json`, read by both repos)
 
-- **`link` bits:** 0 electric · 1 residential · 2 demographic · 3 thermal · 4 gas · 5 enrollment.
-  Bit set = linked. "Absent for county" vs "no match" is derived from `analysis_builds.sources_present`.
-- **`missing` codes:** integer index of each canonical feature in `fields.json`.
-- **`burden_basis`:** 0 electric-only (lower bound) · 1 electric + gas · 2 vendor-supplied cost.
-- **`heat_fuel`:** 1 electric (measured) · 2 electric (inferred from winter kWh slope) · 3 gas (measured) · 4 other (measured); absent = unknown.
+- **`link` bits:** 0 electric · 1 residential · 2 demographic · 3 thermal · 4 gas (reserved, unused
+  while gas is excluded) · 5 enrollment. Bit set = linked. "Absent for county" vs "no match" is derived
+  from `analysis_builds.sources_present`.
+- **`missing` codes:** each canonical feature carries an explicit, never-reused integer `code` in
+  `fields.json` (not its list position, so reordering the file cannot renumber stored docs).
+- **`burden_basis`:** 0 annual kWh × utility rate · 1 vendor-supplied electric cost. Both are
+  electric-only and therefore lower bounds.
+- **`heat_fuel`:** 1 electric heat pump · 2 electric resistance · 3 gas · 4 other — measured sources only
+  (P1: Cuyahoga auditor `heat_type = HTP` → 1); absent = unknown. No fuel is inferred.
+- **`last_read`:** `YYYYMM` of the meter's latest reading; usage-derived values are stored regardless,
+  but usage dims and computed burden require it within `usage_max_age_months` of the build.
 - **`dims` levels:** -1 unknown · 0 none · 1 moderate · 2 high. **Unknown is never coerced to 0.**
 
 ## 6. Need dimensions and rules (`registry/rules.json`)
 
-Versioned; every threshold carries a `source` citation. Numeric tables (HHS Federal Poverty Guidelines by
-household size, Ohio State Median Income, per-utility residential average rate) are **fetched from official
-sources during P1 and cited** — not typed from memory.
+Versioned; every threshold carries a `source` citation. Numeric tables (HHS 2026 Poverty Guidelines by
+household size, HUD FY2026 80 % "Low Income" limits per county, EIA-861 2025 per-utility bundled residential
+price) were **fetched from official sources on 2026-10-12 and are cited** — not typed from memory.
+Program anchors: HEAP and PIPP Plus 175 % FPG, HWAP 200 % FPG (ODJFS, administrator since 2026-07-01).
+Engine-internal heuristics (r2_min, freshness window) cite the spec section that set them.
 
 `dims` order and logic:
 
 | idx | Dimension | Level 2 | Level 1 | -1 Unknown when |
 |---|---|---|---|---|
-| 0 | Income need (`fpl_pct`, `smi_pct`) | ≤ 175 % FPL | ≤ 200 % FPL or ≤ 80 % AMI | income or hh_size missing (no default size) |
-| 1 | Energy burden (`annual_cost ÷ income_est`) | ≥ 10 % | ≥ 6 % | income missing |
-| 2 | Building inefficiency (`hl_per_sqft` county rank, `thermal_r2 ≥ r2_min`, default 0.5) | top 20 % in county | 20–40 %; or **proxy** built < 1980 w/o usable fit | no usable fit and no year_built |
-| 3 | High usage (`annual_kwh` county percentile) | ≥ 90th | ≥ 75th | `months_usage < 12` |
+| 0 | Income need (`fpl_pct`, `ami_pct`) | ≤ 175 % FPL | ≤ 200 % FPL or ≤ 80 % AMI | income or hh_size missing (no default size) |
+| 1 | Energy burden (`annual_cost ÷ income_est`) | ≥ 10 % | ≥ 6 % | income or cost missing |
+| 2 | Building inefficiency (`hl_per_sqft` county rank; usable fit = `thermal_r2 ≥ r2_min` (0.5) ∧ `hl_slope ≥ 0` ∧ ¬multi_unit) | top 20 % in county | 20–40 %; or **proxy** built < 1980 w/o usable fit | no usable fit and no year_built |
+| 3 | High usage (`annual_kwh` county percentile) | ≥ 90th | ≥ 75th | `months_usage < 12` or stale `last_read` |
 | 4 | Vulnerability (senior, children, multi_unit/renter) | ≥ 2 modifiers | 1 modifier | all modifiers unknown |
-| 5 | Electrification (heat_fuel or **proxy**: inferred from winter kWh slope) | electric-resistance heat signature | gas heat with high cooling slope | no fit and fuel unknown |
+| 5 | Electrification (measured `heat_fuel` only) | electric resistance (2) | — (gas rule removed with gas) | fuel unknown |
 
-- `annual_cost`: vendor `annual_kwh_cost` when present (`burden_basis=2`), else `annual_kwh × utility rate`
-  (+ gas when linked). Electric-only burden is a lower bound and labelled so.
+- `annual_cost`: vendor `annual_kwh_cost` when present (`burden_basis=1`), else `annual_kwh × utility rate`
+  (`burden_basis=0`, fresh meters only). Gas cost is never added. Burden is a lower bound and labelled so.
+- `ami_pct = 80 × income_est ÷ HUD 80 % limit for hh_size` (sizes > 8: +8 % of the 4-person limit per
+  person, HUD methodology); `fpl_pct` sizes > 8 add the HHS per-person increment.
 - County-relative cutpoints are computed in pass 1 of the build and stored in `analysis_builds.cutpoints`.
 - Proxy-derived levels set the matching bit in `proxy` so UI can show measured-only.
 
@@ -236,7 +254,26 @@ no chart library.
 | P5 | Partner mode: suppression, footnotes, export | bolt-od |
 | next | Sub-project 3 Bayesian spec | octopus |
 
+P1 writes `analysis_households` and `analysis_builds`; `analysis_coverage` lands in P2 with the other
+84 counties. P1 pre-swap gates are doc count = source meter count and p99 size < 1 KB.
+
 ## 13. Out of scope
 
 Specific program enrollment workflows; geocoding / census-tract priors; writing to any source collection;
 changes to Audiences behaviour beyond reusing its components; porting the engine to TypeScript.
+
+## 14. Amendments (2026-10-12, from P1 data profiling)
+
+1. **Gas excluded** (user decision): no GasDB reads, no gas cost in burden, no gas-based fuel inference;
+   `gas_annual` dropped; electrification level 1 rule ("gas heat with high cooling slope") removed.
+2. **No inferred fuel**: `heat_fuel` comes from measured sources only; `heat_fuel = 2 inferred` removed.
+3. `smi_pct` → `ami_pct` (the §6 rule was always "80 % AMI"); HUD FY2026 per-county limits.
+4. `burden_basis` re-encoded (0 rate-computed · 1 vendor), both electric-only.
+5. `last_read` added; usage dims and computed burden require a fresh meter (`usage_max_age_months` 24).
+6. Usable thermal fit also requires `hl_slope ≥ 0` (negative heating slopes are fit artifacts).
+7. `missing` codes are explicit per field, not list positions.
+8. Missing-value encodings extended to `NaN`, `'nan'`, `'Unknown'`, field-specific sentinels.
+9. Open for P3 (bolt-od, not P1): adopt the comparables spec §8.1 provenance rule for which per-household
+   fields the internal Need-profile tab may show (`income_est`, `hh_size`, and `fpl_pct` — which
+   back-derives income — are purchased-overlay class); settle the route name together with the
+   Campaigns/Reports review-path decision before claiming `/analysis` or `/reports`.
