@@ -43,7 +43,7 @@ from sklearn.metrics import r2_score
 from src.tools.county_weather import (MissingWeatherDataError, UnknownCountyError,
                                       centroid, normalize_county, resolve_weather_file)
 from src.tools.mongo import get_empower_db
-from src.tools.parcel_id import normalize_parcel_id
+from src.tools.parcel_id import ParcelIndex, parcel_id_of, parcel_key_of
 from src.utils.log_manager import LogManager
 
 # Recorded when a weather file carries no provenance sidecar. Honest, and
@@ -256,20 +256,6 @@ class WeatherDataProcessor:
 
 
 
-def _key_value(doc: Dict) -> Optional[str]:
-    """The parcel_key of a document, or None when it carries none."""
-    value = doc.get('parcel_key')
-    # Normalized with the same function the audit verifies with, so a parcel_key
-    # stored as int on one side cannot fail to match its string twin (T-02).
-    return normalize_parcel_id(value) if value not in (None, '') else None
-
-
-def _id_value(doc: Dict) -> Optional[str]:
-    """The normalized parcel_id of a document, or None when it carries none."""
-    value = doc.get('parcel_id')
-    return normalize_parcel_id(value) if value not in (None, '') else None
-
-
 def _thermal_join_index(db, county: str) -> Tuple[Dict[str, object], Dict[str, object]]:
     """Every address a thermal parcel answers to -> the parcel_id it is stored under.
 
@@ -281,18 +267,12 @@ def _thermal_join_index(db, county: str) -> Tuple[Dict[str, object], Dict[str, o
     direction: a false 'missing' inserts a duplicate, a false 'present' merely
     updates a record that was going to be recomputed anyway.
     """
-    by_key: Dict[str, object] = {}
-    by_id: Dict[str, object] = {}
+    index = ParcelIndex()
     for doc in db[f"{county}ThermalLoads"].find({}, {'parcel_id': 1, 'parcel_key': 1}):
         stored = doc.get('parcel_id')
-        if stored in (None, ''):
-            continue
-        key, ident = _key_value(doc), _id_value(doc)
-        if key is not None:
-            by_key.setdefault(key, stored)
-        if ident is not None:
-            by_id.setdefault(ident, stored)
-    return by_key, by_id
+        if stored not in (None, ''):
+            index.add(doc, stored)
+    return index.by_key, index.by_id
 
 
 def _linked_electrical_rows(db, county: str) -> Tuple[List[Dict], int]:
@@ -313,10 +293,10 @@ def _linked_electrical_rows(db, county: str) -> Tuple[List[Dict], int]:
 
 def _resolve_to_thermal(doc: Dict, by_key: Dict, by_id: Dict) -> Tuple[Optional[object], str]:
     """The thermal parcel_id this electrical row belongs to, and how it was found."""
-    key = _key_value(doc)
+    key = parcel_key_of(doc)
     if key is not None and key in by_key:
         return by_key[key], 'parcel_key'
-    ident = _id_value(doc)
+    ident = parcel_id_of(doc)
     if ident is not None and ident in by_id:
         return by_id[ident], 'parcel_id'
     return None, 'unmatched'
