@@ -1,0 +1,71 @@
+{
+  "version": "2026-10-12.1",
+  "dims": ["income_need", "energy_burden", "building_inefficiency", "high_usage", "vulnerability", "electrification"],
+  "params": {
+    "income_need": {"fpl_high": 175, "fpl_moderate": 200, "ami_moderate": 80,
+      "source": "HEAP and PIPP Plus at or below 175% FPG, HWAP at or below 200% FPG: ODJFS https://jfs.ohio.gov/public-assistance/energy-and-community-assistance (administrator since 2026-07-01; retrieved 2026-10-12). 80% AMI = HUD 'Low Income' limit, table hud_low_income_fy2026."},
+    "energy_burden": {"high": 10, "moderate": 6,
+      "source": "ACEEE, How High Are Household Energy Burdens? (2020): high burden above 6%, severe above 10%. https://www.aceee.org/research-report/u2006"},
+    "building_inefficiency": {"r2_min": 0.5, "high_pctile": 80, "moderate_pctile": 60, "proxy_built_before": 1980,
+      "source": "Engine choice: spec 20261008_1713 §6 (top 20% / 20-40% of county hl_per_sqft among usable fits)."},
+    "high_usage": {"high_pctile": 90, "moderate_pctile": 75, "source": "Engine choice: spec 20261008_1713 §6."},
+    "usage": {"max_age_months": 24, "min_span_days": 300, "max_span_days": 400,
+      "source": "Engine choice: spec 20261008_1713 §5.4 and §14 amendment 5."},
+    "electrification": {"high_fuels": [2],
+      "source": "Spec 20261008_1713 §6 and §14 amendments 1-2: measured heat_fuel only, gas excluded."}
+  },
+  "tables": {
+    "fpg_2026": {
+      "source": {"title": "HHS Poverty Guidelines 2026, 48 contiguous states and DC",
+                 "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+                 "published": "2026-01-15", "retrieved": "2026-10-12"},
+      "base": [15960, 21640, 27320, 33000, 38680, 44360, 50040, 55720],
+      "per_additional": 5680
+    },
+    "hud_low_income_fy2026": {
+      "source": {"title": "HUD FY2026 Income Limits for Section 8, 80% 'Low Income' limits and median2026",
+                 "url": "https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx",
+                 "published": "2026-05-01", "retrieved": "2026-10-12",
+                 "note": "Sizes above 8 add 8% of the 4-person limit per additional person (HUD methodology)."},
+      "extra_person_pct_of_4": 8,
+      "counties": {
+        "Franklin": {"area": "Columbus, OH HUD Metro FMR Area (METRO18140M18140)", "median_family_income": 111500,
+                     "limits": [62450, 71400, 80300, 89200, 96350, 103500, 110650, 117750]},
+        "Cuyahoga": {"area": "Cleveland, OH HUD Metro FMR Area (METRO17410N17460)", "median_family_income": 105000,
+                     "limits": [58800, 67200, 75600, 84000, 90750, 97450, 104200, 110900]},
+        "Adams": {"area": "Adams County, OH (NCNTY39001N39001)", "median_family_income": 67200,
+                  "limits": [49150, 56150, 63150, 70150, 75800, 81400, 87000, 92600]}
+      }
+    },
+    "electric_rates_2025": {
+      "source": {"title": "EIA-861 2025 final, Sales_Ult_Cust_2025.xlsx sheet States, Part A bundled residential; price = revenue / sales",
+                 "url": "https://www.eia.gov/electricity/data/eia861/zip/f8612025.zip",
+                 "published": "2026-10-07", "retrieved": "2026-10-12",
+                 "note": "Standard-offer bundled price, computed from published revenue and sales; customers on a retail supplier pay that supplier's generation price."},
+      "usd_per_kwh": {"AEP": 0.18972406, "FE:Cuyahoga": 0.16217686, "FE": 0.16005921, "DUKE": 0.16826748},
+      "eia_utility": {"AEP": "Ohio Power Co (14006)", "FE:Cuyahoga": "Cleveland Electric Illum Co (3755)",
+                      "FE": "Ohio Edison Co (13998)", "DUKE": "Duke Energy Ohio Inc (3542)"}
+    },
+    "county_default_utility": {
+      "source": {"title": "Engine assumption for meters with no utility field: dominant investor-owned utility in the county",
+                 "url": "spec 20261008_1713 §6", "retrieved": "2026-10-12",
+                 "note": "Cuyahoga also has Cleveland Public Power customers; they are priced at CEI's rate."},
+      "map": {"Franklin": "AEP", "Cuyahoga": "FE", "Adams": "AEP"}
+    }
+  },
+  "archetypes": {
+    "bill_assistance": {"label": "Bill assistance candidate",
+                        "all": [{"dim": "income_need", "op": ">=", "value": 2}]},
+    "weatherization": {"label": "Weatherization candidate",
+                       "all": [{"dim": "income_need", "op": ">=", "value": 1},
+                               {"dim": "building_inefficiency", "op": ">=", "value": 1},
+                               {"field": "multi_unit", "op": "!=", "value": true}]},
+    "electrification": {"label": "Electrification candidate",
+                        "all": [{"dim": "electrification", "op": "==", "value": 2},
+                                {"field": "owner", "op": "!=", "value": false, "unknown_ok": true}]},
+    "behavioural": {"label": "Behavioural / efficiency (no income test)",
+                    "all": [{"dim": "high_usage", "op": ">=", "value": 1},
+                            {"dim": "income_need", "op": "==", "value": 0}]},
+    "likely_no_benefit": {"label": "Likely no benefit", "kind": "no_known_need", "min_known": 4}
+  }
+}
