@@ -6,11 +6,12 @@ county's households in memory between passes (Franklin: 475k meters).
 
 from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import bson
 
 from src.analysis_engine.household import assemble
+from src.analysis_engine.ids import analysis_id, is_surrogate
 from src.analysis_engine.registry import Registry
 from src.analysis_engine.rules import Distributions, cutpoints, finalize, quantile, usable_fit, usage_ok
 from src.analysis_engine.sources import CountySources, identity, iter_electrical, load_county_sources
@@ -30,7 +31,7 @@ def doc_size(doc: Dict) -> int:
     return len(bson.encode(doc))
 
 
-def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int]) -> List[str]:
+def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int], surrogate_ids: int = 0) -> List[str]:
     """Pre-swap gates (spec §12, P1): one document per meter, p99 size under 1 KB."""
     failures = []
     if doc_count != source_count:
@@ -38,6 +39,8 @@ def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int]) -> L
     p99 = quantile(sizes_sorted, 99)
     if p99 is not None and p99 >= MAX_P99_BYTES:
         failures.append(f'p99 document size {p99} B is not under {MAX_P99_BYTES} B')
+    if surrogate_ids:
+        failures.append(f'{surrogate_ids} document _id(s) still carry a readable source id')
     return failures
 
 
@@ -54,13 +57,15 @@ def _distributions(db, county: str, src: CountySources, reg: Registry, build_mon
 
 
 def _stage_households(db, store, county: str, src: CountySources, dist: Distributions, reg: Registry,
-                      build_month: int, build: Dict) -> List[int]:
+                      build_month: int, build: Dict, id_key: bytes) -> Tuple[List[int], int]:
     max_age = reg.params('usage')['max_age_months']
     sizes, batch, stats, unmapped = [], [], Counter(), defaultdict(Counter)
     store.reset_staging(county)
     for meter in iter_electrical(db, county):
         assembled = assemble(meter, src.match(meter), county, build_month, reg)
         hh = finalize(assembled.doc, dist, reg.rules, build_month)
+        hh['_id'] = analysis_id(hh['_id'], id_key)
+        stats['surrogate_ids'] += is_surrogate(hh['_id'])
         for name, raw in assembled.unmapped_values:
             unmapped[name][str(raw)] += 1
         stats['unlinked'] += identity(meter) is None
@@ -73,13 +78,14 @@ def _stage_households(db, store, county: str, src: CountySources, dist: Distribu
             batch = []
     if batch:
         store.stage(county, batch)
+    surrogates = stats.pop('surrogate_ids')
     build['stats'] = {**{k: stats[k] for k in ('unlinked', 'multi_unit', 'stale')}, 'duplicates': src.duplicates}
     build['unmapped_values'] = {name: [[value, n] for value, n in counts.most_common()]
                                 for name, counts in unmapped.items()}
-    return sorted(sizes)
+    return sorted(sizes), surrogates
 
 
-def build_county(db, store, county: str, reg: Registry, now: datetime) -> Dict:
+def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: bytes) -> Dict:
     """Build one county and record the attempt. Never raises: failures are recorded with status 'failed'."""
     build_month = now.year * 100 + now.month
     build = {'county': county, 'built_at': now, 'registry_version': reg.fields_version,
@@ -89,11 +95,11 @@ def build_county(db, store, county: str, reg: Registry, now: datetime) -> Dict:
         if 'electrical' not in src.present:
             raise BuildError(f'{county}: no ElectricalDB collection')
         dist = _distributions(db, county, src, reg, build_month)
-        sizes = _stage_households(db, store, county, src, dist, reg, build_month, build)
+        sizes, surrogates = _stage_households(db, store, county, src, dist, reg, build_month, build, id_key)
         build.update(sources_present=sorted(src.present), source_counts=src.counts, doc_count=len(sizes),
                      size_p50=quantile(sizes, 50), size_p99=quantile(sizes, 99),
                      cutpoints=cutpoints(dist, reg.rules['params']), unmapped_fields=src.tracker.unmapped())
-        failures = check_gates(len(sizes), src.counts['electrical'], sizes)
+        failures = check_gates(len(sizes), src.counts['electrical'], sizes, surrogates)
         if failures:
             raise BuildError('; '.join(failures))
         try:

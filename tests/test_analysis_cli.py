@@ -21,9 +21,9 @@ def test_parse_args_accepts_repeated_counties():
 def test_dry_run_succeeds_and_failure_sets_exit_code(capsys):
     db = FakeNamedDB({'AdamsElectricalDB': [elec('E1', monthly_series(2025, 8, [900.0] * 12), utility='AEP')]})
     now = datetime(2026, 10, 12, tzinfo=timezone.utc)
-    assert run_build(db, ['Adams'], True, load_registry(), now) == 0
+    assert run_build(db, ['Adams'], True, load_registry(), b'test-key', now) == 0
     assert 'Adams: ok' in capsys.readouterr().out
-    assert run_build(db, ['Adams', 'Nowhere'], True, load_registry(), now) == 1
+    assert run_build(db, ['Adams', 'Nowhere'], True, load_registry(), b'test-key', now) == 1
 
 
 def test_summarize_build_lists_drift():
