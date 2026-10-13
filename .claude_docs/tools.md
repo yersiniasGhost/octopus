@@ -338,3 +338,18 @@ A build is atomic per county: it stages to `analysis_households_staging_{County}
 meter count, p99 < 1 KB), then swaps. A failure leaves the previous version live and records `status: failed`.
 Source fields the registry neither maps nor ignores appear under `unmapped_fields`. Spec:
 `.claude_docs/20261008_1713_bulk_need_analysis_design.md`. Tests: `tests/test_analysis_*.py`.
+
+## repair_electrical_ingest_tool.py
+
+**Purpose**: Folds the 2026-08-19 ingest's duplicate `{County}ElectricalDB` docs into their pre-ingest doc and
+deletes them (same parcel under another spelling, or an unlinked doc whose service address resolves to one
+parcel). Series that disagree on a shared date are skipped. Dry run by default; requires a fresh backup before
+`--execute`. Reports print counts only.
+
+**Location**: `scripts/repair_electrical_ingest_tool.py` (logic in `src/tools/utility_bills/repair.py`)
+
+```bash
+source venv/bin/activate
+python scripts/repair_electrical_ingest_tool.py --county Franklin              # dry run
+python scripts/repair_electrical_ingest_tool.py --execute --report repair.md   # all counties, live
+```

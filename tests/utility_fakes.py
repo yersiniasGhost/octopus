@@ -3,7 +3,7 @@
 
 class WritableCollection:
     def __init__(self, docs):
-        self.docs = {d['_id']: dict(d) for d in docs}
+        self.docs = {d.get('_id', f'r{i}'): dict(d) for i, d in enumerate(docs)}  # read-only fixtures may omit _id
         self.deleted = []
 
     def find(self, _filter=None, _projection=None):

@@ -59,3 +59,8 @@ def test_zip_narrows_candidates_before_counting():
 
 def test_no_candidate_with_a_doc_is_none():
     assert resolve_address([{'parcel_id': 'A'}, {'parcel_id': 'B'}], '43215', _existing()) == (None, 'none')
+
+
+def test_duplicate_rows_for_one_parcel_are_a_unique_candidate():
+    a = {'parcel_id': 'A', 'parcel_zip': '43215'}
+    assert resolve_address([a, dict(a)], '43215', _existing()) == (a, 'unique')

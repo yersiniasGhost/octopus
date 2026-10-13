@@ -138,20 +138,31 @@ def _merge_set(target, dates, rec, tag, st):
     return out or None
 
 
-def _load_existing(db, coll_name):
-    """ElectricalDB docs split into a ParcelIndex of linked docs (lists per parcel) and surrogates by _id."""
+def group_by_identity(docs):
+    """Docs split into linked groups keyed by identity and surrogates (no identity) keyed by _id."""
     linked, surrogates = defaultdict(list), {}
-    for doc in db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1, 'utility': 1,
-                                       'source_delivery': 1}):
+    for doc in docs:
         ident = identity(doc)
         if ident is None:
             surrogates[doc['_id']] = doc
         else:
             linked[ident].append(doc)
+    return linked, surrogates
+
+
+def index_groups(linked):
+    """A ParcelIndex answering every spelling of a parcel with its group of docs."""
     index = ParcelIndex()
     for group in linked.values():
         index.add(group[0], group)
-    return index, surrogates
+    return index
+
+
+def _load_existing(db, coll_name):
+    """ElectricalDB docs split into a ParcelIndex of linked docs (lists per parcel) and surrogates by _id."""
+    linked, surrogates = group_by_identity(db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1,
+                                                                   'utility': 1, 'source_delivery': 1}))
+    return index_groups(linked), surrogates
 
 
 def _target_for(existing, parcel, tag):

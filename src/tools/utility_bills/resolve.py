@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from src.tools.address_normalization import normalize_address
-from src.tools.parcel_id import ParcelIndex
+from src.tools.parcel_id import ParcelIndex, identity
 
 
 def merge_target(docs: List[Dict]) -> Optional[Dict]:
@@ -36,6 +36,8 @@ def address_index(res_docs: Iterable[Dict]) -> Dict[str, List[Dict]]:
 def resolve_address(parcels: List[Dict], zip5: str, existing: ParcelIndex) -> Tuple[Optional[Dict], str]:
     """The residential parcel an address belongs to, with how it was decided (unique/resolved/none/multi)."""
     narrowed = [p for p in parcels if not p.get('parcel_zip') or str(p['parcel_zip'])[:5] == zip5] or parcels
+    seen = set()  # duplicate rows for one parcel are one candidate; parcels without an identity are kept as-is
+    narrowed = [p for p in narrowed if (i := identity(p)) is None or not (i in seen or seen.add(i))]
     if len(narrowed) == 1:
         return narrowed[0], 'unique'
     with_doc = [p for p in narrowed if merge_target(existing.resolve(p)[0] or [])]
