@@ -69,22 +69,27 @@ def repair_county(db, county: str, dry_run: bool) -> Dict[str, int]:
     if res_name in db.list_collection_names():
         addr_parcels = address_index(db[res_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'address': 1,
                                                              'parcel_zip': 1}))
-        for doc in surrogates.values():
+        for doc in (d for d in surrogates.values() if d.get('source_delivery')):
             parcels = addr_parcels.get(normalize_address(doc.get('service_address') or ''))
             if not parcels:
                 continue
             parcel, how = resolve_address(parcels, str(doc.get('service_zip5') or ''), existing)
-            target = merge_target(existing.resolve(parcel)[0] or []) if parcel else None
+            group = (existing.resolve(parcel)[0] or []) if parcel else []
+            target = merge_target(group)
             if target is not None:
                 folds.add(target, doc, 'address_folds')
+            elif group:
+                st['skipped_multi_preingest'] += 1
             elif how == 'multi':
                 st['skipped_multi_candidate'] += 1
 
     ops, ids = folds.ops(), folds.doc_ids()
     st['deleted'] = len(ids)
     if not dry_run:
-        for i in range(0, len(ops), 1000):
-            db[coll_name].bulk_write(ops[i:i + 1000], ordered=False)
+        matched = sum(db[coll_name].bulk_write(ops[i:i + 1000], ordered=False).matched_count
+                      for i in range(0, len(ops), 1000))
+        if matched < len(ops):  # a target vanished since planning: its folded docs are the only copy of the readings
+            raise RuntimeError(f"{county}: {len(ops) - matched} of {len(ops)} fold targets not matched; nothing deleted")
         for i in range(0, len(ids), 10000):
             db[coll_name].delete_many({'_id': {'$in': ids[i:i + 10000]}})
     return dict(st)
