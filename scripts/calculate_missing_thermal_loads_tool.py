@@ -43,7 +43,7 @@ from sklearn.metrics import r2_score
 from src.tools.county_weather import (MissingWeatherDataError, UnknownCountyError,
                                       centroid, normalize_county, resolve_weather_file)
 from src.tools.mongo import get_empower_db
-from src.tools.parcel_id import ParcelIndex, parcel_id_of, parcel_key_of
+from src.tools.parcel_id import ParcelIndex
 from src.utils.log_manager import LogManager
 
 # Recorded when a weather file carries no provenance sidecar. Honest, and
@@ -256,7 +256,7 @@ class WeatherDataProcessor:
 
 
 
-def _thermal_join_index(db, county: str) -> Tuple[Dict[str, object], Dict[str, object]]:
+def _thermal_join_index(db, county: str) -> ParcelIndex:
     """Every address a thermal parcel answers to -> the parcel_id it is stored under.
 
     Two indexes rather than one chosen key. parcel_key is the normalized field and
@@ -272,7 +272,7 @@ def _thermal_join_index(db, county: str) -> Tuple[Dict[str, object], Dict[str, o
         stored = doc.get('parcel_id')
         if stored not in (None, ''):
             index.add(doc, stored)
-    return index.by_key, index.by_id
+    return index
 
 
 def _linked_electrical_rows(db, county: str) -> Tuple[List[Dict], int]:
@@ -291,22 +291,16 @@ def _linked_electrical_rows(db, county: str) -> Tuple[List[Dict], int]:
     return rows, unlinked
 
 
-def _resolve_to_thermal(doc: Dict, by_key: Dict, by_id: Dict) -> Tuple[Optional[object], str]:
+def _resolve_to_thermal(doc: Dict, index: ParcelIndex) -> Tuple[Optional[object], str]:
     """The thermal parcel_id this electrical row belongs to, and how it was found."""
-    key = parcel_key_of(doc)
-    if key is not None and key in by_key:
-        return by_key[key], 'parcel_key'
-    ident = parcel_id_of(doc)
-    if ident is not None and ident in by_id:
-        return by_id[ident], 'parcel_id'
-    return None, 'unmatched'
+    return index.resolve(doc)
 
 
-def _join_electrical_to_thermal(db, county: str) -> Tuple[List[Dict], Dict, Dict, Dict[str, int]]:
+def _join_electrical_to_thermal(db, county: str) -> Tuple[List[Dict], ParcelIndex, Dict[str, int]]:
     rows, unlinked = _linked_electrical_rows(db, county)
-    by_key, by_id = _thermal_join_index(db, county)
+    index = _thermal_join_index(db, county)
     stats = {'parcel_key': 0, 'parcel_id': 0, 'unmatched': 0, 'unlinked': unlinked}
-    return rows, by_key, by_id, stats
+    return rows, index, stats
 
 
 def _log_join(county: str, stats: Dict[str, int]) -> None:
@@ -326,11 +320,11 @@ def get_missing_parcels(db, county: str) -> List[str]:
     the other spelling. Resolution goes through _resolve_to_thermal so this and
     get_target_parcels can never disagree about what 'already present' means.
     """
-    rows, by_key, by_id, stats = _join_electrical_to_thermal(db, county)
+    rows, index, stats = _join_electrical_to_thermal(db, county)
 
     missing: Dict[str, object] = {}
     for doc in rows:
-        target, how = _resolve_to_thermal(doc, by_key, by_id)
+        target, how = _resolve_to_thermal(doc, index)
         stats[how] += 1
         if target is None:
             missing[str(doc['parcel_id'])] = doc['parcel_id']
@@ -344,11 +338,11 @@ def get_missing_parcels(db, county: str) -> List[str]:
 
 def get_thermal_write_map(db, county: str) -> Dict[str, object]:
     """{electrical parcel_id (as str) -> thermal parcel_id to write}."""
-    rows, by_key, by_id, _stats = _join_electrical_to_thermal(db, county)
+    rows, index, _stats = _join_electrical_to_thermal(db, county)
     write: Dict[str, object] = {}
     seen: set = set()
     for doc in rows:
-        target, _how = _resolve_to_thermal(doc, by_key, by_id)
+        target, _how = _resolve_to_thermal(doc, index)
         if target is None or str(target) in seen:
             continue
         seen.add(str(target))
@@ -374,11 +368,11 @@ def get_target_parcels(db, county: str, recompute_all: bool = False) -> List[str
     if not recompute_all:
         return get_missing_parcels(db, county)
 
-    rows, by_key, by_id, stats = _join_electrical_to_thermal(db, county)
+    rows, index, stats = _join_electrical_to_thermal(db, county)
     targets: Dict[str, object] = {}
     seen: set = set()
     for doc in rows:
-        target, how = _resolve_to_thermal(doc, by_key, by_id)
+        target, how = _resolve_to_thermal(doc, index)
         stats[how] += 1
         if target is None or str(target) in seen:
             continue
