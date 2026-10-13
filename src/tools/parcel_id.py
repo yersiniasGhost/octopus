@@ -34,6 +34,15 @@ def parcel_id_of(doc: Dict) -> Optional[str]:
     return normalize_parcel_id(doc.get('parcel_id'))
 
 
+def identity(doc: Dict) -> Optional[Tuple[str, str]]:
+    """The spelling a meter is counted under: parcel_key when present, else the normalized parcel_id."""
+    key = parcel_key_of(doc)
+    if key is not None:
+        return 'k', key
+    ident = parcel_id_of(doc)
+    return ('i', ident) if ident is not None else None
+
+
 class ParcelIndex:
     """Every spelling a parcel answers to -> one stored value.
 

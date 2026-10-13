@@ -4,8 +4,11 @@ Engine: stream utility pre-enrollment files -> county buckets -> merge into
 
 Merge policy: union new (date, kWh) readings into time_series_elec, never
 overwriting an existing date key; monthly_averages/minimums/maximums are
-recomputed from the merged series. Re-runs are idempotent (parcel_id upserts
-for matched rows, deterministic surrogate _id upserts for unmatched rows).
+recomputed from the merged series; matched docs also gain a missing `utility`.
+Existing docs are found by parcel_key or parcel_id (ParcelIndex); an address shared by
+several parcels resolves only when exactly one has a doc (resolve.py). Re-runs are
+idempotent (parcel upserts for matched rows, deterministic surrogate _id upserts
+for unmatched rows).
 """
 import re
 import shutil
@@ -19,10 +22,11 @@ import zipcodes
 from pymongo import UpdateOne
 
 from src.tools.address_normalization import normalize_address
+from src.tools.parcel_id import ParcelIndex, identity
 from .parsers import PARSERS
+from .resolve import address_index, merge_target, resolve_address, series_conflict
 from .sources import BILLS_DIR, SOURCES
 
-AMBIGUOUS = object()
 ZIP5_RE = re.compile(r'^\d{5}$')
 _zip_county_cache = {}
 
@@ -118,6 +122,38 @@ def _merge_readings(slot_dates, readings):
     return conflicts
 
 
+def _merge_set(target, dates, rec, tag, st):
+    """The $set that folds new readings (and a missing utility) into a doc, or None when nothing changes."""
+    ts = target.get('time_series_elec') or {}
+    new = {k: v for k, v in dates.items() if k not in ts}
+    out = {}
+    if new:
+        merged = {**ts, **new}
+        out.update({'time_series_elec': merged, **monthly_stats(merged), 'last_utility_ingest': tag})
+        st['docs_updated'] += 1
+        st['readings_added_existing'] += len(new)
+    if not target.get('utility'):
+        out['utility'] = rec.utility
+        st['utility_set'] += 1
+    return out or None
+
+
+def _load_existing(db, coll_name):
+    """ElectricalDB docs split into a ParcelIndex of linked docs (lists per parcel) and surrogates by _id."""
+    linked, surrogates = defaultdict(list), {}
+    for doc in db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1, 'utility': 1,
+                                       'source_delivery': 1}):
+        ident = identity(doc)
+        if ident is None:
+            surrogates[doc['_id']] = doc
+        else:
+            linked[ident].append(doc)
+    index = ParcelIndex()
+    for group in linked.values():
+        index.add(group[0], group)
+    return index, surrogates
+
+
 def process_county(db, county, records, tag, dry_run, existing_colls, log=print):
     """Match records to parcels, diff against ElectricalDB, apply/count writes."""
     coll_name = f"{county}ElectricalDB"
@@ -135,81 +171,75 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
         st['reading_conflicts'] += _merge_readings(slot['dates'], rec.readings)
     st_meta['unique_addresses'] = len(by_addr)
 
-    # 2. address -> parcel index from the county Residential collection
-    addr_to_parcel = {}
+    # 2. address -> residential parcels from the county Residential collection
+    addr_parcels = {}
     if st_meta['has_residential']:
-        for doc in db[res_name].find({}, {'parcel_id': 1, 'address': 1}):
-            na = normalize_address(doc.get('address') or '')
-            if not na:
-                continue
-            if na in addr_to_parcel and addr_to_parcel[na] != doc['parcel_id']:
-                addr_to_parcel[na] = AMBIGUOUS
-            else:
-                addr_to_parcel[na] = doc['parcel_id']
+        addr_parcels = address_index(db[res_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'address': 1,
+                                                             'parcel_zip': 1}))
 
-    # 3. key every address: parcel_id when uniquely matched, else surrogate _id
-    keyed = {}
-    for naddr, slot in by_addr.items():
-        pid = addr_to_parcel.get(naddr)
-        if pid is AMBIGUOUS:
-            st['ambiguous_address'] += 1
-            pid = None
-        if pid is not None:
-            st['matched_parcels'] += 1
-            prev = keyed.get(('p', pid))
-            if prev:
-                prev['dates'].update({k: v for k, v in slot['dates'].items() if k not in prev['dates']})
-            else:
-                keyed[('p', pid)] = slot
-        else:
-            keyed[('s', slot['rec'].surrogate_key())] = slot
-
-    # 4. diff against existing docs (keyed by parcel_id, else by _id for surrogates)
-    existing = {}
+    # 3. existing docs: linked ones by parcel spelling, surrogates by _id
+    existing, surrogates = ParcelIndex(), {}
     if not st_meta['new_collection']:
-        for doc in db[coll_name].find({}, {'parcel_id': 1, 'time_series_elec': 1}):
-            pid = doc.get('parcel_id')
-            key = ('p', pid) if pid else ('s', doc['_id'])
-            existing[key] = (doc['_id'], doc.get('time_series_elec') or {})
+        existing, surrogates = _load_existing(db, coll_name)
+
+    # 4. key every address: residential parcel when resolved, else surrogate _id
+    keyed = {}
+
+    def put(key, slot):
+        prev = keyed.setdefault(key, slot)
+        if prev is not slot:
+            prev['dates'].update({k: v for k, v in slot['dates'].items() if k not in prev['dates']})
+
+    for naddr, slot in by_addr.items():
+        parcels = addr_parcels.get(naddr, [])
+        parcel, how = resolve_address(parcels, slot['rec'].zip5, existing) if parcels else (None, 'none')
+        if how == 'resolved':
+            st['ambiguous_resolved'] += 1
+            target = merge_target(existing.resolve(parcel)[0] or [])
+            if series_conflict(slot['dates'], target.get('time_series_elec') or {}):
+                st['ambiguous_conflict'] += 1
+                parcel = None
+        elif parcels and parcel is None:
+            st['ambiguous_address'] += 1
+        if parcel is not None:
+            st['matched_parcels'] += 1
+            put(('p', parcel['_id']), {**slot, 'parcel': parcel})
+        else:
+            put(('s', slot['rec'].surrogate_key()), slot)
 
     ops, first_date, last_date = [], None, None
     for key, slot in keyed.items():
-        dates = slot['dates']
+        dates, rec, kind = slot['dates'], slot['rec'], key[0]
         lo, hi = min(dates), max(dates)
         first_date = min(first_date, lo) if first_date else lo
         last_date = max(last_date, hi) if last_date else hi
-        if key in existing:
-            _id, ts = existing[key]
-            new = {k: v for k, v in dates.items() if k not in ts}
-            if not new:
+        parcel = slot.get('parcel')
+        target = merge_target(existing.resolve(parcel)[0] or []) if kind == 'p' else surrogates.get(key[1])
+        if target:
+            changes = _merge_set(target, dates, rec, tag, st)
+            if not changes:
                 st['unchanged'] += 1
-                continue
-            merged = {**ts, **new}
-            st['docs_updated'] += 1
-            st['readings_added_existing'] += len(new)
-            if not dry_run:
-                ops.append(UpdateOne({'_id': _id}, {'$set': {
-                    'time_series_elec': merged, **monthly_stats(merged),
-                    'last_utility_ingest': tag}}))
+            elif not dry_run:
+                ops.append(UpdateOne({'_id': target['_id']}, {'$set': changes}))
+            continue
+        doc = {'parcel_id': parcel['parcel_id'] if kind == 'p' else None,
+               'time_series_elec': dates, **monthly_stats(dates),
+               'county': county, 'utility': rec.utility,
+               'source_delivery': tag, 'last_utility_ingest': tag}
+        if kind == 'p':
+            st['docs_created_parcel'] += 1
+            if parcel.get('parcel_key') is not None:
+                doc['parcel_key'] = parcel['parcel_key']
+            flt = {'parcel_id': doc['parcel_id'], 'source_delivery': tag}
         else:
-            kind, ident = key
-            rec = slot['rec']
-            doc = {'parcel_id': ident if kind == 'p' else None,
-                   'time_series_elec': dates, **monthly_stats(dates),
-                   'county': county, 'utility': rec.utility,
-                   'source_delivery': tag, 'last_utility_ingest': tag}
-            if kind == 'p':
-                st['docs_created_parcel'] += 1
-                flt = {'parcel_id': ident}
-            else:
-                st['docs_created_unmatched'] += 1
-                doc.update({'_id': ident, 'account_id': rec.account_id or None,
-                            'service_address': rec.service_address,
-                            'service_city': rec.city, 'service_zip5': rec.zip5})
-                flt = {'_id': ident}
-            st['readings_added_new'] += len(dates)
-            if not dry_run:
-                ops.append(UpdateOne(flt, {'$set': doc}, upsert=True))
+            st['docs_created_unmatched'] += 1
+            doc.update({'_id': key[1], 'account_id': rec.account_id or None,
+                        'service_address': rec.service_address,
+                        'service_city': rec.city, 'service_zip5': rec.zip5})
+            flt = {'_id': key[1]}
+        st['readings_added_new'] += len(dates)
+        if not dry_run:
+            ops.append(UpdateOne(flt, {'$set': doc}, upsert=True))
 
     if ops:
         for i in range(0, len(ops), 1000):

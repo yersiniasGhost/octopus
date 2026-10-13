@@ -12,7 +12,7 @@ from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 from src.analysis_engine.household import PARCEL_ROLES, ParcelMatch
 from src.analysis_engine.normalize import PRESENT, read_value
 from src.analysis_engine.registry import FieldSpec, Registry
-from src.tools.parcel_id import ParcelIndex, parcel_id_of, parcel_key_of
+from src.tools.parcel_id import ParcelIndex, identity, parcel_id_of, parcel_key_of
 
 # 'multitenant' is reported as present but not read: P1 derives multi_unit from meters per parcel only.
 COLLECTIONS = {'electrical': '{}ElectricalDB', 'residential': '{}CountyResidential',
@@ -27,15 +27,6 @@ def collection_name(role: str, county: str) -> str:
 def sources_present(collection_names: Iterable[str], county: str) -> Dict[str, str]:
     names = set(collection_names)
     return {role: collection_name(role, county) for role in COLLECTIONS if collection_name(role, county) in names}
-
-
-def identity(doc: Dict) -> Optional[Tuple[str, str]]:
-    """The spelling a meter is counted under: parcel_key when present, else the normalized parcel_id."""
-    key = parcel_key_of(doc)
-    if key is not None:
-        return 'k', key
-    ident = parcel_id_of(doc)
-    return ('i', ident) if ident is not None else None
 
 
 class FieldTracker:
