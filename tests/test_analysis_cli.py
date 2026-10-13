@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.analysis_engine.cli import parse_args, run_build  # noqa: E402
 from src.analysis_engine.registry import load_registry  # noqa: E402
-from src.analysis_engine.report import summarize_build  # noqa: E402
+from src.analysis_engine.report import format_report, summarize_build  # noqa: E402
 from tests.analysis_fakes import elec, monthly_series  # noqa: E402
 from tests.mongo_fakes import FakeNamedDB  # noqa: E402
 
@@ -33,3 +33,17 @@ def test_summarize_build_lists_drift():
                             'stats': {'unlinked': 8283, 'multi_unit': 0, 'stale': 12, 'duplicates': {}}})
     assert 'Adams: ok' in text and '8,283 households' in text
     assert 'unmapped electrical fields: new_field' in text and 'owner: Maybe (3)' in text
+
+
+def test_format_report_shows_levels_proxy_and_denominators():
+    reg = load_registry()
+    dims = {name: {'levels': {}, 'proxy': 0} for name in reg.dims}
+    dims['income_need'] = {'levels': {2: 10, 1: 5, -1: 85}, 'proxy': 0}
+    dims['building_inefficiency'] = {'levels': {1: 40, 0: 20, -1: 40}, 'proxy': 30}
+    archetypes = {name: {'n': 0, 'known': 100} for name in reg.rules['archetypes']}
+    archetypes['bill_assistance'] = {'n': 10, 'known': 15}
+    text = format_report({'county': 'Adams', 'total': 100, 'dims': dims, 'archetypes': archetypes}, reg)
+    assert text.splitlines()[0] == 'Adams: 100 households'
+    assert 'high 10 · moderate 5 · none 0 · unknown 85 · proxy 0' in text
+    assert 'high 0 · moderate 40 · none 20 · unknown 40 · proxy 30' in text
+    assert 'Bill assistance candidate' in text and '10 of 15 known-enough' in text
