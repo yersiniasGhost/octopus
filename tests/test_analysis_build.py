@@ -66,6 +66,13 @@ def test_swap_failure_is_recorded_as_possibly_partial():
     assert store.builds == [build]
 
 
+def test_recorded_error_is_capped():
+    store = FakeStore(fail_on_swap=True)
+    store.swap = lambda county: (_ for _ in ()).throw(RuntimeError('x' * 5000))
+    build = build_county(_db(), store, 'Franklin', REG, NOW, KEY)
+    assert build['status'] == 'failed' and len(build['error']) == 1000
+
+
 def test_gates():
     assert check_gates(3, 3, [300, 400, 500]) == []
     assert check_gates(2, 3, [300, 400]) == ['doc count 2 != source meter count 3']

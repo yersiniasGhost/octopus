@@ -111,7 +111,7 @@ def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: b
         build['status'] = 'ok'
     except Exception as exc:  # recorded, not swallowed: the build doc carries the error and status 'failed'
         logger.exception(f'{county}: build failed')
-        build['status'], build['error'] = 'failed', str(exc)
+        build['status'], build['error'] = 'failed', str(exc)[:1000]
         store.discard_staging(county)
     store.record_build(build)
     return build
