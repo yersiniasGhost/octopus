@@ -96,9 +96,9 @@ def test_multi_meter_parcel_drops_thermal_but_keeps_link_bit():
     assert 'hl_slope' not in doc and 'hl_per_sqft' not in doc
 
 
-def test_multitenant_parcel_is_multi_unit():
-    doc = _doc(elec('E10', FULL_YEAR, parcel_id='10'), _linked(multitenant=True))
-    assert doc['multi_unit'] is True
+def test_single_meter_linked_parcel_is_not_multi_unit():
+    doc = _doc(elec('E10', FULL_YEAR, parcel_id='10'), _linked())
+    assert doc['multi_unit'] is False
 
 
 def test_heat_pump_is_measured_electric():

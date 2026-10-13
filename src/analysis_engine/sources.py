@@ -14,6 +14,7 @@ from src.analysis_engine.normalize import PRESENT, read_value
 from src.analysis_engine.registry import FieldSpec, Registry
 from src.tools.parcel_id import ParcelIndex, parcel_id_of, parcel_key_of
 
+# 'multitenant' is reported as present but not read: P1 derives multi_unit from meters per parcel only.
 COLLECTIONS = {'electrical': '{}ElectricalDB', 'residential': '{}CountyResidential',
                'demographic': '{}CountyDemographic', 'thermal': '{}ThermalLoads', 'multitenant': '{}MultiTenant'}
 ID_KEYS = ('_id', 'parcel_id', 'parcel_key')
@@ -81,7 +82,6 @@ class CountySources:
     present: Dict[str, str]
     counts: Dict[str, int]
     indexes: Dict[str, ParcelIndex]
-    multitenant: ParcelIndex
     meters: Counter
     duplicates: Dict[str, int]
     tracker: FieldTracker
@@ -91,8 +91,7 @@ class CountySources:
         if ident is None:
             return ParcelMatch()
         found = {role: index.resolve(elec)[0] for role, index in self.indexes.items()}
-        return ParcelMatch(linked=True, meters_on_parcel=self.meters[ident],
-                           multitenant=self.multitenant.resolve(elec)[0] is True, **found)
+        return ParcelMatch(linked=True, meters_on_parcel=self.meters[ident], **found)
 
 
 def iter_electrical(db, county: str) -> Iterator[Dict]:
@@ -118,13 +117,6 @@ def load_county_sources(db, county: str, reg: Registry) -> CountySources:
             docs.append(_project(doc, paths))
         counts[role] = len(docs)
         indexes[role], duplicates[role] = index_role(docs, specs, reg.missing_tokens)
-    multitenant = ParcelIndex()
-    if 'multitenant' in present:
-        counts['multitenant'] = 0
-        for doc in db[present['multitenant']].find({}):
-            tracker.observe('multitenant', doc)
-            multitenant.add(doc, True)
-            counts['multitenant'] += 1
     meters = Counter()
     if 'electrical' in present:
         counts['electrical'] = 0
@@ -132,4 +124,4 @@ def load_county_sources(db, county: str, reg: Registry) -> CountySources:
             counts['electrical'] += 1
             if identity(doc) is not None:
                 meters[identity(doc)] += 1
-    return CountySources(present, counts, indexes, multitenant, meters, duplicates, tracker)
+    return CountySources(present, counts, indexes, meters, duplicates, tracker)

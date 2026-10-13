@@ -45,14 +45,21 @@ def _db():
     })
 
 
+def test_multitenant_collection_is_reported_present_but_not_read():
+    src = load_county_sources(_db(), 'Testville', REG)
+    assert src.present['multitenant'] == 'TestvilleMultiTenant' and 'multitenant' not in src.counts
+    assert 'multitenant' not in src.tracker.unmapped()
+    assert sources_present(['TestvilleMultiTenant'], 'Testville') == {'multitenant': 'TestvilleMultiTenant'}
+
+
 def test_load_counts_meters_and_resolves_spellings():
     src = load_county_sources(_db(), 'Testville', REG)
-    assert src.counts == {'electrical': 4, 'residential': 2, 'demographic': 2, 'multitenant': 1}
+    assert src.counts == {'electrical': 4, 'residential': 2, 'demographic': 2}
     shared = src.match({'_id': 'E1', 'parcel_key': 'K1'})
     assert shared.linked and shared.meters_on_parcel == 2 and shared.residential['age'] == 1958
-    assert shared.demographic['_id'] == 'D2' and shared.thermal is None and not shared.multitenant
+    assert shared.demographic['_id'] == 'D2' and shared.thermal is None
     by_int_id = src.match({'_id': 'E3', 'parcel_id': 30324005})
-    assert by_int_id.residential['age'] == 2001 and by_int_id.multitenant and by_int_id.meters_on_parcel == 1
+    assert by_int_id.residential['age'] == 2001 and by_int_id.meters_on_parcel == 1
     assert src.match({'_id': 'E4', 'parcel_id': None}).linked is False
 
 

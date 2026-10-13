@@ -21,7 +21,6 @@ class ParcelMatch:
     demographic: Optional[Dict] = None
     thermal: Optional[Dict] = None
     meters_on_parcel: int = 0
-    multitenant: bool = False
     linked: bool = False
 
 
@@ -90,7 +89,7 @@ def _derive(values: Dict, elec: Dict, county: str, build_month: int, reg: Regist
 
 def assemble(elec: Dict, match: ParcelMatch, county: str, build_month: int, reg: Registry) -> Assembled:
     """Build the household document for one meter (no dims yet; rules.finalize adds them)."""
-    multi_unit = match.linked and (match.meters_on_parcel > 1 or match.multitenant)
+    multi_unit = match.linked and match.meters_on_parcel > 1
     values, link, missing, unmapped = _read_sources(match, multi_unit, reg)
     _derive(values, elec, county, build_month, reg)
     doc: Dict[str, Any] = {'_id': elec['_id'], 'county': county}
