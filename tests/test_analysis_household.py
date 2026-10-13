@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.analysis_engine.household import ParcelMatch, assemble  # noqa: E402
 from src.analysis_engine.registry import load_registry  # noqa: E402
+from src.analysis_engine.rules import Distributions, finalize  # noqa: E402
 from tests.analysis_fakes import elec, monthly_series  # noqa: E402
 
 REG = load_registry()
@@ -48,8 +49,8 @@ def test_income_and_size_give_fpl_and_ami():
 def test_household_size_nine_extends_both_tables():
     demo = {'estimated_income': 60000.0, 'md_householdsize': 9.0}
     doc = _doc(elec('E3', FULL_YEAR, parcel_id='9'), _linked(demographic=demo))
-    assert doc['fpl_pct'] == round(100 * 60000 / (55720 + 5680))
-    assert doc['ami_pct'] == round(80 * 60000 / (117750 + 89200 * 0.08))
+    assert doc['fpl_pct'] == math.ceil(100 * 60000 / (55720 + 5680))
+    assert doc['ami_pct'] == math.ceil(80 * 60000 / (117750 + 89200 * 0.08))
 
 
 def test_missing_household_size_leaves_income_unknown():
@@ -68,8 +69,19 @@ def test_nan_income_is_blank_not_zero():
 def test_vendor_cost_wins_and_ignores_staleness():
     demo = {'estimated_income': 42000.0, 'md_householdsize': 3.0, 'annual_kwh_cost': 1720.4}
     doc = _doc(elec('E6', STALE_YEAR, parcel_id='6'), _linked(demographic=demo))
-    assert (doc['annual_cost'], doc['burden_basis'], doc['energy_burden']) == (1720, 1, 4.1)
+    assert (doc['annual_cost'], doc['burden_basis'], doc['energy_burden']) == (1720, 1, 4.0)
     assert 'vendor_kwh_cost' not in doc
+
+
+def test_percents_store_so_integer_thresholds_classify_exactly():
+    reg_rules = REG.rules
+    dist = Distributions.from_values([], [])
+    demo = {'estimated_income': 47865.0, 'md_householdsize': 3.0, 'annual_kwh_cost': 1192.0}  # 175.2 % FPL
+    doc = _doc(elec('E20', FULL_YEAR, parcel_id='20'), _linked(demographic=demo))
+    assert doc['fpl_pct'] == 176 and finalize(doc, dist, reg_rules, BM)['dims'][0] == 1
+    burden = _doc(elec('E21', FULL_YEAR, parcel_id='21'), _linked(demographic={
+        'estimated_income': 20000.0, 'md_householdsize': 3.0, 'annual_kwh_cost': 1192.0}))  # 5.96 %
+    assert burden['energy_burden'] == 5.9 and finalize(burden, dist, reg_rules, BM)['dims'][1] == 0
 
 
 def test_stale_meter_gets_no_computed_cost():
