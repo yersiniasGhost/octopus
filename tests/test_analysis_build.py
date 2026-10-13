@@ -1,0 +1,59 @@
+"""A county build either replaces that county's households completely or leaves them untouched."""
+
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.analysis_engine.build import build_county, check_gates  # noqa: E402
+from src.analysis_engine.registry import load_registry  # noqa: E402
+from tests.analysis_fakes import FakeStore, elec, monthly_series  # noqa: E402
+from tests.mongo_fakes import FakeNamedDB  # noqa: E402
+
+REG = load_registry()
+NOW = datetime(2026, 10, 12, tzinfo=timezone.utc)
+YEAR = monthly_series(2025, 8, [900.0] * 12)
+
+
+def _db():
+    return FakeNamedDB({
+        'FranklinElectricalDB': [elec('E1', YEAR, parcel_key='K1'), elec('E2', YEAR),
+                                 elec('E3', monthly_series(2015, 3, [700.0] * 12))],
+        'FranklinCountyDemographic': [{'_id': 'D1', 'parcel_key': 'K1', 'estimated_income': 30000.0,
+                                       'md_householdsize': 2.0, 'md_own_rent': 'Maybe'}],
+    })
+
+
+def test_successful_build_replaces_only_its_county():
+    store = FakeStore(live=[{'_id': 'OLD', 'county': 'Franklin'}, {'_id': 'X', 'county': 'Adams'}])
+    build = build_county(_db(), store, 'Franklin', REG, NOW)
+    assert build['status'] == 'ok' and build['doc_count'] == 3
+    assert set(store.live) == {'E1', 'E2', 'E3', 'X'}
+    assert store.live['E1']['dims'][0] == 2 and store.live['E1']['link'] == 1 | 4
+    assert build['sources_present'] == ['demographic', 'electrical']
+    assert build['source_counts']['electrical'] == 3 and build['cutpoints']['annual_kwh']['n'] == 2
+    assert build['unmapped_values'] == {'owner': [['Maybe', 1]]}
+    assert build['stats'] == {'unlinked': 2, 'multi_unit': 0, 'stale': 1, 'duplicates': {'demographic': 0}}
+    assert build['size_p99'] < 1024 and build['registry_version'] == REG.fields_version
+    assert store.builds == [build] and store.staging == {}
+
+
+def test_county_without_electrical_fails_and_changes_nothing():
+    store = FakeStore(live=[{'_id': 'OLD', 'county': 'Nowhere'}])
+    build = build_county(FakeNamedDB({}), store, 'Nowhere', REG, NOW)
+    assert build['status'] == 'failed' and 'no ElectricalDB' in build['error']
+    assert set(store.live) == {'OLD'} and store.builds == [build]
+
+
+def test_write_failure_leaves_previous_version_live():
+    store = FakeStore(live=[{'_id': 'OLD', 'county': 'Franklin'}], fail_on_stage=True)
+    build = build_county(_db(), store, 'Franklin', REG, NOW)
+    assert build['status'] == 'failed' and 'disk full' in build['error']
+    assert set(store.live) == {'OLD'} and store.staging == {}
+
+
+def test_gates():
+    assert check_gates(3, 3, [300, 400, 500]) == []
+    assert check_gates(2, 3, [300, 400]) == ['doc count 2 != source meter count 3']
+    assert check_gates(1, 1, [1024]) == ['p99 document size 1024 B is not under 1024 B']
