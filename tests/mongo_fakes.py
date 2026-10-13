@@ -31,3 +31,16 @@ class FakeDB:
 
     def __getitem__(self, name):
         return self._cols[name]
+
+
+class FakeNamedDB:
+    """Any set of named collections, for code that discovers which collections a county has."""
+
+    def __init__(self, collections):
+        self._cols = {name: FakeCollection(docs) for name, docs in collections.items()}
+
+    def __getitem__(self, name):
+        return self._cols[name]
+
+    def list_collection_names(self):
+        return list(self._cols)
