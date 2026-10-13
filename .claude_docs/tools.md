@@ -316,3 +316,25 @@ It was private to `scripts/audit_thermal_load_coverage_tool.py` as `_norm`. It l
 **This is deliberately not the normalization in `scripts/enrich_demographics_from_bolt.py`**, which strips dashes and spaces for fuzzy CSV matching. Applying that here would turn `"24-01889-000"` into `"2401889000"` and break the very join T-02 repairs. Normalization here does exactly one thing: render the value as its string form.
 
 **Tested**: `tests/test_parcel_id_normalization.py` — int, `Int64`, leading zeros, embedded punctuation, whitespace, and the three shapes of absence. The audit was re-run after extraction and all eleven runbook baseline numbers were byte-identical.
+
+## analysis_engine (bulk need analysis)
+
+**Purpose**: Rebuilds `analysis_households` (one sparse < 1 KB document per electric meter: features, `link`
+bitmask, `missing` codes, six need `dims`) and records each county build in `analysis_builds`. Registry data —
+field codes, sentinels, thresholds, cited FPG/HUD/EIA tables, archetypes — lives in
+`src/analysis_engine/registry/{fields,rules}.json`. Gas is excluded (spec §14).
+
+**Location**: `src/analysis_engine/`
+
+**Usage:**
+```bash
+source venv/bin/activate
+python -m src.analysis_engine.cli build --county Adams --dry-run    # compute + gates, no writes
+python -m src.analysis_engine.cli build --county Adams --county Cuyahoga --county Franklin
+python -m src.analysis_engine.cli report --county Franklin          # level and archetype counts
+```
+
+A build is atomic per county: it stages to `analysis_households_staging_{County}`, checks gates (doc count =
+meter count, p99 < 1 KB), then swaps. A failure leaves the previous version live and records `status: failed`.
+Source fields the registry neither maps nor ignores appear under `unmapped_fields`. Spec:
+`.claude_docs/20261008_1713_bulk_need_analysis_design.md`. Tests: `tests/test_analysis_*.py`.
