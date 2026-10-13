@@ -277,3 +277,98 @@ changes to Audiences behaviour beyond reusing its components; porting the engine
    fields the internal Need-profile tab may show (`income_est`, `hh_size`, and `fpl_pct` — which
    back-derives income — are purchased-overlay class); settle the route name together with the
    Campaigns/Reports review-path decision before claiming `/analysis` or `/reports`.
+
+## 15. P2 decisions (2026-10-13, from the 85-county profile and the duplication check)
+
+Evidence: `scripts/profile_need_analysis_counties_tool.py` (85 unbuilt counties, 3,258,842 meters) and
+`scripts/check_preingest_meter_duplication_tool.py` (23 linked counties + Franklin, Cuyahoga). Both read-only.
+
+### 15.1 Data facts
+
+- 62 of the 85 counties are fully unlinked: no CountyKeys entry, no Residential, Demographic or ThermalLoads
+  collection. Only usage dimensions are computable there; all other dimensions are unknown.
+- CountyKeys names `{County}CountyDemographic` for Hardin, Montgomery, Ross and Scioto, which do not exist.
+  The `X` / `XCounty` spellings in `participants.linkage.county_key` (14 counties) resolve to the same collections.
+- Thermal fits for all 23 linked counties were recomputed 2026-09-23/24 (Hancock 70%); every county uses the
+  same `hl+cl` kWh per °F-degree-hour fit. Rural slope medians are 2–9× Franklin's (see 15.2 Q4).
+- The engine ranks percentiles itself (`rules.py`); the never-run `energy_percentile` refresh does not block P2.
+- `utility` values are clean strings. AES (605,681 meters, 29 counties) has no rate in `electric_rates_2025`.
+- 59,487 meters (1.8%) exceed 50,000 kWh/yr; 97.1% are unlinked. Duke feeds (residential-only) run 0.16–0.29%
+  above 50k and max ≤ 1M; AEP/FE/AES feeds about 2%, with maxima up to 1.35 B kWh (Union).
+- Ingest defects (2026-08-19, `src/tools/utility_bills/ingest.py`): (a) merges into existing docs never wrote
+  `utility` (~228k docs in 23 counties, ~396k in P1 counties); (b) existing docs were matched on the raw
+  `parcel_id` string, not `parcel_key` (415 certain duplicates: Huron 257, Cuyahoga 158); (c) addresses that
+  map to several parcels were left unmatched and stored under a surrogate id beside the older linked doc
+  (27.8k probable duplicates with zip, 40.8k upper bound; Montgomery 19–31k). P1 counts are inflated by about
+  0.3% (Franklin) and 2.7% (Cuyahoga).
+- About 91k unmerged pre-ingest docs in the 23 counties (91.6k in P1) last read 2016–2024. They stay households
+  under the settled stale rule (usage unknown, no computed bill) and are counted in coverage.
+
+### 15.2 Policy decisions
+
+| # | Question | Decision |
+|---|---|---|
+| Q1 | Implausible usage | `annual_kwh > 50,000` (`usage.nonres_kwh` in rules.json) stores `nonres: true`. The doc is kept with `annual_kwh` for audit; usage dim, computed burden and the county percentile base treat its usage as unknown; archetype denominators exclude it; coverage counts it. |
+| Q2 | Burden wording | Keep `≥` on the floored burden (floor(x) ≥ 6.0 ⇔ x ≥ 6.0). Cite as "at or above 6% / 10%". |
+| Q3 | Inefficiency proxy | The pre-1980 proxy qualifies for Weatherization. Report and coverage split every Weatherization count into `measured` and `proxy`. |
+| Q4 | Electrification | Keep the dimension and archetype. Counties with no mapped heat-fuel source report `no measured source`, not 0 of 0. The plan scans Residential collections for heating-type fields and maps any found. Store `kwh_hl_intercept`, `kwh_hl_r2`, `kwh_cl_r2` so a later amendment can infer electric heat/cooling from thermal fits and `peak_ratio`; that inference reopens §14.2 and is out of P2. |
+| Q5 | Income coverage | Classify as stored (ceil on a banded estimate still classifies correctly at `≤`). Coverage reports per county the income-known share and the counts sitting exactly on tier boundaries; missing Demographic collections are a coverage gap, not a build error. |
+| Q6a | CuyahogaMultiTenant | Not read. `multi_unit` stays "more than one meter on a parcel" in every county. |
+| Q6b | owner_age → senior | True-only fallback: when the presence-of-senior flags are blank and `owner_age ≥ 65`, `senior = true`; otherwise unchanged. Flags win when present. `date_of_birth` is not read. Build summaries count the fallback additions. |
+| Q7 | Ingest defects | Repair at the source before any P2 build (15.3), then rebuild P1 and build the 85 counties on clean data. |
+
+### 15.3 Ingest repair (runs first)
+
+1. Gzip `mongodump` of all 88 `{County}ElectricalDB` collections to `backups/`; no write before it exists.
+2. Fix `ingest.py` (test first): merges also set a missing `utility`; existing docs are found by `parcel_key`;
+   an address mapping to several parcels merges only when exactly one of those parcels holds an unmerged
+   pre-ingest doc and the two series have no shared date with different readings.
+3. `--repair` mode re-runs the fixed ingest over the same delivery files (excluding the mislabeled
+   "AEP August 2026.zip" and the corrupt January AEP zip): it appends the surrogate doc's readings to the older
+   doc (existing value wins on a conflicting date), writes `utility`, and deletes the surrogate doc. Dry by
+   default, with a per-county report (utility backfills, type-(b) and type-(c) folds, skipped conflicts and
+   multi-candidate addresses). The live run needs the user's explicit go-ahead. A second run reports zero changes.
+4. Verify with `check_preingest_meter_duplication_tool.py`: `parcel_key` overlaps 0; address overlaps only the
+   skipped cases; no-utility docs essentially only stale orphans.
+5. Thermal fits are not recomputed in P2; folded parcels keep their fits (later refresh is optional).
+
+This is the one P2 step that writes to a source collection; it is a data repair of the ingest, approved
+2026-10-13, and does not change the "never write to source collections" rule for the analysis engine.
+
+### 15.4 Build, gates, coverage, reconciliation
+
+- Order: repair → rebuild Adams, Cuyahoga, Franklin → the 85 counties.
+- `build --all` builds counties one at a time in one process with P1's per-county staging swap. A failing county
+  records a failed `analysis_builds` entry and the loop continues; the run exits non-zero and nothing of the failed
+  county is swapped in.
+- Gates per county before swap: P1's (doc count = source meters, p99 < 1 KB, zero-meter refusal, no surrogate
+  ids) plus: `nonres` count = meters above `nonres_kwh`; every doc's `county` = the built county; any unmapped
+  field or value fails the county.
+- Collection names keep the engine pattern plus existence check (`sources_present`); coverage compares them with
+  CountyKeys where an entry exists and reports disagreements (CountyKeys covers only 23 counties).
+- `analysis_coverage`: one rebuildable doc per county, written by the builder from its own counters: meters,
+  linked, stale, `nonres`, priced share, income-known share, tier-boundary counts, usable-thermal share, per-dim
+  known/unknown, archetype counts with Weatherization `measured`/`proxy`, source collections present/missing,
+  heat-fuel source status, senior-fallback additions, `build_id`.
+- Reconciliation tool: samples Franklin, a linked rural county, a fully unlinked county, Montgomery and one random
+  county; recounts meters, linked, stale and >`nonres_kwh` with its own direct queries (not the engine's
+  iterators); reports diffs against `analysis_coverage` and exits non-zero on any mismatch.
+
+### 15.5 Registry changes (version `2026-10-13.1`)
+
+- rules.json: `usage.nonres_kwh: 50000`; burden citation wording "at or above".
+- fields.json: `nonres` (bool), `kwh_hl_intercept`, `kwh_hl_r2`, `kwh_cl_r2` (float, from thermal, moved off
+  the ignored list); `senior` gains the `owner_age` true-only fallback.
+- Tables: AES Ohio residential rate (EIA-861 2025, cited); HUD FY2026 low-income limits for all 88 counties
+  (HUD file cited). ODJFS thresholds unchanged (statewide). `county_default_utility` stays at the three P1 counties;
+  non-stale docs still lacking `utility` after repair are reported as unpriced, with no heuristic default.
+- `household._derive` reads `utility` through the normalizer so NaN or non-strings mean missing, not a crash.
+
+### 15.6 Verification
+
+Unit tests for every item above (ingest fixes and idempotent repair; the 50,000/50,001 boundary; `nonres`
+exclusions; measured/proxy split; `no measured source`; four senior-fallback cases; NaN utility; build-loop
+failure isolation; coverage and reconciliation including a forced mismatch). Live sequence, each stage stopping
+for the user: backup → repair dry run → **go-ahead** → live repair → duplication re-check → 88-county dry run
+(per-county runtime, peak RSS, gates, unmapped, fallback and `nonres` counts) → reconciliation → spot checks
+(5 households each in Montgomery, Holmes, Lucas against source) → **go-ahead** → live build → results doc.
