@@ -18,7 +18,7 @@ YEAR = monthly_series(2025, 8, [900.0] * 12)
 
 def _db():
     return FakeNamedDB({
-        'FranklinElectricalDB': [elec('E1', YEAR, parcel_key='K1'), elec('E2', YEAR),
+        'FranklinElectricalDB': [elec('E1', YEAR, parcel_key='K1'), elec('E2', YEAR, surprise_field=1),
                                  elec('E3', monthly_series(2015, 3, [700.0] * 12))],
         'FranklinCountyDemographic': [{'_id': 'D1', 'parcel_key': 'K1', 'estimated_income': 30000.0,
                                        'md_householdsize': 2.0, 'md_own_rent': 'Maybe'}],
@@ -35,6 +35,7 @@ def test_successful_build_replaces_only_its_county():
     assert build['source_counts']['electrical'] == 3 and build['cutpoints']['annual_kwh']['n'] == 2
     assert build['unmapped_values'] == {'owner': [['Maybe', 1]]}
     assert build['stats'] == {'unlinked': 2, 'multi_unit': 0, 'stale': 1, 'duplicates': {'demographic': 0}}
+    assert build['unmapped_fields'] == {'electrical': ['surprise_field']}
     assert build['size_p99'] < 1024 and build['registry_version'] == REG.fields_version
     assert store.builds == [build] and store.staging == {}
 
@@ -51,6 +52,14 @@ def test_write_failure_leaves_previous_version_live():
     build = build_county(_db(), store, 'Franklin', REG, NOW)
     assert build['status'] == 'failed' and 'disk full' in build['error']
     assert set(store.live) == {'OLD'} and store.staging == {}
+
+
+def test_swap_failure_is_recorded_as_possibly_partial():
+    store = FakeStore(live=[{'_id': 'OLD', 'county': 'Franklin'}], fail_on_swap=True)
+    build = build_county(_db(), store, 'Franklin', REG, NOW)
+    assert build['status'] == 'failed'
+    assert 'swap failed' in build['error'] and 'connection lost' in build['error']
+    assert store.builds == [build]
 
 
 def test_gates():

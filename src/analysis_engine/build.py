@@ -96,7 +96,10 @@ def build_county(db, store, county: str, reg: Registry, now: datetime) -> Dict:
         failures = check_gates(len(sizes), src.counts['electrical'], sizes)
         if failures:
             raise BuildError('; '.join(failures))
-        store.swap(county)
+        try:
+            store.swap(county)
+        except Exception as exc:
+            raise BuildError(f'swap failed (live county may be partially replaced; re-run the build): {exc}') from exc
         build['status'] = 'ok'
     except Exception as exc:  # recorded, not swallowed: the build doc carries the error and status 'failed'
         logger.exception(f'{county}: build failed')

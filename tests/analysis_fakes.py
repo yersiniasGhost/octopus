@@ -20,9 +20,10 @@ def elec(_id, series=None, **fields) -> Dict:
 class FakeStore:
     """In-memory analysis_households with the staging/swap semantics of MongoStore."""
 
-    def __init__(self, live=None, fail_on_stage=False):
+    def __init__(self, live=None, fail_on_stage=False, fail_on_swap=False):
         self.live = {doc['_id']: doc for doc in (live or [])}
         self.staging, self.builds, self.fail_on_stage = {}, [], fail_on_stage
+        self.fail_on_swap = fail_on_swap
 
     def reset_staging(self, county):
         self.staging[county] = {}
@@ -33,6 +34,8 @@ class FakeStore:
         self.staging[county].update({doc['_id']: doc for doc in docs})
 
     def swap(self, county):
+        if self.fail_on_swap:
+            raise IOError('connection lost')
         self.live = {k: d for k, d in self.live.items() if d['county'] != county}
         self.live.update(self.staging.pop(county))
 
