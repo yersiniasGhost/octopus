@@ -27,7 +27,9 @@ def compile_archetype(name: str, rules: Dict) -> Tuple[Dict, Dict]:
             match.append({path: {OPS[clause['op']]: clause['value']}})
             known.append({path: {'$gte': 0}})
         else:
-            match.append({clause['field']: {OPS[clause['op']]: clause['value']}})
+            match_clause = {OPS[clause['op']]: clause['value']}
             if not clause.get('unknown_ok'):
+                match_clause['$exists'] = True
                 known.append({clause['field']: {'$exists': True}})
+            match.append({clause['field']: match_clause})
     return {'$and': match}, ({'$and': known} if known else {})

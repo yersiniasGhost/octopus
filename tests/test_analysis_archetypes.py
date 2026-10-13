@@ -18,7 +18,7 @@ def test_bill_assistance():
 
 def test_weatherization_needs_multi_unit_known():
     match, known = compile_archetype('weatherization', RULES)
-    assert match == {'$and': [{'dims.0': {'$gte': 1}}, {'dims.2': {'$gte': 1}}, {'multi_unit': {'$ne': True}}]}
+    assert match == {'$and': [{'dims.0': {'$gte': 1}}, {'dims.2': {'$gte': 1}}, {'multi_unit': {'$ne': True, '$exists': True}}]}
     assert known == {'$and': [{'dims.0': {'$gte': 0}}, {'dims.2': {'$gte': 0}}, {'multi_unit': {'$exists': True}}]}
 
 
@@ -32,3 +32,8 @@ def test_likely_no_benefit_requires_four_known_dims():
     known_count = {'$expr': {'$gte': [{'$size': {'$filter': {'input': '$dims', 'cond': {'$gte': ['$$this', 0]}}}}, 4]}}
     assert compile_archetype('likely_no_benefit', RULES) == (
         {'$and': [known_count, {'dims': {'$not': {'$elemMatch': {'$gte': 1}}}}]}, known_count)
+
+
+def test_behavioural_needs_known_zero_income():
+    assert compile_archetype('behavioural', RULES) == (
+        {'$and': [{'dims.3': {'$gte': 1}}, {'dims.0': {'$eq': 0}}]}, {'$and': [{'dims.3': {'$gte': 0}}, {'dims.0': {'$gte': 0}}]})
