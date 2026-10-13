@@ -71,3 +71,4 @@ def test_gates():
     assert check_gates(2, 3, [300, 400]) == ['doc count 2 != source meter count 3']
     assert check_gates(1, 1, [1024]) == ['p99 document size 1024 B is not under 1024 B']
     assert check_gates(3, 3, [300], surrogate_ids=2) == ['2 document _id(s) still carry a readable source id']
+    assert check_gates(0, 0, []) == ['no source meters; refusing to replace the county']

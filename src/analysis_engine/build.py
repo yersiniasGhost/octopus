@@ -34,6 +34,8 @@ def doc_size(doc: Dict) -> int:
 def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int], surrogate_ids: int = 0) -> List[str]:
     """Pre-swap gates (spec §12, P1): one document per meter, p99 size under 1 KB."""
     failures = []
+    if source_count == 0:
+        failures.append('no source meters; refusing to replace the county')
     if doc_count != source_count:
         failures.append(f'doc count {doc_count} != source meter count {source_count}')
     p99 = quantile(sizes_sorted, 99)
