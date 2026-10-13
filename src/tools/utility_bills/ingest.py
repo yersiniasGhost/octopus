@@ -154,6 +154,13 @@ def _load_existing(db, coll_name):
     return index, surrogates
 
 
+def _target_for(existing, parcel, tag):
+    """The doc a parcel's readings merge into: its merge_target, else the single doc this delivery already made."""
+    docs = existing.resolve(parcel)[0] or []
+    mine = [d for d in docs if d.get('source_delivery') == tag]
+    return merge_target(docs) or (mine[0] if len(mine) == 1 else None)
+
+
 def process_county(db, county, records, tag, dry_run, existing_colls, log=print):
     """Match records to parcels, diff against ElectricalDB, apply/count writes."""
     coll_name = f"{county}ElectricalDB"
@@ -203,24 +210,21 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
             st['ambiguous_address'] += 1
         if parcel is not None:
             st['matched_parcels'] += 1
-            put(('p', parcel['_id']), {**slot, 'parcel': parcel})
+            put(('p', identity(parcel)), {**slot, 'parcel': parcel})
         else:
             put(('s', slot['rec'].surrogate_key()), slot)
 
-    ops, first_date, last_date = [], None, None
+    ops, first_date, last_date, merges = [], None, None, {}
     for key, slot in keyed.items():
         dates, rec, kind = slot['dates'], slot['rec'], key[0]
         lo, hi = min(dates), max(dates)
         first_date = min(first_date, lo) if first_date else lo
         last_date = max(last_date, hi) if last_date else hi
         parcel = slot.get('parcel')
-        target = merge_target(existing.resolve(parcel)[0] or []) if kind == 'p' else surrogates.get(key[1])
+        target = _target_for(existing, parcel, tag) if kind == 'p' else surrogates.get(key[1])
         if target:
-            changes = _merge_set(target, dates, rec, tag, st)
-            if not changes:
-                st['unchanged'] += 1
-            elif not dry_run:
-                ops.append(UpdateOne({'_id': target['_id']}, {'$set': changes}))
+            prev = merges.setdefault(target['_id'], {'target': target, 'dates': {}, 'rec': rec})
+            prev['dates'].update({k: v for k, v in dates.items() if k not in prev['dates']})
             continue
         doc = {'parcel_id': parcel['parcel_id'] if kind == 'p' else None,
                'time_series_elec': dates, **monthly_stats(dates),
@@ -240,6 +244,13 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
         st['readings_added_new'] += len(dates)
         if not dry_run:
             ops.append(UpdateOne(flt, {'$set': doc}, upsert=True))
+
+    for m in merges.values():  # one write per target doc, however many addresses or spellings fed it
+        changes = _merge_set(m['target'], m['dates'], m['rec'], tag, st)
+        if not changes:
+            st['unchanged'] += 1
+        elif not dry_run:
+            ops.append(UpdateOne({'_id': m['target']['_id']}, {'$set': changes}))
 
     if ops:
         for i in range(0, len(ops), 1000):

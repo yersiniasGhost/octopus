@@ -68,3 +68,25 @@ def test_second_run_changes_nothing():
     _run(db, [_rec()])
     st = _run(db, [_rec()])
     assert st.get('docs_updated', 0) == 0 and st.get('utility_set', 0) == 0 and st['unchanged'] == 1
+
+
+def test_two_addresses_on_one_parcel_merge_into_one_write():
+    db = _db([{'_id': 'o1', 'parcel_id': 'P1', 'time_series_elec': {}}],
+             [{'_id': 'r1', 'parcel_id': 'P1', 'address': '12 Main St'},
+              {'_id': 'r2', 'parcel_id': 'P1', 'address': '14 Main St'}])
+    recs = [_rec(), AccountRecord('FE', 'CEI', 'A2', 'X', '14 MAIN ST', 'Columbus', 'OH', '43215', [('2026-06-15', 600.0)])]
+    st = _run(db, recs)
+    assert set(db['TestElectricalDB'].docs['o1']['time_series_elec']) == {D1, '2026-06-15 00:00:00'}
+    assert st['docs_updated'] == 1 and st['utility_set'] == 1
+    st = _run(db, recs)
+    assert st.get('docs_updated', 0) == 0 and st['unchanged'] == 1
+
+
+def test_parcel_with_two_preingest_docs_is_idempotent():
+    db = _db([{'_id': 'o1', 'parcel_id': 'P1', 'time_series_elec': {}},
+              {'_id': 'o2', 'parcel_id': 'P1', 'time_series_elec': {}}],
+             [{'_id': 'r1', 'parcel_id': 'P1', 'address': '12 Main St'}])
+    st = _run(db, [_rec()])
+    assert st['docs_created_parcel'] == 1 and len(db['TestElectricalDB'].docs) == 3
+    st = _run(db, [_rec()])
+    assert st.get('docs_created_parcel', 0) == 0 and st.get('docs_updated', 0) == 0 and len(db['TestElectricalDB'].docs) == 3
