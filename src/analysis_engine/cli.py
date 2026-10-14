@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from src.analysis_engine.build import build_county
+from src.analysis_engine.build import build_county, month_of
 from src.analysis_engine.ids import load_id_key
 from src.analysis_engine.registry import Registry, load_registry
 from src.analysis_engine.report import county_report, format_report, summarize_build
@@ -59,8 +59,7 @@ def main(argv: Optional[List[str]] = None, db=None) -> int:
     if args.command == 'build':
         return run_build(db, all_counties(db) if args.all else args.county, args.dry_run, reg, id_key)
     if args.command == 'reconcile':
-        now = datetime.now(timezone.utc)
-        rows = reconcile(db, args.county or sample_counties(db, args.seed), reg, now.year * 100 + now.month)
+        rows = reconcile(db, args.county or sample_counties(db, args.seed), reg, month_of(datetime.now(timezone.utc)))
         print('\n'.join(format_row(r) for r in rows))
         return 0 if all(r['ok'] for r in rows) else 1
     for county in args.county:

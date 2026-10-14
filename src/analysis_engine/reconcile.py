@@ -8,6 +8,7 @@ params (the 50,000 kWh rule needs the engine's 12-reading annual sum), then appl
 import random
 from typing import Dict, List
 
+from src.analysis_engine.build import month_of
 from src.analysis_engine.registry import Registry
 from src.analysis_engine.sources import all_counties, collection_name
 from src.analysis_engine.store import COVERAGE
@@ -39,10 +40,14 @@ def source_counts(db, county: str, build_month: int, reg: Registry) -> Dict[str,
 
 
 def reconcile(db, counties: List[str], reg: Registry, build_month: int) -> List[Dict]:
-    """One row per county: per key a (source, coverage) pair, and ok when every pair agrees (no coverage = not ok)."""
+    """One row per county: per key a (source, coverage) pair, and ok when every pair agrees (no coverage = not ok).
+
+    Each county is recounted at its coverage document's build month; build_month is the fallback without one."""
     rows = []
     for county in counties:
-        source, cov = source_counts(db, county, build_month, reg), db[COVERAGE].find_one({'_id': county})
+        cov = db[COVERAGE].find_one({'_id': county})
+        month = month_of(cov['built_at']) if cov and cov.get('built_at') else build_month  # recount as of the build
+        source = source_counts(db, county, month, reg)
         row = {'county': county, **{k: (source[k], (cov or {}).get(k)) for k in KEYS}}
         rows.append({**row, 'ok': cov is not None and all(a == b for a, b in (row[k] for k in KEYS))})
     return rows

@@ -56,3 +56,13 @@ def test_sample_counties_is_seeded_and_covers_the_kinds():
     assert first == rc.sample_counties(db, 7) and len(first) == 5 == len(set(first))
     assert first[:4] == ['Franklin', 'BigLinked', 'BigUnlinked', 'Montgomery']
     assert 'Franklin' in first and 'Montgomery' in first
+
+
+def test_recounts_at_each_coverage_docs_build_month(monkeypatch):
+    from datetime import datetime
+    seen = []
+    monkeypatch.setattr(rc, 'source_counts', lambda db, c, m, r: seen.append((c, m)) or {k: 1 for k in rc.KEYS})
+    cov = {k: 1 for k in rc.KEYS}
+    db = _DB({'A': {**cov, 'built_at': datetime(2026, 8, 31)}, 'B': cov})
+    rc.reconcile(db, ['A', 'B', 'C'], REG, 202610)
+    assert seen == [('A', 202608), ('B', 202610), ('C', 202610)]

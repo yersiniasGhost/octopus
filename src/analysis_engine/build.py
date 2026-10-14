@@ -126,9 +126,14 @@ def _stage_households(db, store, county: str, src: CountySources, dist: Distribu
     return sorted(sizes), surrogates
 
 
+def month_of(moment: datetime) -> int:
+    """YYYYMM of a build time."""
+    return moment.year * 100 + moment.month
+
+
 def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: bytes) -> Dict:
     """Build one county and record the attempt. Never raises: failures are recorded with status 'failed'."""
-    build_month = now.year * 100 + now.month
+    build_month = month_of(now)
     build = {'county': county, 'built_at': now, 'registry_version': reg.fields_version,
              'rules_version': reg.rules_version, 'status': 'staging'}
     try:
