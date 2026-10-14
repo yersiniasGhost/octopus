@@ -40,7 +40,7 @@ def run_build(db, counties: List[str], dry_run: bool, reg: Registry, id_key: byt
     for county in counties:
         build = build_county(db, store, county, reg, now or datetime.now(timezone.utc), id_key)
         print(summarize_build(build))
-        failed += build['status'] != 'ok'
+        failed += build['status'] != 'ok' or bool(build.get('coverage_error'))
     return 1 if failed else 0
 
 

@@ -158,6 +158,11 @@ def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: b
     if inserted is not None:
         build['_id'] = inserted
     if build['status'] == 'ok':
-        report = county_report(db, county, reg) if isinstance(store, MongoStore) else None
-        store.write_coverage(coverage_doc(build, report, countykeys_collections(db, county), src.present, reg.rules))
+        try:
+            report = county_report(db, county, reg) if isinstance(store, MongoStore) else None
+            store.write_coverage(coverage_doc(build, report, countykeys_collections(db, county), src.present,
+                                              reg.rules, set(db.list_collection_names())))
+        except Exception as exc:  # the build is already live and recorded; surface the gap without aborting a batch
+            logger.exception(f'{county}: coverage failed')
+            build['coverage_error'] = str(exc)[:1000]
     return build

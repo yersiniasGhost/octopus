@@ -123,3 +123,11 @@ def test_successful_build_writes_coverage():
     failed = FakeStore()
     build_county(FakeNamedDB({}), failed, 'Nowhere', REG, NOW, KEY)
     assert failed.coverage == {}
+
+
+def test_coverage_failure_is_isolated_from_the_recorded_build():
+    class Boom(FakeStore):
+        def write_coverage(self, doc):
+            raise IOError('coverage disk')
+    build = build_county(_db(), Boom(), 'Franklin', REG, NOW, KEY)
+    assert build['status'] == 'ok' and 'coverage disk' in build['coverage_error']

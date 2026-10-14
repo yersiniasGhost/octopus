@@ -66,3 +66,14 @@ def test_build_all_lists_every_electrical_collection(monkeypatch):
     monkeypatch.setattr(cli, 'run_build', lambda db, counties, *a, **k: seen.extend(counties) or 0)
     db = FakeNamedDB({'AElectricalDB': [], 'BElectricalDB': [], 'BCountyResidential': []})
     assert cli.main(['build', '--all', '--dry-run'], db=db) == 0 and seen == ['A', 'B']
+
+
+def test_coverage_error_fails_the_exit_code_but_not_the_batch(monkeypatch):
+    from src.analysis_engine import cli
+    seen = []
+
+    def fake_build(db, store, county, *a):
+        seen.append(county)
+        return {'county': county, 'status': 'ok', **({'coverage_error': 'boom'} if county == 'A' else {})}
+    monkeypatch.setattr(cli, 'build_county', fake_build)
+    assert run_build(None, ['A', 'B'], True, load_registry(), b'k') == 1 and seen == ['A', 'B']

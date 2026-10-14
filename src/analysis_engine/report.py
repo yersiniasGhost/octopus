@@ -14,6 +14,8 @@ def summarize_build(build: Dict) -> str:
              f"size p50/p99 {build.get('size_p50')}/{build.get('size_p99')} B"]
     if build.get('error'):
         lines.append(f"  error: {build['error']}")
+    if build.get('coverage_error'):
+        lines.append(f"  coverage error: {build['coverage_error']}")
     stats = build.get('stats', {})
     if stats:
         lines.append(f"  unlinked {stats['unlinked']:,} · multi-unit {stats['multi_unit']:,} · "
