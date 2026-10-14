@@ -396,3 +396,6 @@ Approved by the user 2026-10-13.
    the deleted doc's `_id` and the deleted doc's `merged_ids`; the ingest resolves a surrogate key through
    `merged_ids` as an alias (a doc's own `_id` wins, an alias claimed by two docs is not used, the same-meter rule
    applies), so re-ingesting a folded delivery re-creates nothing.
+7. §15.3.3's "re-run the fixed ingest over the delivery files" was implemented as two steps: the database-only fold
+   (`repair.py`, types (b)–(e), no delivery files read), then the fixed ingest over the deliveries as the `utility`
+   backfill (`--exclude AES:jan2026`).
