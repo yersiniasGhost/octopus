@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Fold the 2026-08-19 ingest's duplicate {County}ElectricalDB docs into their pre-ingest doc and delete them.
+Also folds cross-delivery surrogate pairs and links orphan surrogates in place (spec 20261008_1713 §15.7).
 
 Requires a fresh backup; see the P2 plan Task 3. DRY RUN BY DEFAULT: without --execute nothing is written.
 Reports print counts only (no addresses, names or account ids).

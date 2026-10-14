@@ -372,3 +372,19 @@ failure isolation; coverage and reconciliation including a forced mismatch). Liv
 for the user: backup → repair dry run → **go-ahead** → live repair → duplication re-check → 88-county dry run
 (per-county runtime, peak RSS, gates, unmapped, fallback and `nonres` counts) → reconciliation → spot checks
 (5 households each in Montgomery, Holmes, Lucas against source) → **go-ahead** → live build → results doc.
+
+### 15.7 Amendments 2026-10-13, from the Task 3 dry run
+
+Approved by the user 2026-10-13.
+
+1. The jan2026 AES delivery keyed accounts by customer name, aug2026 by numeric account, so each AES premise has
+   two unlinked ingest docs at one service address (Greene ~46k pairs, Montgomery ~79k). Repair type (d): among
+   unlinked ingest docs left after (c), a (utility, normalized address, zip5) group of exactly two docs from two
+   deliveries folds the older delivery's doc into the newer one (order read from the tag's month and year); the
+   newer `_id` is kept, which retires the name-bearing ids. Series conflicts and other group shapes are skipped.
+2. Type (e): an unlinked ingest doc whose address resolves to a residential parcel with no doc, and which is the
+   only remaining doc resolving there (counting 'none' addresses that would resolve there once it is linked), is
+   linked in place (`parcel_id`, and `parcel_key` when present). No delete. Order (b) → (c) → (d) → (e).
+3. The ingest never creates a doc for a parcel that already holds several docs (`skipped_multi_preingest`);
+   re-ingests run with `--exclude AES:jan2026`.
+4. `skipped_none` (no candidate parcel holds a doc) are not duplicates and stay unlinked.

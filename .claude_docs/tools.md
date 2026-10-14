@@ -343,7 +343,8 @@ Source fields the registry neither maps nor ignores appear under `unmapped_field
 
 **Purpose**: Folds the 2026-08-19 ingest's duplicate `{County}ElectricalDB` docs into their pre-ingest doc and
 deletes them (same parcel under another spelling, or an unlinked doc whose service address resolves to one
-parcel). Series that disagree on a shared date are skipped. Dry run by default; requires a fresh backup before
+parcel), folds jan/aug cross-delivery surrogate pairs into the newer doc, and links orphan surrogates to their
+no-doc parcel in place (spec §15.7). Series that disagree on a shared date are skipped. Dry run by default; requires a fresh backup before
 `--execute`. Reports print counts only.
 
 **Location**: `scripts/repair_electrical_ingest_tool.py` (logic in `src/tools/utility_bills/repair.py`)
