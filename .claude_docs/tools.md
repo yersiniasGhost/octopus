@@ -367,3 +367,15 @@ Prints per-county counters including `utility_set`, `unchanged`, `skipped_multi_
 python scripts/ingest_electric_bills_tool.py --delivery jan2026 --delivery aug2026 --exclude AES:jan2026
 ```
 `--exclude UTILITY:DELIVERY` (repeatable) skips that utility's sources in that delivery entirely (not parsed or merged).
+
+## scan_heat_type_fields_tool.py
+
+**Purpose**: Read-only scan of `{County}CountyResidential` collections: lists fields matching heat/fuel/hvac/furnace
+(from a `$sample` of docs) with their top distinct values; free-text-looking fields print only a distinct count.
+
+**Location**: `scripts/scan_heat_type_fields_tool.py`
+
+**Usage**:
+```bash
+python scripts/scan_heat_type_fields_tool.py [--sample 2000] [--top 15]
+```
