@@ -32,7 +32,10 @@ def describe(counter: Counter, top: int) -> str:
     strings = [v for v in counter if isinstance(v, str)]
     if len(counter) > MAX_CATEGORICAL_DISTINCT or any(len(v) > MAX_CATEGORICAL_LEN for v in strings):
         return f'<free text, {len(counter)} distinct>'
-    return ', '.join(f'{v!r}={n}' for v, n in counter.most_common(top))
+    repeated = [(v, n) for v, n in counter.most_common() if n > 1][:top]
+    singletons = sum(1 for n in counter.values() if n == 1)  # one-off values may be record ids; never print them
+    parts = [f'{v!r}={n}' for v, n in repeated] + ([f'<singleton> x {singletons}'] if singletons else [])
+    return ', '.join(parts)
 
 
 def scan(db, name: str, sample: int, top: int) -> dict:
