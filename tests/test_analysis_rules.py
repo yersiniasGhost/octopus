@@ -8,7 +8,7 @@ import bson
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.analysis_engine.registry import load_registry  # noqa: E402
-from src.analysis_engine.rules import Distributions, cutpoints, finalize, percentile_rank, quantile  # noqa: E402
+from src.analysis_engine.rules import Distributions, cutpoints, finalize, percentile_rank, quantile, usage_ok  # noqa: E402
 
 RULES = load_registry().rules
 BM = 202610
@@ -105,3 +105,9 @@ def test_fully_populated_document_is_under_1kb():
           'owner': True, 'senior': False, 'children': True, 'length_residence': 7, 'heat_fuel': 1,
           'missing': [17, 18, 19, 20, 21, 22, 23, 24]}
     assert len(bson.encode(finalize(hh, DIST, RULES, BM))) < 1024
+
+
+def test_nonres_household_is_out_of_the_usage_distribution():
+    hh = {'annual_kwh': 60000, 'months_usage': 12, 'last_read': 202609, 'nonres': True}
+    assert not usage_ok(hh, RULES['params'], BM)
+    assert finalize(dict(hh), Distributions.from_values([1000, 60000], []), RULES, BM)['dims'][3] == -1

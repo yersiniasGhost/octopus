@@ -38,8 +38,8 @@ def quantile(sorted_values: List[float], pct: float) -> Optional[float]:
 
 
 def usage_ok(hh: Dict, params: Dict, build_month: int) -> bool:
-    """A full, plausible year from a meter that is still reading."""
-    return (hh.get('annual_kwh') is not None and hh.get('months_usage', 0) >= 12
+    """A full, plausible year from a meter that is still reading and is not flagged non-residential."""
+    return (hh.get('annual_kwh') is not None and hh.get('months_usage', 0) >= 12 and not hh.get('nonres')
             and is_fresh(hh.get('last_read'), build_month, params['usage']['max_age_months']))
 
 

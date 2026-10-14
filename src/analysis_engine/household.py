@@ -28,6 +28,7 @@ class ParcelMatch:
 class Assembled:
     doc: Dict[str, Any]
     unmapped_values: List[Tuple[str, Any]] = field(default_factory=list)
+    fallbacks: List[str] = field(default_factory=list)
 
 
 def _cast(spec: FieldSpec, value: Any) -> Any:
@@ -67,9 +68,13 @@ def _derive(values: Dict, elec: Dict, county: str, build_month: int, reg: Regist
     for name in ('months_usage', 'last_read', 'annual_kwh', 'peak_ratio'):
         if getattr(usage, name):
             values[name] = getattr(usage, name)
-    utility = (elec.get('utility') or '').strip() or reg.default_utility(county)
-    cost, basis = features.annual_cost(values.pop('vendor_kwh_cost', None), usage.annual_kwh, fresh,
-                                       reg.rate(utility, county))
+    raw = elec.get('utility')
+    utility = raw.strip() if isinstance(raw, str) and raw.strip() else reg.default_utility(county)
+    nonres = usage.annual_kwh is not None and usage.annual_kwh > usage_params['nonres_kwh']
+    if nonres:
+        values['nonres'] = True  # the vendor cost still applies; a computed bill from commercial usage does not
+    cost, basis = features.annual_cost(values.pop('vendor_kwh_cost', None), None if nonres else usage.annual_kwh,
+                                       fresh, reg.rate(utility, county))
     income, size = values.get('income_est'), values.get('hh_size')
     if cost is not None:
         values['annual_cost'], values['burden_basis'] = cost, basis
@@ -87,10 +92,23 @@ def _derive(values: Dict, elec: Dict, county: str, build_month: int, reg: Regist
         values['hl_per_sqft'] = per_sqft
 
 
+def _apply_fallbacks(values: Dict, missing: set, reg: Registry) -> List[str]:
+    """Fill each fallback_for target that has no value from its fallback field; return the targets filled."""
+    filled = []
+    for spec in (s for s in reg.fields if s.fallback_for):
+        popped = values.pop(spec.name, None)
+        if popped is not None and spec.fallback_for not in values:
+            values[spec.fallback_for] = popped
+            missing.discard(reg.field(spec.fallback_for).code)
+            filled.append(spec.fallback_for)
+    return filled
+
+
 def assemble(elec: Dict, match: ParcelMatch, county: str, build_month: int, reg: Registry) -> Assembled:
     """Build the household document for one meter (no dims yet; rules.finalize adds them)."""
     multi_unit = match.linked and match.meters_on_parcel > 1
     values, link, missing, unmapped = _read_sources(match, multi_unit, reg)
+    fallbacks = _apply_fallbacks(values, missing, reg)
     _derive(values, elec, county, build_month, reg)
     doc: Dict[str, Any] = {'_id': elec['_id'], 'county': county}
     key = parcel_key_of(elec)
@@ -104,4 +122,4 @@ def assemble(elec: Dict, match: ParcelMatch, county: str, build_month: int, reg:
             doc[spec.name] = _cast(spec, values[spec.name])
     if missing:
         doc['missing'] = sorted(missing)
-    return Assembled(doc, unmapped)
+    return Assembled(doc, unmapped, fallbacks)

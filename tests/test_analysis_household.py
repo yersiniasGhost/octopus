@@ -124,3 +124,42 @@ def test_md_blank_falls_back_and_unmapped_values_are_reported():
     assert result.doc['senior'] is True and 'owner' not in result.doc
     assert result.unmapped_values == [('owner', 'Maybe')]
     assert 22 not in result.doc.get('missing', [])
+
+
+def test_nonres_boundary():
+    at = _doc(elec('M1', monthly_series(2025, 8, [4000.0] * 11 + [6000.0]), utility='AEP'), ParcelMatch())
+    above = _doc(elec('M2', monthly_series(2025, 8, [4000.0] * 11 + [6001.0]), utility='AEP'), ParcelMatch())
+    assert 'nonres' not in at and 'annual_cost' in at
+    assert above['nonres'] is True and 'annual_cost' not in above and above['annual_kwh'] > 50000
+
+
+def test_nonres_keeps_vendor_cost():
+    match = _linked(demographic={'parcel_key': 'K', 'annual_kwh_cost': 3000, 'estimated_income': 60000,
+                                 'md_householdsize': 2})
+    hh = _doc(elec('M3', monthly_series(2025, 8, [6000.0] * 12), parcel_key='K'), match)
+    assert hh['nonres'] is True and hh['annual_cost'] == 3000 and hh['burden_basis'] == 1
+
+
+def test_owner_age_fills_blank_senior_only():
+    blank = _linked(demographic={'parcel_key': 'K', 'md_presence_of_senior': '', 'owner_age': 70})
+    young = _linked(demographic={'parcel_key': 'K', 'owner_age': 50})
+    flag = _linked(demographic={'parcel_key': 'K', 'md_presence_of_senior': 'No Senior Present', 'owner_age': 70})
+    none = _linked(demographic={'parcel_key': 'K'})
+    meter = elec('M4', parcel_key='K')
+    assert _doc(meter, blank)['senior'] is True and 22 not in _doc(meter, blank).get('missing', [])
+    assert 'senior' not in _doc(meter, young)
+    assert _doc(meter, flag)['senior'] is False
+    assert 'senior' not in _doc(meter, none)
+    assert assemble(meter, blank, 'Franklin', BM, REG).fallbacks == ['senior']
+
+
+def test_nan_utility_falls_back_to_county_default():
+    hh = _doc(elec('M5', monthly_series(2025, 8, [900.0] * 12), utility=float('nan')), ParcelMatch())
+    assert 'annual_cost' in hh
+
+
+def test_thermal_fit_fields_are_stored():
+    match = _linked(thermal={'parcel_key': 'K', 'kwh_hl_slope': 0.01, 'kwh_cl_slope': 0.02, 'kwh_r2': 0.7,
+                             'kwh_hl_intercept': 12.5, 'kwh_hl_r2': 0.61, 'kwh_cl_r2': 0.55})
+    hh = _doc(elec('M6', parcel_key='K'), match)
+    assert hh['kwh_hl_intercept'] == 12.5 and hh['kwh_hl_r2'] == 0.61 and hh['kwh_cl_r2'] == 0.55

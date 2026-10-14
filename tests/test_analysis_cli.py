@@ -40,10 +40,17 @@ def test_format_report_shows_levels_proxy_and_denominators():
     dims = {name: {'levels': {}, 'proxy': 0} for name in reg.dims}
     dims['income_need'] = {'levels': {2: 10, 1: 5, -1: 85}, 'proxy': 0}
     dims['building_inefficiency'] = {'levels': {1: 40, 0: 20, -1: 40}, 'proxy': 30}
-    archetypes = {name: {'n': 0, 'known': 100} for name in reg.rules['archetypes']}
-    archetypes['bill_assistance'] = {'n': 10, 'known': 15}
+    archetypes = {name: {'n': 0, 'known': 100, 'proxy': 0} for name in reg.rules['archetypes']}
+    archetypes['bill_assistance'] = {'n': 10, 'known': 15, 'proxy': 0}
     text = format_report({'county': 'Adams', 'total': 100, 'dims': dims, 'archetypes': archetypes}, reg)
     assert text.splitlines()[0] == 'Adams: 100 households'
     assert 'high 10 · moderate 5 · none 0 · unknown 85 · proxy 0' in text
     assert 'high 0 · moderate 40 · none 20 · unknown 40 · proxy 30' in text
     assert 'Bill assistance candidate' in text and '10 of 15 known-enough' in text
+
+
+def test_format_report_shows_proxy_split_and_no_source():
+    report = {'county': 'X', 'total': 10, 'dims': {}, 'archetypes': {
+        'weatherization': {'n': 5, 'known': 8, 'proxy': 3}, 'electrification': {'n': 0, 'known': 0, 'proxy': 0}}}
+    text = format_report(report, load_registry())
+    assert '5 of 8 known-enough (measured 2 · proxy 3)' in text and 'no measured source' in text

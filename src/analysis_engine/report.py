@@ -2,7 +2,7 @@
 
 from typing import Dict
 
-from src.analysis_engine.archetypes import compile_archetype
+from src.analysis_engine.archetypes import compile_archetype, proxy_mask
 from src.analysis_engine.registry import Registry
 from src.analysis_engine.store import HOUSEHOLDS
 
@@ -26,7 +26,8 @@ def summarize_build(build: Dict) -> str:
 
 
 def county_report(db, county: str, reg: Registry) -> Dict:
-    """Level counts per dimension (with proxy counts) and archetype counts with known-enough denominators."""
+    """Level counts per dimension (with proxy counts) and, per archetype, n, the known-enough denominator
+    (non-residential excluded) and how many of n rest on a proxy for one of its dimensions."""
     households = db[HOUSEHOLDS]
     total = households.count_documents({'county': county})
     dims = {}
@@ -38,9 +39,10 @@ def county_report(db, county: str, reg: Registry) -> Dict:
     archetypes = {}
     for name in reg.rules['archetypes']:
         match, known = compile_archetype(name, reg.rules)
-        archetypes[name] = {'n': households.count_documents({'$and': [{'county': county}, match]}),
-                            'known': households.count_documents({'$and': [{'county': county}, known]})
-                            if known else total}
+        mask = proxy_mask(name, reg.rules)
+        count = lambda *clauses: households.count_documents({'$and': [{'county': county}, *clauses]})  # noqa: E731
+        archetypes[name] = {'n': count(match), 'known': count(known),
+                            'proxy': count(match, {'proxy': {'$bitsAnySet': mask}}) if mask else 0}
     return {'county': county, 'total': total, 'dims': dims, 'archetypes': archetypes}
 
 
@@ -51,5 +53,9 @@ def format_report(report: Dict, reg: Registry) -> str:
         lines.append(f"  {name:<22} {levels} · proxy {entry['proxy']:,}")
     for name, entry in report['archetypes'].items():
         label = reg.rules['archetypes'][name]['label']
-        lines.append(f"  {label:<42} {entry['n']:,} of {entry['known']:,} known-enough")
+        if not entry['known']:
+            lines.append(f"  {label:<42} no measured source")
+            continue
+        split = f" (measured {entry['n'] - entry['proxy']:,} · proxy {entry['proxy']:,})" if entry['proxy'] else ''
+        lines.append(f"  {label:<42} {entry['n']:,} of {entry['known']:,} known-enough{split}")
     return '\n'.join(lines)
