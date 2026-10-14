@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-12.1",
+  "version": "2026-10-13.1",
   "link_bits": {"electrical": 0, "residential": 1, "demographic": 2, "thermal": 3, "gas": 4, "enrollment": 5},
   "missing_tokens": ["nan", "NaN", "Unknown"],
   "inputs": {"electrical": ["time_series_elec", "utility"]},
@@ -16,15 +16,14 @@
                     "total_energy_burden", "cars", "number_of_vehicles", "source", "ingested_at", "md_education",
                     "md_marital_status", "md_gender", "md_occupation", "md_median_household_income", "sqft",
                     "year_built", "energy_percentile", "children_age_range", "date_of_birth", "enriched_at",
-                    "enriched_from", "marital_status", "number_of_adults", "owner_age", "parcel_id_backfilled_at",
+                    "enriched_from", "marital_status", "number_of_adults", "parcel_id_backfilled_at",
                     "parcel_id_source", "estimated_income_original", "income_fix_date", "income_fix_reason",
                     "total_energy_burden_original", "backfill_at", "backfill_fields", "backfill_from",
                     "poverty_level_percent"],
     "thermal": ["_id", "parcel_id", "parcel_key", "gas_hl_cl_loads", "kwh_hl_cl_loads", "calculated_at",
                 "calculation_source", "kwh_intercept", "kwh_model", "kwh_periods", "kwh_periods_dropped",
                 "weather_location", "weather_range", "weather_source", "gas_hl_slope", "gas_hl_intercept",
-                "gas_hl_r2", "gas_cl_slope", "gas_cl_intercept", "gas_cl_r2", "kwh_hl_intercept", "kwh_hl_r2",
-                "kwh_cl_intercept", "kwh_cl_r2"],
+                "gas_hl_r2", "gas_cl_slope", "gas_cl_intercept", "gas_cl_r2", "kwh_cl_intercept"],
     "multitenant": ["_id", "parcel_id", "parcel_zip", "parcel_owner", "parcel_city", "description", "address"]
   },
   "fields": [
@@ -84,6 +83,15 @@
                               "N": null, "OTH": null}}},
     {"name": "multi_unit", "code": 26, "type": "bool", "derived": true},
     {"name": "vendor_kwh_cost", "code": 27, "type": "float", "round": 2, "stored": false,
-     "source": {"role": "demographic", "paths": ["annual_kwh_cost"], "transform": "positive", "sentinels": [-1]}}
+     "source": {"role": "demographic", "paths": ["annual_kwh_cost"], "transform": "positive", "sentinels": [-1]}},
+    {"name": "nonres", "code": 28, "type": "bool", "derived": true},
+    {"name": "kwh_hl_intercept", "code": 29, "type": "float", "round": 5,
+     "source": {"role": "thermal", "paths": ["kwh_hl_intercept"], "transform": "number"}},
+    {"name": "kwh_hl_r2", "code": 30, "type": "float", "round": 3,
+     "source": {"role": "thermal", "paths": ["kwh_hl_r2"], "transform": "number"}},
+    {"name": "kwh_cl_r2", "code": 31, "type": "float", "round": 3,
+     "source": {"role": "thermal", "paths": ["kwh_cl_r2"], "transform": "number"}},
+    {"name": "owner_senior", "code": 32, "type": "bool", "stored": false, "fallback_for": "senior",
+     "source": {"role": "demographic", "paths": ["owner_age"], "transform": "senior_age"}}
   ]
 }

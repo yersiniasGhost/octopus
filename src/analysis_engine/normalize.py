@@ -46,6 +46,11 @@ def _positive(value: Any) -> Optional[float]:
     return number if number is not None and number > 0 else None
 
 
+def _senior_age(value: Any) -> Optional[bool]:
+    number = _number(value)
+    return True if number is not None and number >= 65 else None
+
+
 def _count(value: Any) -> Optional[int]:
     number = _number(value)
     count = int(round(number)) if number is not None else 0
@@ -74,7 +79,7 @@ def _years_range(value: Any) -> Optional[int]:
 
 TRANSFORMS: Dict[str, Callable[[Any], Any]] = {
     'number': _number, 'positive': _positive, 'count': _count,
-    'year': _year, 'money': _money, 'years_range': _years_range,
+    'year': _year, 'money': _money, 'years_range': _years_range, 'senior_age': _senior_age,
 }
 
 

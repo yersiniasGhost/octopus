@@ -67,3 +67,9 @@ def test_value_map_misses_are_unmapped_and_null_mappings_absent():
     assert read_value({'md_presence_of_senior': 'Maybe'}, SENIOR, TOKENS) == (UNMAPPED, 'Maybe')
     assert read_value({'heat_type': 'HTP'}, HEAT, TOKENS) == (PRESENT, 1)
     assert read_value({'heat_type': 'FHA'}, HEAT, TOKENS) == (ABSENT, None)
+
+
+def test_senior_age_is_true_only():
+    from src.analysis_engine.normalize import TRANSFORMS
+    f = TRANSFORMS['senior_age']
+    assert f(65) is True and f('72') is True and f(64) is None and f('abc') is None and f(-1) is None

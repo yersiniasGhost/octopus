@@ -9,13 +9,17 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.analysis_engine.registry import REGISTRY_DIR, RegistryError, load_registry  # noqa: E402
+from src.analysis_engine.registry import REGISTRY_DIR, RegistryError, load_registry, validate  # noqa: E402
 
 
 def _copy(tmp_path):
     for name in ('fields.json', 'rules.json'):
         shutil.copy(REGISTRY_DIR / name, tmp_path / name)
     return (json.loads((tmp_path / 'fields.json').read_text()), json.loads((tmp_path / 'rules.json').read_text()))
+
+
+def _docs():
+    return tuple(json.loads((REGISTRY_DIR / name).read_text()) for name in ('fields.json', 'rules.json'))
 
 
 def _save(tmp_path, fields, rules):
@@ -76,3 +80,19 @@ def test_archetype_with_unknown_dimension_is_refused(tmp_path):
     _save(tmp_path, fields, rules)
     with pytest.raises(RegistryError, match="unknown dimension 'happiness'"):
         load_registry(tmp_path)
+
+
+def test_p2_registry_entries():
+    reg = load_registry()
+    assert reg.params('usage')['nonres_kwh'] == 50000
+    assert reg.field('owner_senior').fallback_for == 'senior' and not reg.field('owner_senior').stored
+    assert {'nonres', 'kwh_hl_intercept', 'kwh_hl_r2', 'kwh_cl_r2'} <= {f.name for f in reg.fields}
+    assert reg.rate('AES', 'Montgomery') is not None
+    assert len(reg.table('hud_low_income_fy2026')['counties']) == 88
+
+
+def test_fallback_must_name_a_field():
+    fields, rules = _docs()
+    fields['fields'].append({'name': 'x', 'code': 99, 'type': 'bool', 'stored': False, 'fallback_for': 'nope',
+                             'source': {'role': 'demographic', 'paths': ['a'], 'transform': 'senior_age'}})
+    assert any('fallback_for' in e for e in validate(fields, rules))

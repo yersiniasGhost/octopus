@@ -32,6 +32,7 @@ class FieldSpec:
     source: Optional[Dict[str, Any]] = None
     round: Optional[int] = None
     bins: Optional[Tuple[float, ...]] = None
+    fallback_for: Optional[str] = None
 
     @property
     def role(self) -> Optional[str]:
@@ -107,6 +108,10 @@ def _field_errors(doc: Dict) -> List[str]:
                 errors.append(f'{name}: value_map transform needs a value_map')
         elif source.get('transform') not in TRANSFORMS:
             errors.append(f'{name}: unknown transform {source.get("transform")!r}')
+    for raw in doc.get('fields', []):
+        target = raw.get('fallback_for')
+        if target is not None and target not in names:
+            errors.append(f"{raw.get('name')}: fallback_for names unknown field {target!r}")
     bits = doc.get('link_bits', {})
     if len(set(bits.values())) != len(bits):
         errors.append('link_bits values must be unique')
@@ -180,6 +185,6 @@ def load_registry(directory: Path = REGISTRY_DIR) -> Registry:
     if errors:
         raise RegistryError('; '.join(errors))
     specs = tuple(FieldSpec(f['name'], f['code'], f['type'], f.get('stored', True), f.get('source'), f.get('round'),
-                            tuple(f['bins']) if f.get('bins') else None) for f in fields_doc['fields'])
+                            tuple(f['bins']) if f.get('bins') else None, f.get('fallback_for')) for f in fields_doc['fields'])
     return Registry(fields_doc['version'], rules_doc['version'], specs, dict(fields_doc['link_bits']),
                     tuple(fields_doc.get('missing_tokens', [])), _known_keys(fields_doc), rules_doc)
