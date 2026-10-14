@@ -27,7 +27,7 @@
       "source": {"title": "HUD FY2026 Income Limits for Section 8, 80% 'Low Income' limits and median2026",
                  "url": "https://www.huduser.gov/portal/datasets/il/il26/Section8-FY26.xlsx",
                  "published": "2026-05-01", "retrieved": "2026-10-12",
-                 "note": "Sizes above 8 add 8% of the 4-person limit per additional person (HUD methodology). Entries with estimated=true are NOT HUD values: the FY2026 file was unavailable (huduser.gov WAF), so every county other than Franklin, Cuyahoga and Adams carries the Adams (Ohio nonmetro floor) limits. Assumption (verify in Task 4b): Adams sits at the HUD state nonmetro floor, the lowest Ohio limit, so the estimate can only under-count 80% AMI qualifiers. Replace via scripts/build_hud_limits_table_tool.py when the file is obtained (Task 4b)."},
+                 "note": "Sizes above 8 add 8% of the 4-person limit per additional person (HUD methodology). Entries with estimated=true are NOT HUD values: the FY2026 file was unavailable (huduser.gov WAF), so every county other than Franklin, Cuyahoga and Adams carries the Adams limits as an approximation. The direction of error is unverified (likely under-counting 80% AMI qualifiers in metro counties). Task 4b replaces these with real HUD FY2026 values. Replace via scripts/build_hud_limits_table_tool.py when the file is obtained (Task 4b)."},
       "extra_person_pct_of_4": 8,
       "counties": {
         "Franklin": {"area": "Columbus, OH HUD Metro FMR Area (METRO18140M18140)", "median_family_income": 111500,
