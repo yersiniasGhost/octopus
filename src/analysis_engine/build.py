@@ -10,11 +10,14 @@ from typing import Dict, List, Optional, Tuple
 
 import bson
 
+from src.analysis_engine.coverage import coverage_doc
 from src.analysis_engine.household import assemble
 from src.analysis_engine.ids import analysis_id, is_surrogate
 from src.analysis_engine.registry import Registry
 from src.analysis_engine.rules import Distributions, cutpoints, finalize, quantile, usable_fit, usage_ok
-from src.analysis_engine.sources import CountySources, identity, iter_electrical, load_county_sources
+from src.analysis_engine.report import county_report
+from src.analysis_engine.sources import CountySources, countykeys_collections, identity, iter_electrical, load_county_sources
+from src.analysis_engine.store import MongoStore
 from src.analysis_engine.usage import is_fresh
 from src.utils.log_manager import LogManager
 
@@ -151,5 +154,10 @@ def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: b
         logger.exception(f'{county}: build failed')
         build['status'], build['error'] = 'failed', str(exc)[:1000]
         store.discard_staging(county)
-    store.record_build(build)
+    inserted = store.record_build(build)
+    if inserted is not None:
+        build['_id'] = inserted
+    if build['status'] == 'ok':
+        report = county_report(db, county, reg) if isinstance(store, MongoStore) else None
+        store.write_coverage(coverage_doc(build, report, countykeys_collections(db, county), src.present, reg.rules))
     return build

@@ -12,6 +12,7 @@ from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 from src.analysis_engine.household import PARCEL_ROLES, ParcelMatch
 from src.analysis_engine.normalize import PRESENT, read_value
 from src.analysis_engine.registry import FieldSpec, Registry
+from src.tools.county_weather import normalize_county
 from src.tools.parcel_id import ParcelIndex, identity, parcel_id_of, parcel_key_of
 
 # 'multitenant' is reported as present but not read: P1 derives multi_unit from meters per parcel only.
@@ -27,6 +28,15 @@ def collection_name(role: str, county: str) -> str:
 def sources_present(collection_names: Iterable[str], county: str) -> Dict[str, str]:
     names = set(collection_names)
     return {role: collection_name(role, county) for role in COLLECTIONS if collection_name(role, county) in names}
+
+
+def countykeys_collections(db, county: str) -> Dict[str, str]:
+    """Collection names the county's CountyKeys document lists, by role; {} when it has none."""
+    if 'CountyKeys' not in db.list_collection_names():
+        return {}
+    keys = {normalize_county(d['county']): d for d in db['CountyKeys'].find({}, {'_id': 0})}.get(normalize_county(county), {})
+    return {role: keys[field] for role, field in (('residential', 'residential_data'),
+                                                  ('demographic', 'demographic_data')) if keys.get(field)}
 
 
 class FieldTracker:

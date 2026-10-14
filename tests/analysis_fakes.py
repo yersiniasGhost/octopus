@@ -22,7 +22,7 @@ class FakeStore:
 
     def __init__(self, live=None, fail_on_stage=False, fail_on_swap=False):
         self.live = {doc['_id']: doc for doc in (live or [])}
-        self.staging, self.builds, self.fail_on_stage = {}, [], fail_on_stage
+        self.staging, self.builds, self.coverage, self.fail_on_stage = {}, [], {}, fail_on_stage
         self.fail_on_swap = fail_on_swap
 
     def reset_staging(self, county):
@@ -44,3 +44,6 @@ class FakeStore:
 
     def record_build(self, build):
         self.builds.append(build)
+
+    def write_coverage(self, doc):
+        self.coverage[doc['_id']] = doc

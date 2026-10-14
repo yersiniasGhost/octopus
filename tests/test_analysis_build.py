@@ -114,3 +114,12 @@ def test_build_stats_count_nonres_and_fallbacks():
     assert stats['priced'] <= 2 and stats['income_known'] == 0 and stats['usable_fit'] == 0
     assert set(stats['boundary']) == {'fpl_pct=175', 'fpl_pct=200', 'ami_pct=80', 'energy_burden=6', 'energy_burden=10'}
     assert len(stats['levels']) == len(REG.dims) and all(sum(row) == 2 for row in stats['levels'])
+
+
+def test_successful_build_writes_coverage():
+    store = FakeStore()
+    build_county(_db(), store, 'Franklin', REG, NOW, KEY)
+    assert store.coverage['Franklin']['meters'] == 4
+    failed = FakeStore()
+    build_county(FakeNamedDB({}), failed, 'Nowhere', REG, NOW, KEY)
+    assert failed.coverage == {}

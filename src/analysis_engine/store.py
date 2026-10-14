@@ -7,7 +7,7 @@ longer holds. A build that fails before the swap leaves the previous version liv
 from collections import Counter
 from typing import Dict, List
 
-HOUSEHOLDS, BUILDS = 'analysis_households', 'analysis_builds'
+HOUSEHOLDS, BUILDS, COVERAGE = 'analysis_households', 'analysis_builds', 'analysis_coverage'
 _DELETE_BATCH = 10000
 
 
@@ -56,15 +56,18 @@ class MongoStore:
     def discard_staging(self, county: str) -> None:
         self.db[staging_name(county)].drop()
 
-    def record_build(self, build: Dict) -> None:
-        self.db[BUILDS].insert_one(dict(build))
+    def record_build(self, build: Dict):
+        return self.db[BUILDS].insert_one(dict(build)).inserted_id
+
+    def write_coverage(self, doc: Dict) -> None:
+        self.db[COVERAGE].replace_one({'_id': doc['_id']}, doc, upsert=True)
 
 
 class DryRunStore:
     """Counts what a build would write and writes nothing."""
 
     def __init__(self):
-        self.staged, self.builds = Counter(), []
+        self.staged, self.builds, self.coverage = Counter(), [], {}
 
     def reset_staging(self, county: str) -> None:
         self.staged[county] = 0
@@ -80,3 +83,6 @@ class DryRunStore:
 
     def record_build(self, build: Dict) -> None:
         self.builds.append(build)
+
+    def write_coverage(self, doc: Dict) -> None:
+        self.coverage[doc['_id']] = doc
