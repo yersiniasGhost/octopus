@@ -387,4 +387,7 @@ Approved by the user 2026-10-13.
    linked in place (`parcel_id`, and `parcel_key` when present). No delete. Order (b) → (c) → (d) → (e).
 3. The ingest never creates a doc for a parcel that already holds several docs (`skipped_multi_preingest`);
    re-ingests run with `--exclude AES:jan2026`.
-4. `skipped_none` (no candidate parcel holds a doc) are not duplicates and stay unlinked.
+4. Skip counters count only docs that end up neither deleted nor promoted, each once (last pass's reason);
+   `skipped_none` (no candidate parcel holds a doc) are not duplicates and stay unlinked.
+5. Ingest: a record matched to a parcel with no doc merges into the one existing doc whose `_id` is one of its
+   surrogate keys, skips (`skipped_promote_multi`) when several exist, and creates a linked doc only when none does.

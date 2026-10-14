@@ -5,7 +5,9 @@ single pre-ingest doc. Type (c): an unlinked doc with a service address folds in
 resolve_address picks. Type (d): two unlinked docs from different deliveries at one (utility, address, zip) fold the
 older delivery's doc into the newer one. Type (e): an unlinked doc that alone resolves to a residential parcel with
 no doc is linked in place. Series that disagree on a shared date are left alone (spec 20261008_1713 §15.3, §15.7).
-Skip counters count documents left alone.
+Skip counters count only documents that end up neither deleted nor promoted (a (d) survivor that stays unlinked
+still counts), each once, under the reason from the last pass that skipped it; (b)'s skipped_multi_preingest counts
+parcels.
 """
 from collections import defaultdict
 from datetime import datetime
@@ -29,7 +31,11 @@ class _Folds:
     """Writes planned in memory: per target doc, the accumulated series and fields, and the docs absorbed."""
 
     def __init__(self, st):
-        self.plans, self.st = {}, st
+        self.plans, self.st, self.skips, self.promoted = {}, st, {}, set()
+
+    def skip(self, doc: Dict, reason: str):
+        """Note why doc was left alone; the last reason wins, counted only if doc is neither deleted nor promoted."""
+        self.skips[doc['_id']] = reason
 
     def _plan(self, target: Dict) -> Dict:
         return self.plans.setdefault(target['_id'], {'ts': dict(target.get('time_series_elec') or {}), 'set': {},
@@ -39,7 +45,7 @@ class _Folds:
         plan = self._plan(target)
         ts = doc.get('time_series_elec') or {}
         if series_conflict(ts, plan['ts']):
-            self.st['skipped_conflict'] += 1
+            self.skip(doc, 'skipped_conflict')
             return
         plan['ts'].update({k: v for k, v in ts.items() if k not in plan['ts']})
         for field in ('utility', 'last_utility_ingest'):
@@ -52,6 +58,7 @@ class _Folds:
     def promote(self, doc: Dict, parcel: Dict):
         """Link doc in place to parcel: one write with any fold into it, never a delete."""
         self._plan(doc)['set'].update({f: parcel[f] for f in ('parcel_id', 'parcel_key') if parcel.get(f) is not None})
+        self.promoted.add(doc['_id'])
         self.st['promoted'] += 1
 
     def ops(self) -> List[UpdateOne]:
@@ -62,6 +69,11 @@ class _Folds:
     def doc_ids(self) -> List:
         return [i for p in self.plans.values() for i in p['ids']]
 
+    def count_skips(self):
+        touched = set(self.doc_ids()) | self.promoted
+        for doc_id, reason in self.skips.items():
+            self.st[reason] += doc_id not in touched
+
 
 def delivery_date(tag: str) -> Optional[datetime]:
     """The month a delivery tag names ('jan2026' -> 2026-01-01), or None when the tag is not month+year."""
@@ -71,7 +83,7 @@ def delivery_date(tag: str) -> Optional[datetime]:
         return None
 
 
-def _fold_deliveries(docs: List[Dict], folds: _Folds, st):
+def _fold_deliveries(docs: List[Dict], folds: _Folds):
     """Type (d): a (utility, address, zip) group of exactly two docs from two deliveries folds older into newer."""
     groups = defaultdict(list)
     for doc in docs:
@@ -81,7 +93,8 @@ def _fold_deliveries(docs: List[Dict], folds: _Folds, st):
     for group in (g for g in groups.values() if len(g) > 1):
         when = [delivery_date(d['source_delivery']) for d in group]
         if len(group) != 2 or None in when or when[0] == when[1]:
-            st['skipped_cross_delivery'] += len(group)
+            for doc in group:
+                folds.skip(doc, 'skipped_cross_delivery')
             continue
         older, newer = group if when[0] < when[1] else group[::-1]
         folds.add(newer, older, 'delivery_folds')
@@ -100,7 +113,7 @@ class _Promoted:
         return hit if hit[0] else self.existing.resolve(parcel)
 
 
-def _promote(orphans: List, nones: List, existing: ParcelIndex, folds: _Folds, st):
+def _promote(orphans: List, nones: List, existing: ParcelIndex, folds: _Folds):
     """Type (e): link a no-doc parcel's only orphan, unless a 'none' address would then resolve to that parcel."""
     index, groups = ParcelIndex(), []  # one group per parcel, whichever spelling each orphan's address row used
     for doc, parcel in orphans:
@@ -122,7 +135,8 @@ def _promote(orphans: List, nones: List, existing: ParcelIndex, folds: _Folds, s
         blocked |= hits
     for i, group in enumerate(groups):
         if i in blocked:
-            st['skipped_promote_multi'] += len(group)
+            for doc, _ in group:
+                folds.skip(doc, 'skipped_promote_multi')
         else:
             folds.promote(*group[0])
 
@@ -161,20 +175,21 @@ def repair_county(db, county: str, dry_run: bool) -> Dict[str, int]:
             if target is not None:
                 folds.add(target, doc, 'address_folds')
             elif group:
-                st['skipped_multi_preingest'] += 1
+                folds.skip(doc, 'skipped_multi_preingest')
             elif how == 'multi':
-                st['skipped_multi_candidate'] += 1
+                folds.skip(doc, 'skipped_multi_candidate')
             elif how == 'none':
-                st['skipped_none'] += 1
+                folds.skip(doc, 'skipped_none')
                 nones.append((parcels, zip5))
             elif identity(parcel) is not None:
                 orphans.append((doc, parcel))
 
     gone = set(folds.doc_ids())
-    _fold_deliveries([d for d in ingested if d['_id'] not in gone], folds, st)
+    _fold_deliveries([d for d in ingested if d['_id'] not in gone], folds)
     gone = set(folds.doc_ids())
-    _promote([o for o in orphans if o[0]['_id'] not in gone], nones, existing, folds, st)
+    _promote([o for o in orphans if o[0]['_id'] not in gone], nones, existing, folds)
 
+    folds.count_skips()
     ops, ids = folds.ops(), folds.doc_ids()
     st['deleted'] = len(ids)
     if not dry_run:

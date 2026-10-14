@@ -231,3 +231,78 @@ def test_promoted_doc_is_unchanged_by_an_aug_ingest_rerun():
     rec = AccountRecord('AES', '', '77', 'X', '9 OAK ST', 'Dayton', 'OH', '45402', [('2026-05-15', 500.0)])
     st = process_county(db, 'Test', [rec], 'aug2026', False, set(db.list_collection_names()), log=lambda *_: None)
     assert st['unchanged'] == 1 and st['matched_parcels'] == 1 and len(db['TestElectricalDB'].docs) == 1
+
+
+def test_none_pair_counts_only_the_unlinked_survivor_as_skipped_none():
+    db = _db([_sur('j1', 'jan2026', JAN), _sur('a1', 'aug2026', NEW)],
+             [{'parcel_id': 'A', 'address': '9 Oak St'}, {'parcel_id': 'B', 'address': '9 Oak St'}])
+    st = repair_county(db, 'Test', dry_run=False)
+    assert (st['delivery_folds'], st['deleted'], st['skipped_none']) == (1, 1, 1)
+
+
+def test_conflict_then_promote_multi_counts_each_doc_once():
+    db = _db([_sur('j1', 'jan2026', {'2026-05-15 00:00:00': 1.0}), _sur('a1', 'aug2026', NEW)], OAK)
+    st = repair_county(db, 'Test', dry_run=False)
+    skips = [k for k in st if k.startswith('skipped_')]
+    assert sum(st[k] for k in skips) == 2 and st['skipped_promote_multi'] == 2 and st['skipped_conflict'] == 0
+
+
+def test_skips_exclude_promoted_survivor():
+    db = _db([_sur('j1', 'jan2026', JAN), _sur('a1', 'aug2026', NEW)], OAK)
+    st = repair_county(db, 'Test', dry_run=False)
+    assert st['promoted'] == 1 and sum(v for k, v in st.items() if k.startswith('skipped_')) == 0
+
+
+def _ingest(db, recs):
+    from src.tools.utility_bills.ingest import process_county
+    return process_county(db, 'Test', recs, 'aug2026', False, set(db.list_collection_names()), log=lambda *_: None)
+
+
+def _aes(account, addr, date='2026-05-15', kwh=500.0):
+    from src.tools.utility_bills.record import AccountRecord
+    return AccountRecord('AES', '', account, 'X', addr, 'Dayton', 'OH', '45402', [(date, kwh)])
+
+
+ELM_P = OAK + [{'parcel_id': 'P', 'parcel_key': 'PK', 'address': '5 Elm St', 'parcel_zip': '45402'}]
+
+
+def test_ingest_rerun_leaves_promote_multi_orphans_alone():
+    db = _db([_sur('AES::1', 'aug2026', NEW), _sur('AES::2', 'aug2026', {'2026-06-15 00:00:00': 9.0}, addr='5 ELM ST')],
+             ELM_P)
+    assert repair_county(db, 'Test', dry_run=False)['skipped_promote_multi'] == 2
+    st = _ingest(db, [_aes('1', '9 OAK ST'), _aes('2', '5 ELM ST', '2026-06-15', 9.0)])
+    assert st.get('docs_created_parcel', 0) == st.get('docs_updated', 0) == 0 and st['skipped_promote_multi'] == 1
+    assert set(db['TestElectricalDB'].docs) == {'AES::1', 'AES::2'}
+
+
+def test_ingest_rerun_merges_a_none_blocked_orphan_without_creating():
+    db = _db([_sur('AES::1', 'aug2026', NEW), _sur('AES::2', 'aug2026', OLD, addr='5 ELM ST')],
+             OAK + [{'parcel_id': 'P', 'address': '5 Elm St'}, {'parcel_id': 'Q', 'address': '5 Elm St'}])
+    repair_county(db, 'Test', dry_run=False)
+    st = _ingest(db, [_aes('1', '9 OAK ST'), _aes('2', '5 ELM ST', '2024-03-15', 400.0)])
+    assert st.get('docs_created_parcel', 0) == st.get('docs_updated', 0) == 0 and st['unchanged'] == 2
+    assert set(db['TestElectricalDB'].docs) == {'AES::1', 'AES::2'}
+    assert db['TestElectricalDB'].docs['AES::1']['parcel_id'] is None
+
+
+def test_ingest_fresh_record_at_no_doc_parcel_still_creates_a_linked_doc():
+    db = _db([_sur('AES::9', 'aug2026', OLD, addr='1 X')], OAK)
+    st = _ingest(db, [_aes('1', '9 OAK ST')])
+    assert st['docs_created_parcel'] == 1 and len(db['TestElectricalDB'].docs) == 2
+
+
+def test_vanished_promote_only_target_raises_before_any_delete():
+    db = _db([{'_id': 'o1', 'parcel_key': '101', 'time_series_elec': dict(OLD)},
+              {'_id': 'n1', 'parcel_key': '101', 'time_series_elec': dict(NEW), 'source_delivery': 'aug2026'},
+              _sur('s1', 'aug2026', NEW)], OAK)
+    coll = db['TestElectricalDB']
+    real = coll.bulk_write
+
+    def vanish(ops, ordered=False):
+        coll.docs.pop('s1', None)
+        return real(ops, ordered)
+
+    coll.bulk_write = vanish
+    with pytest.raises(RuntimeError):
+        repair_county(db, 'Test', dry_run=False)
+    assert coll.deleted == [] and 'n1' in coll.docs

@@ -6,7 +6,8 @@ Merge policy: union new (date, kWh) readings into time_series_elec, never
 overwriting an existing date key; monthly_averages/minimums/maximums are
 recomputed from the merged series; matched docs also gain a missing `utility`.
 Existing docs are found by parcel_key or parcel_id (ParcelIndex); an address shared by
-several parcels resolves only when exactly one has a doc (resolve.py). Re-runs are
+several parcels resolves only when exactly one has a doc (resolve.py). A parcel with no
+doc first takes the unlinked doc already stored under the record's surrogate key. Re-runs are
 idempotent (parcel upserts for matched rows, deterministic surrogate _id upserts
 for unmatched rows).
 """
@@ -194,7 +195,8 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
     by_addr = {}
     for rec in records:
         naddr = normalize_address(rec.service_address)
-        slot = by_addr.setdefault(naddr, {'dates': {}, 'rec': rec, 'naddr': naddr})
+        slot = by_addr.setdefault(naddr, {'dates': {}, 'rec': rec, 'naddr': naddr, 'keys': set()})
+        slot['keys'].add(rec.surrogate_key())
         st['reading_conflicts'] += _merge_readings(slot['dates'], rec.readings)
     st_meta['unique_addresses'] = len(by_addr)
 
@@ -218,6 +220,7 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
             st['surrogate_collision'] += 1  # one surrogate key, two service addresses: not the same meter
         elif prev is not slot:
             prev['dates'].update({k: v for k, v in slot['dates'].items() if k not in prev['dates']})
+            prev['keys'] = prev['keys'] | slot['keys']
 
     for naddr, slot in by_addr.items():
         parcels = addr_parcels.get(naddr, [])
@@ -248,6 +251,12 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
         if kind == 'p' and not target and docs:
             st['skipped_multi_preingest'] += 1  # readings stay in whichever doc already has them
             continue
+        if kind == 'p' and not docs:  # a parcel with no doc: an unlinked doc the repair left under these keys (§15.7)
+            held = {k for k in slot['keys'] if k in by_id}
+            if len(held) > 1:
+                st['skipped_promote_multi'] += 1
+                continue
+            target = by_id[held.pop()] if held else None
         if target:
             prev = merges.setdefault(target['_id'], {'target': target, 'dates': {}, 'rec': rec})
             prev['dates'].update({k: v for k, v in dates.items() if k not in prev['dates']})
