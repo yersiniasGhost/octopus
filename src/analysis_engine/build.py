@@ -92,7 +92,7 @@ def _stage_households(db, store, county: str, src: CountySources, dist: Distribu
     for meter in iter_electrical(db, county):
         assembled = assemble(meter, src.match(meter), county, build_month, reg)
         hh = finalize(assembled.doc, dist, reg.rules, build_month)
-        hh['_id'] = analysis_id(hh['_id'], id_key)
+        hh['_id'] = analysis_id(hh['_id'], id_key, county)
         stats['surrogate_ids'] += is_surrogate(hh['_id'])
         for name, raw in assembled.unmapped_values:
             unmapped[name][str(raw)] += 1

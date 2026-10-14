@@ -32,7 +32,7 @@ def test_successful_build_replaces_only_its_county():
     store = FakeStore(live=[{'_id': 'OLD', 'county': 'Franklin'}, {'_id': 'X', 'county': 'Adams'}])
     build = build_county(_db(), store, 'Franklin', REG, NOW, KEY)
     assert build['status'] == 'ok' and build['doc_count'] == 4
-    assert set(store.live) == {'E1', 'E2', 'E3', 'X', analysis_id(SURROGATE, KEY)}
+    assert set(store.live) == {'E1', 'E2', 'E3', 'X', analysis_id(SURROGATE, KEY, 'Franklin')}
     assert not any(isinstance(i, str) and (':' in i or '|' in i) for i in store.live)
     assert store.live['E1']['dims'][0] == 2 and store.live['E1']['link'] == 1 | 4
     assert build['sources_present'] == ['demographic', 'electrical']
@@ -131,3 +131,12 @@ def test_coverage_failure_is_isolated_from_the_recorded_build():
             raise IOError('coverage disk')
     build = build_county(_db(), Boom(), 'Franklin', REG, NOW, KEY)
     assert build['status'] == 'ok' and 'coverage disk' in build['coverage_error']
+
+
+def test_same_surrogate_in_two_counties_builds_distinct_ids():
+    db = FakeNamedDB({'AdamsElectricalDB': [elec('FE:OE:ALL', YEAR)], 'AllenElectricalDB': [elec('FE:OE:ALL', YEAR)]})
+    store = FakeStore()  # FakeStore keys live by _id and does not simulate MongoStore's cross-county refusal
+    for county in ('Adams', 'Allen'):
+        assert build_county(db, store, county, REG, NOW, KEY)['status'] == 'ok'
+    assert {d['county'] for d in store.live.values()} == {'Adams', 'Allen'} and len(store.live) == 2
+    assert set(store.live) == {analysis_id('FE:OE:ALL', KEY, 'Adams'), analysis_id('FE:OE:ALL', KEY, 'Allen')}
