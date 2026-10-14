@@ -41,16 +41,19 @@ COUNTY_COLS = ['county', 'records', 'unique_addresses', 'matched_parcels',
                'docs_updated', 'docs_created_parcel', 'docs_created_unmatched',
                'unchanged', 'utility_set', 'skipped_multi_preingest', 'surrogate_collision',
                'readings_added_existing', 'readings_added_new', 'ambiguous_address', 'new_collection', 'date_range']
+UTILITIES = ['aep', 'aes', 'duke', 'fe']
 TOTAL_COLS = [c for c in COUNTY_COLS if c not in ('county', 'new_collection', 'date_range')]
 
 
-def parse_excludes(specs):
-    """['AES:jan2026', ...] -> {'jan2026': {'aes'}}."""
+def parse_excludes(specs, deliveries=None):
+    """['AES:jan2026', ...] -> {'jan2026': {'aes'}}; exits on an unknown utility or a delivery not being ingested."""
+    deliveries = deliveries or list(SOURCES)
     out = {}
     for spec in specs or []:
         utility, _, delivery = spec.partition(':')
-        if delivery not in SOURCES:
-            raise SystemExit(f"--exclude {spec!r}: expected UTILITY:DELIVERY with delivery in {list(SOURCES)}")
+        if utility.lower() not in UTILITIES or delivery not in deliveries:
+            raise SystemExit(f"--exclude {spec!r}: expected UTILITY:DELIVERY with utility in {UTILITIES} "
+                             f"and delivery in {deliveries}")
         out.setdefault(delivery, set()).add(utility.lower())
     return out
 
@@ -68,7 +71,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--delivery', action='append', choices=list(SOURCES), required=True,
                     help='delivery to ingest; repeat for several (processed oldest data first)')
-    ap.add_argument('--utility', action='append', choices=['aep', 'aes', 'duke', 'fe'],
+    ap.add_argument('--utility', action='append', choices=UTILITIES,
                     help='restrict to specific utilities')
     ap.add_argument('--exclude', action='append', metavar='UTILITY:DELIVERY',
                     help='skip a utility within one delivery, e.g. AES:jan2026; repeatable')
@@ -77,7 +80,7 @@ def main():
     ap.add_argument('--report', help='write the summary to this markdown file')
     args = ap.parse_args()
 
-    excludes = parse_excludes(args.exclude)
+    excludes = parse_excludes(args.exclude, args.delivery)
     dry = not args.execute
     db = get_empower_db()
     existing_colls = set(db.list_collection_names())

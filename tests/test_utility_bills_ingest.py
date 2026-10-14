@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
 
 from src.tools.utility_bills.ingest import process_county  # noqa: E402
 from src.tools.utility_bills.record import AccountRecord  # noqa: E402
@@ -139,7 +140,27 @@ def test_selected_sources_excludes_utility_in_delivery():
 
 
 def test_parse_exclude_args_maps_delivery_to_utilities():
-    sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
     from ingest_electric_bills_tool import COUNTY_COLS, parse_excludes
     assert parse_excludes(['AES:jan2026', 'fe:jan2026']) == {'jan2026': {'aes', 'fe'}}
     assert 'utility_set' in COUNTY_COLS and 'unchanged' in COUNTY_COLS
+
+
+def test_parse_excludes_rejects_bad_utility_and_undelivered_delivery():
+    import pytest
+    from ingest_electric_bills_tool import parse_excludes
+    for bad in ('AE:jan2026', 'AESS:jan2026', 'AES:nope2026'):
+        with pytest.raises(SystemExit):
+            parse_excludes([bad])
+    with pytest.raises(SystemExit):
+        parse_excludes(['AES:jan2026'], ['aug2026'])
+    assert parse_excludes(['AES:jan2026'], ['jan2026', 'aug2026']) == {'jan2026': {'aes'}}
+
+
+def test_surrogate_key_matching_a_linked_doc_merges_without_overwriting():
+    db = _db([{'_id': 'FE:CEI:A1', 'parcel_id': 'P9', 'utility': 'FE', 'time_series_elec': {'2024-05-15 00:00:00': 400.0}}], [])
+    st = _run(db, [_rec()])
+    doc = db['TestElectricalDB'].docs['FE:CEI:A1']
+    assert doc['parcel_id'] == 'P9' and set(doc['time_series_elec']) == {'2024-05-15 00:00:00', D1}
+    assert st['docs_updated'] == 1 and len(db['TestElectricalDB'].docs) == 1
+    st = _run(db, [_rec()])
+    assert st.get('docs_updated', 0) == 0 and st['unchanged'] == 1

@@ -163,10 +163,10 @@ def index_groups(linked):
 
 
 def _load_existing(db, coll_name):
-    """ElectricalDB docs split into a ParcelIndex of linked docs (lists per parcel) and surrogates by _id."""
-    linked, surrogates = group_by_identity(db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1,
-                                                                   'utility': 1, 'source_delivery': 1}))
-    return index_groups(linked), surrogates
+    """ElectricalDB docs as a ParcelIndex of linked docs (lists per parcel) and every doc by _id."""
+    docs = list(db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1,
+                                        'utility': 1, 'source_delivery': 1}))
+    return index_groups(group_by_identity(docs)[0]), {d['_id']: d for d in docs}
 
 
 def _target_for(docs, tag, dates):
@@ -205,9 +205,9 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
                                                              'parcel_zip': 1}))
 
     # 3. existing docs: linked ones by parcel spelling, surrogates by _id
-    existing, surrogates = ParcelIndex(), {}
+    existing, by_id = ParcelIndex(), {}
     if not st_meta['new_collection']:
-        existing, surrogates = _load_existing(db, coll_name)
+        existing, by_id = _load_existing(db, coll_name)
 
     # 4. key every address: residential parcel when resolved, else surrogate _id
     keyed = {}
@@ -244,7 +244,7 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
         last_date = max(last_date, hi) if last_date else hi
         parcel = slot.get('parcel')
         docs = (existing.resolve(parcel)[0] or []) if kind == 'p' else []
-        target = _target_for(docs, tag, dates) if kind == 'p' else surrogates.get(key[1])
+        target = _target_for(docs, tag, dates) if kind == 'p' else by_id.get(key[1])  # any doc with this _id, linked or not
         if kind == 'p' and not target and docs:
             st['skipped_multi_preingest'] += 1  # readings stay in whichever doc already has them
             continue
