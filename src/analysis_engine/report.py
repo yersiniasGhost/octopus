@@ -18,6 +18,10 @@ def summarize_build(build: Dict) -> str:
     if stats:
         lines.append(f"  unlinked {stats['unlinked']:,} · multi-unit {stats['multi_unit']:,} · "
                      f"stale {stats['stale']:,} · duplicate parcels {stats['duplicates']}")
+        lines.append(f"  nonres {stats['nonres']:,} · priced {stats['priced']:,} · "
+                     f"income known {stats['income_known']:,} · usable fits {stats['usable_fit']:,}")
+        if stats.get('fallbacks'):
+            lines.append(f"  fallbacks {stats['fallbacks']}")
     for role, names in build.get('unmapped_fields', {}).items():
         lines.append(f"  unmapped {role} fields: {', '.join(names)}")
     for name, pairs in build.get('unmapped_values', {}).items():

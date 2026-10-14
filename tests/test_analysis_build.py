@@ -21,10 +21,10 @@ YEAR = monthly_series(2025, 8, [900.0] * 12)
 
 def _db():
     return FakeNamedDB({
-        'FranklinElectricalDB': [elec('E1', YEAR, parcel_key='K1'), elec('E2', YEAR, surprise_field=1),
+        'FranklinElectricalDB': [elec('E1', YEAR, parcel_key='K1'), elec('E2', YEAR),
                                  elec('E3', monthly_series(2015, 3, [700.0] * 12)), elec(SURROGATE, YEAR)],
         'FranklinCountyDemographic': [{'_id': 'D1', 'parcel_key': 'K1', 'estimated_income': 30000.0,
-                                       'md_householdsize': 2.0, 'md_own_rent': 'Maybe'}],
+                                       'md_householdsize': 2.0, 'md_own_rent': 'Definite Owner'}],
     })
 
 
@@ -37,9 +37,10 @@ def test_successful_build_replaces_only_its_county():
     assert store.live['E1']['dims'][0] == 2 and store.live['E1']['link'] == 1 | 4
     assert build['sources_present'] == ['demographic', 'electrical']
     assert build['source_counts']['electrical'] == 4 and build['cutpoints']['annual_kwh']['n'] == 3
-    assert build['unmapped_values'] == {'owner': [['Maybe', 1]]}
-    assert build['stats'] == {'unlinked': 3, 'multi_unit': 0, 'stale': 1, 'duplicates': {'demographic': 0}}
-    assert build['unmapped_fields'] == {'electrical': ['surprise_field']}
+    assert build['unmapped_values'] == {}
+    assert {k: build['stats'][k] for k in ('unlinked', 'multi_unit', 'stale', 'duplicates')} == {
+        'unlinked': 3, 'multi_unit': 0, 'stale': 1, 'duplicates': {'demographic': 0}}
+    assert build['unmapped_fields'] == {}
     assert build['size_p99'] < 1024 and build['registry_version'] == REG.fields_version
     assert store.builds == [build] and store.staging == {}
 
@@ -79,3 +80,37 @@ def test_gates():
     assert check_gates(1, 1, [1024]) == ['p99 document size 1024 B is not under 1024 B']
     assert check_gates(3, 3, [300], surrogate_ids=2) == ['2 document _id(s) still carry a readable source id']
     assert check_gates(0, 0, []) == ['no source meters; refusing to replace the county']
+
+
+def test_gates_p2():
+    assert check_gates(3, 3, [100, 100, 100], nonres=(2, 1))[0].startswith('nonres')
+    assert 'county' in check_gates(3, 3, [100] * 3, wrong_county=1)[0]
+    assert 'unmapped' in check_gates(3, 3, [100] * 3, unmapped={'fields': {'residential': ['land_use']},
+                                                                  'values': {}})[0]
+    assert check_gates(3, 3, [100] * 3, nonres=(1, 1), unmapped={'fields': {}, 'values': {}}) == []
+
+
+def test_unmapped_field_fails_only_that_county():
+    db = FakeNamedDB({'AElectricalDB': [elec('E1', YEAR, surprise_field=1)], 'BElectricalDB': [elec('E2', YEAR)]})
+    store = FakeStore()
+    builds = [build_county(db, store, c, REG, NOW, KEY) for c in ('A', 'B')]
+    assert [b['status'] for b in builds] == ['failed', 'ok'] and 'surprise_field' in builds[0]['error']
+
+
+def test_unmapped_value_fails_the_county():
+    db = FakeNamedDB({'AElectricalDB': [elec('E1', YEAR, parcel_key='K1')],
+                      'ACountyDemographic': [{'_id': 'D1', 'parcel_key': 'K1', 'md_own_rent': 'Maybe'}]})
+    build = build_county(db, FakeStore(), 'A', REG, NOW, KEY)
+    assert build['status'] == 'failed' and 'Maybe' in build['error'] and build['unmapped_values']
+
+
+def test_build_stats_count_nonres_and_fallbacks():
+    db = FakeNamedDB({
+        'TElectricalDB': [elec('E1', monthly_series(2025, 8, [6000.0] * 12), parcel_key='K1'), elec('E2', YEAR)],
+        'TCountyDemographic': [{'_id': 'D1', 'parcel_key': 'K1', 'owner_age': 80}]})
+    build = build_county(db, FakeStore(), 'T', REG, NOW, KEY)
+    stats = build['stats']
+    assert stats['nonres'] == 1 and stats['fallbacks'] == {'senior': 1}
+    assert stats['priced'] <= 2 and stats['income_known'] == 0 and stats['usable_fit'] == 0
+    assert set(stats['boundary']) == {'fpl_pct=175', 'fpl_pct=200', 'ami_pct=80', 'energy_burden=6', 'energy_burden=10'}
+    assert len(stats['levels']) == len(REG.dims) and all(sum(row) == 2 for row in stats['levels'])

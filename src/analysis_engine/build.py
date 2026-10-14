@@ -6,7 +6,7 @@ county's households in memory between passes (Franklin: 475k meters).
 
 from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import bson
 
@@ -21,6 +21,7 @@ from src.utils.log_manager import LogManager
 logger = LogManager().get_logger(__name__)
 MAX_P99_BYTES = 1024
 _BATCH = 1000
+_MAX_NAMES = 20
 
 
 class BuildError(RuntimeError):
@@ -31,8 +32,10 @@ def doc_size(doc: Dict) -> int:
     return len(bson.encode(doc))
 
 
-def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int], surrogate_ids: int = 0) -> List[str]:
-    """Pre-swap gates (spec §12, P1): one document per meter, p99 size under 1 KB."""
+def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int], surrogate_ids: int = 0,
+                nonres: Tuple[int, int] = (0, 0), wrong_county: int = 0, unmapped: Optional[Dict] = None) -> List[str]:
+    """Pre-swap gates (spec §12): one document per meter, p99 size under 1 KB, nonres counts agree between passes,
+    no document from another county, and no source field or value the registry cannot place."""
     failures = []
     if source_count == 0:
         failures.append('no source meters; refusing to replace the county')
@@ -43,25 +46,45 @@ def check_gates(doc_count: int, source_count: int, sizes_sorted: List[int], surr
         failures.append(f'p99 document size {p99} B is not under {MAX_P99_BYTES} B')
     if surrogate_ids:
         failures.append(f'{surrogate_ids} document _id(s) still carry a readable source id')
+    if nonres[0] != nonres[1]:
+        failures.append(f'nonres pass-1 {nonres[0]} != staged {nonres[1]}')
+    if wrong_county:
+        failures.append(f'{wrong_county} document(s) carry another county')
+    if unmapped and (unmapped.get('fields') or unmapped.get('values')):
+        names = [f'{role}.{field}' for role, fields in unmapped.get('fields', {}).items() for field in fields]
+        names += [f'{name}={value}' for name, pairs in unmapped.get('values', {}).items() for value, _ in pairs]
+        failures.append(f"unmapped fields/values: {', '.join(names[:_MAX_NAMES])}")
     return failures
 
 
-def _distributions(db, county: str, src: CountySources, reg: Registry, build_month: int) -> Distributions:
-    params, kwh, hl = reg.rules['params'], [], []
+def _distributions(db, county: str, src: CountySources, reg: Registry, build_month: int) -> Tuple[Distributions, int]:
+    """Pass 1: the county's distributions and how many meters assemble as nonres (independent of usage_ok)."""
+    params, kwh, hl, nonres = reg.rules['params'], [], [], 0
     for meter in iter_electrical(db, county):
         src.tracker.observe('electrical', meter)
         hh = assemble(meter, src.match(meter), county, build_month, reg).doc
+        nonres += hh.get('nonres') is True
         if usage_ok(hh, params, build_month):
             kwh.append(hh['annual_kwh'])
         if usable_fit(hh, params):
             hl.append(hh['hl_per_sqft'])
-    return Distributions.from_values(kwh, hl)
+    return Distributions.from_values(kwh, hl), nonres
+
+
+def _boundaries(params: Dict) -> List[Tuple[str, float]]:
+    """(stored field, value) pairs where a rounded percent sits exactly on a registry threshold."""
+    income, burden = params['income_need'], params['energy_burden']
+    return [('fpl_pct', income['fpl_high']), ('fpl_pct', income['fpl_moderate']), ('ami_pct', income['ami_moderate']),
+            ('energy_burden', burden['moderate']), ('energy_burden', burden['high'])]
 
 
 def _stage_households(db, store, county: str, src: CountySources, dist: Distributions, reg: Registry,
                       build_month: int, build: Dict, id_key: bytes) -> Tuple[List[int], int]:
-    max_age = reg.params('usage')['max_age_months']
+    params = reg.rules['params']
+    max_age = params['usage']['max_age_months']
+    bounds = _boundaries(params)
     sizes, batch, stats, unmapped = [], [], Counter(), defaultdict(Counter)
+    fallbacks, boundary, levels = Counter(), Counter(), [[0] * 4 for _ in reg.dims]
     store.reset_staging(county)
     for meter in iter_electrical(db, county):
         assembled = assemble(meter, src.match(meter), county, build_month, reg)
@@ -71,6 +94,15 @@ def _stage_households(db, store, county: str, src: CountySources, dist: Distribu
         for name, raw in assembled.unmapped_values:
             unmapped[name][str(raw)] += 1
         stats['unlinked'] += identity(meter) is None
+        stats['nonres'] += hh.get('nonres') is True
+        stats['wrong_county'] += hh['county'] != county
+        stats['priced'] += 'annual_cost' in hh
+        stats['income_known'] += 'fpl_pct' in hh
+        stats['usable_fit'] += bool(usable_fit(hh, params))
+        fallbacks.update(assembled.fallbacks)
+        boundary.update(f'{field}={value}' for field, value in bounds if hh.get(field) == value)
+        for row, level in zip(levels, hh['dims']):
+            row[level + 1] += 1
         stats['multi_unit'] += hh.get('multi_unit') is True
         stats['stale'] += hh.get('last_read') is not None and not is_fresh(hh['last_read'], build_month, max_age)
         sizes.append(doc_size(hh))
@@ -81,7 +113,11 @@ def _stage_households(db, store, county: str, src: CountySources, dist: Distribu
     if batch:
         store.stage(county, batch)
     surrogates = stats.pop('surrogate_ids')
-    build['stats'] = {**{k: stats[k] for k in ('unlinked', 'multi_unit', 'stale')}, 'duplicates': src.duplicates}
+    keys = ('unlinked', 'multi_unit', 'stale', 'nonres', 'priced', 'income_known', 'usable_fit')
+    build['stats'] = {**{k: stats[k] for k in keys}, 'duplicates': src.duplicates, 'fallbacks': dict(fallbacks),
+                      'boundary': {f'{field}={value}': boundary[f'{field}={value}'] for field, value in bounds},
+                      'levels': levels}
+    build['wrong_county'] = stats['wrong_county']
     build['unmapped_values'] = {name: [[value, n] for value, n in counts.most_common()]
                                 for name, counts in unmapped.items()}
     return sorted(sizes), surrogates
@@ -96,12 +132,14 @@ def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: b
         src = load_county_sources(db, county, reg)
         if 'electrical' not in src.present:
             raise BuildError(f'{county}: no ElectricalDB collection')
-        dist = _distributions(db, county, src, reg, build_month)
+        dist, nonres = _distributions(db, county, src, reg, build_month)
         sizes, surrogates = _stage_households(db, store, county, src, dist, reg, build_month, build, id_key)
         build.update(sources_present=sorted(src.present), source_counts=src.counts, doc_count=len(sizes),
                      size_p50=quantile(sizes, 50), size_p99=quantile(sizes, 99),
                      cutpoints=cutpoints(dist, reg.rules['params']), unmapped_fields=src.tracker.unmapped())
-        failures = check_gates(len(sizes), src.counts['electrical'], sizes, surrogates)
+        failures = check_gates(len(sizes), src.counts['electrical'], sizes, surrogates, (nonres, build['stats']['nonres']),
+                            build.pop('wrong_county'), {'fields': build['unmapped_fields'],
+                                                        'values': build['unmapped_values']})
         if failures:
             raise BuildError('; '.join(failures))
         try:

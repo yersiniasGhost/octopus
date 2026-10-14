@@ -30,9 +30,12 @@ def test_summarize_build_lists_drift():
     text = summarize_build({'county': 'Adams', 'status': 'ok', 'doc_count': 8283, 'size_p50': 210, 'size_p99': 260,
                             'unmapped_fields': {'electrical': ['new_field']},
                             'unmapped_values': {'owner': [['Maybe', 3]]},
-                            'stats': {'unlinked': 8283, 'multi_unit': 0, 'stale': 12, 'duplicates': {}}})
+                            'stats': {'unlinked': 8283, 'multi_unit': 0, 'stale': 12, 'duplicates': {},
+                                      'nonres': 7, 'priced': 90, 'income_known': 80, 'usable_fit': 50,
+                                      'fallbacks': {'senior': 3}}})
     assert 'Adams: ok' in text and '8,283 households' in text
     assert 'unmapped electrical fields: new_field' in text and 'owner: Maybe (3)' in text
+    assert 'nonres 7 · priced 90 · income known 80 · usable fits 50' in text and "fallbacks {'senior': 3}" in text
 
 
 def test_format_report_shows_levels_proxy_and_denominators():
@@ -54,3 +57,12 @@ def test_format_report_shows_proxy_split_and_no_source():
         'weatherization': {'n': 5, 'known': 8, 'proxy': 3}, 'electrification': {'n': 0, 'known': 0, 'proxy': 0}}}
     text = format_report(report, load_registry())
     assert '5 of 8 known-enough (measured 2 · proxy 3)' in text and 'no measured source' in text
+
+
+def test_build_all_lists_every_electrical_collection(monkeypatch):
+    from src.analysis_engine import cli
+    monkeypatch.setenv('ANALYSIS_ID_KEY', 'test-key')
+    seen = []
+    monkeypatch.setattr(cli, 'run_build', lambda db, counties, *a, **k: seen.extend(counties) or 0)
+    db = FakeNamedDB({'AElectricalDB': [], 'BElectricalDB': [], 'BCountyResidential': []})
+    assert cli.main(['build', '--all', '--dry-run'], db=db) == 0 and seen == ['A', 'B']
