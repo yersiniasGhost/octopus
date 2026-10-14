@@ -16,6 +16,10 @@ Usage:
     python scripts/ingest_electric_bills_tool.py --delivery aug2026 --limit 5000
     python scripts/ingest_electric_bills_tool.py --delivery jan2026 --delivery aug2026
     python scripts/ingest_electric_bills_tool.py --delivery aug2026 --utility fe --execute
+    python scripts/ingest_electric_bills_tool.py --delivery jan2026 --delivery aug2026 --exclude AES:jan2026
+
+--exclude UTILITY:DELIVERY (repeatable) skips that utility's sources in that delivery entirely (not parsed, not
+merged); e.g. AES:jan2026, whose account column holds customer names.
 """
 import argparse
 import sys
@@ -35,8 +39,20 @@ from src.tools.utility_bills.sources import SOURCES
 
 COUNTY_COLS = ['county', 'records', 'unique_addresses', 'matched_parcels',
                'docs_updated', 'docs_created_parcel', 'docs_created_unmatched',
-               'unchanged', 'readings_added_existing', 'readings_added_new',
-               'ambiguous_address', 'new_collection', 'date_range']
+               'unchanged', 'utility_set', 'skipped_multi_preingest', 'surrogate_collision',
+               'readings_added_existing', 'readings_added_new', 'ambiguous_address', 'new_collection', 'date_range']
+TOTAL_COLS = [c for c in COUNTY_COLS if c not in ('county', 'new_collection', 'date_range')]
+
+
+def parse_excludes(specs):
+    """['AES:jan2026', ...] -> {'jan2026': {'aes'}}."""
+    out = {}
+    for spec in specs or []:
+        utility, _, delivery = spec.partition(':')
+        if delivery not in SOURCES:
+            raise SystemExit(f"--exclude {spec!r}: expected UTILITY:DELIVERY with delivery in {list(SOURCES)}")
+        out.setdefault(delivery, set()).add(utility.lower())
+    return out
 
 
 def fmt_table(rows, cols):
@@ -54,11 +70,14 @@ def main():
                     help='delivery to ingest; repeat for several (processed oldest data first)')
     ap.add_argument('--utility', action='append', choices=['aep', 'aes', 'duke', 'fe'],
                     help='restrict to specific utilities')
+    ap.add_argument('--exclude', action='append', metavar='UTILITY:DELIVERY',
+                    help='skip a utility within one delivery, e.g. AES:jan2026; repeatable')
     ap.add_argument('--limit', type=int, help='max records per source file (for testing)')
     ap.add_argument('--execute', action='store_true', help='actually write to MongoDB (default: dry run)')
     ap.add_argument('--report', help='write the summary to this markdown file')
     args = ap.parse_args()
 
+    excludes = parse_excludes(args.exclude)
     dry = not args.execute
     db = get_empower_db()
     existing_colls = set(db.list_collection_names())
@@ -71,7 +90,7 @@ def main():
     for delivery in sorted(args.delivery, key=lambda d: (d != 'jan2026', d)):
         t0 = time.time()
         print(f"--- parsing {delivery} ---")
-        by_county, parse_stats = parse_all(delivery, args.utility, args.limit)
+        by_county, parse_stats = parse_all(delivery, args.utility, args.limit, exclude=excludes.get(delivery, ()))
         out.append(f"## {delivery} — parse stats")
         for label, s in parse_stats.items():
             out.append(f"- {label}: {s}")
@@ -92,9 +111,7 @@ def main():
         out.append('```')
         out.append(fmt_table(county_rows, COUNTY_COLS))
         out.append('```')
-        tot = {k: sum(r.get(k, 0) for r in county_rows) for k in
-               ['records', 'matched_parcels', 'docs_updated', 'docs_created_parcel',
-                'docs_created_unmatched', 'readings_added_existing', 'readings_added_new']}
+        tot = {k: sum(r.get(k, 0) for r in county_rows) for k in TOTAL_COLS}
         new_colls = sorted(r['county'] for r in county_rows if r['new_collection'])
         out += [f"**Totals**: {tot}", f"**New collections ({len(new_colls)})**: {', '.join(new_colls)}",
                 f"Elapsed: {round(time.time() - t0, 1)}s", ""]

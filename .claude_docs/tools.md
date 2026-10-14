@@ -353,3 +353,16 @@ source venv/bin/activate
 python scripts/repair_electrical_ingest_tool.py --county Franklin              # dry run
 python scripts/repair_electrical_ingest_tool.py --execute --report repair.md   # all counties, live
 ```
+
+## ingest_electric_bills_tool.py
+
+**Purpose**: Ingests utility pre-enrollment electric usage files into `{County}ElectricalDB` (dry run by default).
+Prints per-county counters including `utility_set`, `unchanged`, `skipped_multi_preingest`, `surrogate_collision`.
+
+**Location**: `scripts/ingest_electric_bills_tool.py` (logic in `src/tools/utility_bills/ingest.py`)
+
+**Usage**:
+```bash
+python scripts/ingest_electric_bills_tool.py --delivery jan2026 --delivery aug2026 --exclude AES:jan2026
+```
+`--exclude UTILITY:DELIVERY` (repeatable) skips that utility's sources in that delivery entirely (not parsed or merged).

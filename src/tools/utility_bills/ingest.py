@@ -67,13 +67,17 @@ def stream_records(src, limit=None):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def parse_all(delivery, utilities=None, limit=None, log=print):
-    """Parse every source in a delivery, bucketing OH records by county."""
+def selected_sources(delivery, utilities=None, exclude=()):
+    """A delivery's sources, limited to `utilities` (lowercase) when given and minus any in `exclude`."""
+    return [s for s in SOURCES[delivery]
+            if (not utilities or s['utility'].lower() in utilities) and s['utility'].lower() not in exclude]
+
+
+def parse_all(delivery, utilities=None, limit=None, log=print, exclude=()):
+    """Parse every selected source in a delivery, bucketing OH records by county."""
     by_county = defaultdict(list)
     parse_stats = {}
-    for src in SOURCES[delivery]:
-        if utilities and src['utility'].lower() not in utilities:
-            continue
+    for src in selected_sources(delivery, utilities, exclude):
         label = f"{delivery}/{src['utility']}-{src['opco'] or 'ALL'}"
         t0, n = time.time(), 0
         c = defaultdict(int)
@@ -165,11 +169,16 @@ def _load_existing(db, coll_name):
     return index_groups(linked), surrogates
 
 
-def _target_for(existing, parcel, tag):
-    """The doc a parcel's readings merge into: its merge_target, else the single doc this delivery already made."""
-    docs = existing.resolve(parcel)[0] or []
-    mine = [d for d in docs if d.get('source_delivery') == tag]
-    return merge_target(docs) or (mine[0] if len(mine) == 1 else None)
+def _target_for(docs, tag, dates):
+    """The doc a parcel's readings merge into: its merge_target, else the single doc already holding every date,
+    else the single doc this delivery made. None means create (no docs) or skip (docs exist, none identifiable)."""
+    if target := merge_target(docs):
+        return target
+    for pick in (lambda d: set(dates) <= set(d.get('time_series_elec') or {}), lambda d: d.get('source_delivery') == tag):
+        found = [d for d in docs if pick(d)]
+        if len(found) == 1:
+            return found[0]
+    return None
 
 
 def process_county(db, county, records, tag, dry_run, existing_colls, log=print):
@@ -185,7 +194,7 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
     by_addr = {}
     for rec in records:
         naddr = normalize_address(rec.service_address)
-        slot = by_addr.setdefault(naddr, {'dates': {}, 'rec': rec})
+        slot = by_addr.setdefault(naddr, {'dates': {}, 'rec': rec, 'naddr': naddr})
         st['reading_conflicts'] += _merge_readings(slot['dates'], rec.readings)
     st_meta['unique_addresses'] = len(by_addr)
 
@@ -205,7 +214,9 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
 
     def put(key, slot):
         prev = keyed.setdefault(key, slot)
-        if prev is not slot:
+        if prev is not slot and key[0] == 's' and prev['naddr'] != slot['naddr']:
+            st['surrogate_collision'] += 1  # one surrogate key, two service addresses: not the same meter
+        elif prev is not slot:
             prev['dates'].update({k: v for k, v in slot['dates'].items() if k not in prev['dates']})
 
     for naddr, slot in by_addr.items():
@@ -232,7 +243,11 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
         first_date = min(first_date, lo) if first_date else lo
         last_date = max(last_date, hi) if last_date else hi
         parcel = slot.get('parcel')
-        target = _target_for(existing, parcel, tag) if kind == 'p' else surrogates.get(key[1])
+        docs = (existing.resolve(parcel)[0] or []) if kind == 'p' else []
+        target = _target_for(docs, tag, dates) if kind == 'p' else surrogates.get(key[1])
+        if kind == 'p' and not target and docs:
+            st['skipped_multi_preingest'] += 1  # readings stay in whichever doc already has them
+            continue
         if target:
             prev = merges.setdefault(target['_id'], {'target': target, 'dates': {}, 'rec': rec})
             prev['dates'].update({k: v for k, v in dates.items() if k not in prev['dates']})
