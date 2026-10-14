@@ -332,6 +332,37 @@ After L4 and still after L7: **3,739,643** (Montgomery 260,061, Greene 67,302, S
   (modes 11, 1, 5, 10). The address-matched pairs therefore look like series continuations, not double-counted readings.
   The tool's `addr_overlap_ambiguous` column equals `addr_overlap_addronly` in every county; this looks like a quirk of the tool and was not investigated.
 
+**§15.3.4 against the skip counters (added 2026-10-14, read-only, post-repair state).** The tool counts a parcel as overlapping when it holds a
+no-utility doc and a doc with `utility`. After the backfill that includes pre-ingest docs that gained `utility`, so the overlap is not the
+same as an ingest duplicate. Each overlapping parcel group, and each address-matched NU doc, was classified against a dry `repair_county` on
+the current data (zero planned actions, as in L5a). The skip reason of each doc was read from the repair's own plan. Grouping used
+`group_by_identity`, the address match the tool's own helpers, and staleness `is_fresh` at build month 2026-10 with the registry's 24 months.
+Categories were tested in order, first match wins.
+
+| Parcel overlap (5,552) | Parcels | NU doc(s) stale |
+|---|---|---|
+| (a) a doc in the group skipped as `skipped_conflict` | 0 | – |
+| (b) ≥ 2 pre-ingest docs on the parcel (multi-meter) | **5,552** | 5,305 |
+| (c) stale pre-ingest doc beside an ingest doc (§15.1) | 0 | – |
+| (d) anything else | **0** | – |
+
+None of the 5,552 groups holds an ingest-created doc (`source_delivery`). Each is a parcel with several pre-ingest meters, where the backfill
+matched one meter and gave it `utility` and the others did not. These are the parcels the repair leaves alone by rule (`merge_target` is None),
+not duplicates the ingest made. Measured as "parcel holding an NU doc and an ingest doc", the parcel overlap is 0, as §15.3.4 asks.
+
+| Address overlap (42,219 NU docs) | NU docs | matched PU on same zip | NU doc stale |
+|---|---|---|---|
+| PU doc skipped `skipped_multi_candidate` | 40,061 | 33,148 | 37,392 |
+| PU doc skipped `skipped_none` | 1,687 | 1,004 | 1,658 |
+| PU doc skipped `skipped_conflict` | 445 | 434 | 414 |
+| PU doc skipped `skipped_multi_preingest` | 26 | 18 | 25 |
+| PU doc not skipped by the repair | **0** | – | – |
+
+When an NU doc matches several PU docs, the reason shown is the first in the table's order. Every address match lands on a PU doc that the repair
+skipped, so the address overlaps are "only the skipped cases" (§15.3.4). 39,489 of the 42,219 NU docs (93.5%) are stale. None of them was merged
+in place by the ingest. Where one of these pairs is the same meter, the household is counted twice: once stale, on the parcel (usage unknown, no computed bill),
+and once unlinked with fresh usage. The repair cannot settle which parcel the address belongs to, or whether the series agree, so these stay as they are.
+
 **Run times and peak RSS (live).**
 
 | Step | Wall | Peak RSS |

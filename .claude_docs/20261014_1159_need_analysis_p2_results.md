@@ -241,4 +241,4 @@ The brief's ranges come from the impl kickoff, and that predates the user's appr
 - **New scripts not in `script_descriptions.md`** (that file carries the user's uncommitted edits, so it was not touched). Both are documented in `.claude_docs/tools.md`:
   - `scripts/scan_heat_type_fields_tool.py`: a read-only heat/fuel field scan.
   - `scripts/repair_electrical_ingest_tool.py`: the ElectricalDB fold repair, dry by default.
-- **Threshold wording** from P1 is still open: `>=` versus `>` at 6% and 10% burden, and the fpl 175 boundary. Coverage `boundary` counts per county carry those numbers (Franklin: burden 6.0 = 267, 10.0 = 83, fpl 175 = 444).
+- **Threshold wording** is settled for burden: spec §15.2 Q2 keeps `≥` on the floored burden ("at or above 6% / 10%"). The fpl 175 boundary uses `≤` on the ceiled `fpl_pct`, which equals "at or below 175% FPG" on the true value; no spec item reopens it, so no wording point is open. Coverage `boundary` counts per county still record how many households sit exactly on each line (Franklin: burden 6.0 = 267, 10.0 = 83, fpl 175 = 444).
