@@ -3,6 +3,7 @@
     python -m src.analysis_engine.cli build --county Adams --county Cuyahoga [--dry-run]
     python -m src.analysis_engine.cli build --all --dry-run
     python -m src.analysis_engine.cli report --county Adams
+    python -m src.analysis_engine.cli reconcile [--county Adams ...] [--seed 0]
 """
 
 import argparse
@@ -14,7 +15,8 @@ from src.analysis_engine.build import build_county
 from src.analysis_engine.ids import load_id_key
 from src.analysis_engine.registry import Registry, load_registry
 from src.analysis_engine.report import county_report, format_report, summarize_build
-from src.analysis_engine.sources import collection_name
+from src.analysis_engine.reconcile import format_row, reconcile, sample_counties
+from src.analysis_engine.sources import all_counties
 from src.analysis_engine.store import DryRunStore, MongoStore
 
 
@@ -28,6 +30,9 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     build.add_argument('--dry-run', action='store_true', help='compute and validate, write nothing')
     report = sub.add_parser('report', help='dimension and archetype counts from analysis_households')
     report.add_argument('--county', action='append', required=True)
+    rec = sub.add_parser('reconcile', help='recount sources independently and compare with analysis_coverage')
+    rec.add_argument('--county', action='append', help='default: a seeded sample of five counties')
+    rec.add_argument('--seed', type=int, default=0)
     return parser.parse_args(argv)
 
 
@@ -44,11 +49,6 @@ def run_build(db, counties: List[str], dry_run: bool, reg: Registry, id_key: byt
     return 1 if failed else 0
 
 
-def all_counties(db) -> List[str]:
-    suffix = collection_name('electrical', '')
-    return sorted(n[:-len(suffix)] for n in db.list_collection_names() if n.endswith(suffix))
-
-
 def main(argv: Optional[List[str]] = None, db=None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     reg = load_registry()
@@ -58,6 +58,11 @@ def main(argv: Optional[List[str]] = None, db=None) -> int:
         db = get_empower_db()
     if args.command == 'build':
         return run_build(db, all_counties(db) if args.all else args.county, args.dry_run, reg, id_key)
+    if args.command == 'reconcile':
+        now = datetime.now(timezone.utc)
+        rows = reconcile(db, args.county or sample_counties(db, args.seed), reg, now.year * 100 + now.month)
+        print('\n'.join(format_row(r) for r in rows))
+        return 0 if all(r['ok'] for r in rows) else 1
     for county in args.county:
         print(format_report(county_report(db, county, reg), reg))
     return 0

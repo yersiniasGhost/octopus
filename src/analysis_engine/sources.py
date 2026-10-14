@@ -25,6 +25,11 @@ def collection_name(role: str, county: str) -> str:
     return COLLECTIONS[role].format(county)
 
 
+def all_counties(db) -> List[str]:
+    suffix = collection_name('electrical', '')
+    return sorted(n[:-len(suffix)] for n in db.list_collection_names() if n.endswith(suffix))
+
+
 def sources_present(collection_names: Iterable[str], county: str) -> Dict[str, str]:
     names = set(collection_names)
     return {role: collection_name(role, county) for role in COLLECTIONS if collection_name(role, county) in names}
