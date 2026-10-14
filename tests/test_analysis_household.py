@@ -4,6 +4,8 @@ import math
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.analysis_engine.household import ParcelMatch, assemble  # noqa: E402
@@ -163,3 +165,30 @@ def test_thermal_fit_fields_are_stored():
                              'kwh_hl_intercept': 12.5, 'kwh_hl_r2': 0.61, 'kwh_cl_r2': 0.55})
     hh = _doc(elec('M6', parcel_key='K'), match)
     assert hh['kwh_hl_intercept'] == 12.5 and hh['kwh_hl_r2'] == 0.61 and hh['kwh_cl_r2'] == 0.55
+
+
+def _mapped(**roles):
+    return assemble(elec('E20', FULL_YEAR, parcel_id='20'), _linked(**roles), 'Franklin', BM, REG)
+
+
+@pytest.mark.parametrize('raw,expected', [('Owner', True), ('Renter', False)])
+def test_home_owner_maps_tenure(raw, expected):
+    result = _mapped(demographic={'home_owner': raw})
+    assert result.doc['owner'] is expected and result.unmapped_values == []
+
+
+@pytest.mark.parametrize('raw,expected', [('ELECTRIC', 2), ('GAS', 3), ('OIL', 4)])
+def test_heating_fuel_type_maps_fuel(raw, expected):
+    result = _mapped(residential={'heating_fuel_type': raw})
+    assert result.doc['heat_fuel'] == expected and result.unmapped_values == []
+
+
+def test_heating_fuel_type_na_is_known_but_empty():
+    result = _mapped(residential={'heating_fuel_type': 'NA'})
+    assert 'heat_fuel' not in result.doc and result.unmapped_values == []
+
+
+def test_heating_fuel_type_is_second_path_after_heat_type():
+    both = _mapped(residential={'heat_type': 'HTP', 'heating_fuel_type': 'GAS'})
+    assert both.doc['heat_fuel'] == 1
+    assert _mapped(residential={'heating_fuel_type': 'GAS'}).doc['heat_fuel'] == 3
