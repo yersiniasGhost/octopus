@@ -191,7 +191,8 @@ def _target_for(docs, tag, dates):
     else the single doc this delivery made. None means create (no docs) or skip (docs exist, none identifiable)."""
     if target := merge_target(docs):
         return target
-    for pick in (lambda d: set(dates) <= set(d.get('time_series_elec') or {}), lambda d: d.get('source_delivery') == tag):
+    for pick in (lambda d: set(dates) <= set(d.get('time_series_elec') or {}),
+                 lambda d: d.get('source_delivery') == tag):
         found = [d for d in docs if pick(d)]
         if len(found) == 1:
             return found[0]
@@ -250,6 +251,8 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
                 parcel = None
         elif parcels and parcel is None:
             st['ambiguous_address'] += 1
+        if parcel is not None and identity(parcel) is None:  # a parcel row with no id cannot key a doc (as repair)
+            parcel = None
         if parcel is not None:
             st['matched_parcels'] += 1
             put(('p', identity(parcel)), {**slot, 'parcel': parcel})

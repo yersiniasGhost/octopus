@@ -39,7 +39,8 @@ def countykeys_collections(db, county: str) -> Dict[str, str]:
     """Collection names the county's CountyKeys document lists, by role; {} when it has none."""
     if 'CountyKeys' not in db.list_collection_names():
         return {}
-    keys = {normalize_county(d['county']): d for d in db['CountyKeys'].find({}, {'_id': 0})}.get(normalize_county(county), {})
+    by_county = {normalize_county(d['county']): d for d in db['CountyKeys'].find({}, {'_id': 0})}
+    keys = by_county.get(normalize_county(county), {})
     return {role: keys[field] for role, field in (('residential', 'residential_data'),
                                                   ('demographic', 'demographic_data')) if keys.get(field)}
 

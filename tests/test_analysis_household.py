@@ -160,6 +160,12 @@ def test_nan_utility_falls_back_to_county_default():
     assert 'annual_cost' in hh
 
 
+def test_missing_token_utility_string_falls_back_to_county_default():
+    expected = _doc(elec('E1', FULL_YEAR), ParcelMatch(), 'Cuyahoga')['annual_cost']
+    for token in ('nan', ' Unknown '):
+        assert _doc(elec('E1', FULL_YEAR, utility=token), ParcelMatch(), 'Cuyahoga')['annual_cost'] == expected
+
+
 def test_thermal_fit_fields_are_stored():
     match = _linked(thermal={'parcel_key': 'K', 'kwh_hl_slope': 0.01, 'kwh_cl_slope': 0.02, 'kwh_r2': 0.7,
                              'kwh_hl_intercept': 12.5, 'kwh_hl_r2': 0.61, 'kwh_cl_r2': 0.55})

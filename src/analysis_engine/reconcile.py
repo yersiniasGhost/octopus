@@ -27,8 +27,8 @@ def stale_cutoff(build_month: int, max_age_months: int) -> str:
 
 def source_counts(db, county: str, build_month: int, reg: Registry) -> Dict[str, int]:
     params, col = reg.rules['params']['usage'], db[collection_name('electrical', county)]
-    pipeline = [{'$project': {'last': {'$max': {'$map': {'input': {'$objectToArray': {'$ifNull': ['$time_series_elec', {}]}},
-                                                           'in': '$$this.k'}}}}},
+    series = {'$objectToArray': {'$ifNull': ['$time_series_elec', {}]}}
+    pipeline = [{'$project': {'last': {'$max': {'$map': {'input': series, 'in': '$$this.k'}}}}},
                 {'$match': {'last': {'$ne': None, '$lt': stale_cutoff(build_month, params['max_age_months'])}}},
                 {'$count': 'n'}]
     stale = next(iter(col.aggregate(pipeline)), {}).get('n', 0)
@@ -59,7 +59,8 @@ def format_row(row: Dict) -> str:
 
 
 def sample_counties(db, rng_seed: int) -> List[str]:
-    """Franklin; largest linked and largest unlinked county outside the P1 three; Montgomery; one seeded random other."""
+    """Franklin; largest linked and largest unlinked county outside the P1 three; Montgomery; one seeded random
+    other."""
     names = set(db.list_collection_names())
     counties = all_counties(db)
     size = {c: db[collection_name('electrical', c)].count_documents({}) for c in counties}

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.analysis_engine import features
-from src.analysis_engine.normalize import BLANK, PRESENT, UNMAPPED, read_value
+from src.analysis_engine.normalize import BLANK, PRESENT, UNMAPPED, is_blank, read_value
 from src.analysis_engine.registry import FieldSpec, Registry
 from src.analysis_engine.usage import is_fresh, summarize_usage
 from src.tools.parcel_id import parcel_key_of
@@ -69,7 +69,8 @@ def _derive(values: Dict, elec: Dict, county: str, build_month: int, reg: Regist
         if getattr(usage, name):
             values[name] = getattr(usage, name)
     raw = elec.get('utility')
-    utility = raw.strip() if isinstance(raw, str) and raw.strip() else reg.default_utility(county)
+    utility = raw.strip() if isinstance(raw, str) and not is_blank(raw, (), reg.missing_tokens) \
+        else reg.default_utility(county)
     nonres = usage.annual_kwh is not None and usage.annual_kwh > usage_params['nonres_kwh']
     if nonres:
         values['nonres'] = True  # the vendor cost still applies; a computed bill from commercial usage does not

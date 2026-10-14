@@ -188,3 +188,12 @@ def test_unmatched_record_whose_key_holds_another_address_is_a_collision():
     st = _run(db, [_rec(addr='77 ASH ST')])
     assert st['surrogate_collision'] == 1 and db['TestElectricalDB'].docs['FE:CEI:A1'] == old
     assert len(db['TestElectricalDB'].docs) == 1 and st.get('readings_added_new', 0) == 0
+
+
+def test_parcels_without_identity_stay_unlinked_and_apart():
+    db = _db([], [{'_id': 'r1', 'parcel_id': None, 'address': '1 Oak St'},
+                  {'_id': 'r2', 'parcel_id': ' ', 'address': '2 Elm St'}])
+    st = _run(db, [_rec(addr='1 OAK ST', account='A1'), _rec(addr='2 ELM ST', account='A2', kwh=700.0)])
+    docs = list(db['TestElectricalDB'].docs.values())
+    assert len(docs) == 2 and all(d['parcel_id'] is None and 'service_address' in d for d in docs)
+    assert st['docs_created_unmatched'] == 2 and not st.get('matched_parcels')

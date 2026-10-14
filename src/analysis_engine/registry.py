@@ -17,6 +17,8 @@ SOURCE_ROLES = ('electrical', 'residential', 'demographic', 'thermal', 'multiten
 FIELD_TYPES = ('int', 'float', 'bool')
 TABLE_SOURCE_KEYS = ('title', 'url', 'retrieved')
 OPS = ('>=', '<=', '==', '!=')
+# Transform arguments taken from rules.json params: transform -> {argument: (params block, key)}.
+TRANSFORM_PARAMS = {'senior_age': {'min_age': ('senior', 'min_age')}}
 
 
 class RegistryError(ValueError):
@@ -163,6 +165,11 @@ def validate(fields_doc: Dict, rules_doc: Dict) -> List[str]:
     for name, block in rules_doc.get('params', {}).items():
         if not block.get('source'):
             errors.append(f'params.{name}: missing source citation')
+    params = rules_doc.get('params', {})
+    for raw in fields_doc.get('fields', []):
+        for block, key in TRANSFORM_PARAMS.get((raw.get('source') or {}).get('transform'), {}).values():
+            if key not in params.get(block, {}):
+                errors.append(f"{raw.get('name')}: transform needs params.{block}.{key}")
     names = {f.get('name') for f in fields_doc.get('fields', [])}
     return errors + _table_errors(rules_doc.get('tables', {})) + \
         _archetype_errors(rules_doc.get('archetypes', {}), dims, names)
@@ -177,6 +184,12 @@ def _known_keys(fields_doc: Dict) -> Dict[str, FrozenSet[str]]:
     return {role: frozenset(names) for role, names in keys.items()}
 
 
+def _bind_args(source: Optional[Dict], params: Dict) -> Optional[Dict]:
+    """A field source with its transform's rules.json arguments bound under 'args' (read_value passes them on)."""
+    wanted = TRANSFORM_PARAMS.get((source or {}).get('transform'))
+    return {**source, 'args': {arg: params[block][key] for arg, (block, key) in wanted.items()}} if wanted else source
+
+
 def load_registry(directory: Path = REGISTRY_DIR) -> Registry:
     """Read, validate and freeze the registry; raise RegistryError listing every inconsistency."""
     fields_doc = json.loads((directory / 'fields.json').read_text())
@@ -184,7 +197,9 @@ def load_registry(directory: Path = REGISTRY_DIR) -> Registry:
     errors = validate(fields_doc, rules_doc)
     if errors:
         raise RegistryError('; '.join(errors))
-    specs = tuple(FieldSpec(f['name'], f['code'], f['type'], f.get('stored', True), f.get('source'), f.get('round'),
-                            tuple(f['bins']) if f.get('bins') else None, f.get('fallback_for')) for f in fields_doc['fields'])
+    specs = tuple(FieldSpec(f['name'], f['code'], f['type'], f.get('stored', True),
+                            _bind_args(f.get('source'), rules_doc['params']), f.get('round'),
+                            tuple(f['bins']) if f.get('bins') else None, f.get('fallback_for'))
+                  for f in fields_doc['fields'])
     return Registry(fields_doc['version'], rules_doc['version'], specs, dict(fields_doc['link_bits']),
                     tuple(fields_doc.get('missing_tokens', [])), _known_keys(fields_doc), rules_doc)

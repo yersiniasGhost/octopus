@@ -96,3 +96,22 @@ def test_fallback_must_name_a_field():
     fields['fields'].append({'name': 'x', 'code': 99, 'type': 'bool', 'stored': False, 'fallback_for': 'nope',
                              'source': {'role': 'demographic', 'paths': ['a'], 'transform': 'senior_age'}})
     assert any('fallback_for' in e for e in validate(fields, rules))
+
+
+def test_senior_age_threshold_comes_from_the_registry(tmp_path):
+    from src.analysis_engine.normalize import BLANK, PRESENT, read_value
+    reg = load_registry()
+    assert reg.params('senior')['min_age'] == 65
+    assert read_value({'owner_age': 66}, reg.field('owner_senior').source, reg.missing_tokens) == (PRESENT, True)
+    fields, rules = _copy(tmp_path)
+    rules['params']['senior']['min_age'] = 70
+    _save(tmp_path, fields, rules)
+    moved = load_registry(tmp_path)
+    assert read_value({'owner_age': 66}, moved.field('owner_senior').source, moved.missing_tokens) == (BLANK, None)
+    assert read_value({'owner_age': 70}, moved.field('owner_senior').source, moved.missing_tokens) == (PRESENT, True)
+
+
+def test_senior_age_without_its_param_is_refused():
+    fields, rules = _docs()
+    del rules['params']['senior']
+    assert any('params.senior.min_age' in e for e in validate(fields, rules))

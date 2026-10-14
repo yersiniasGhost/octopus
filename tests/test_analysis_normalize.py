@@ -72,4 +72,5 @@ def test_value_map_misses_are_unmapped_and_null_mappings_absent():
 def test_senior_age_is_true_only():
     from src.analysis_engine.normalize import TRANSFORMS
     f = TRANSFORMS['senior_age']
-    assert f(65) is True and f('72') is True and f(64) is None and f('abc') is None and f(-1) is None
+    assert f(65, min_age=65) is True and f('72', min_age=65) is True and f(64, min_age=65) is None
+    assert f('abc', min_age=65) is None and f(-1, min_age=65) is None and f(68, min_age=70) is None

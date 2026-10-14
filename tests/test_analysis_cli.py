@@ -54,9 +54,13 @@ def test_format_report_shows_levels_proxy_and_denominators():
 
 def test_format_report_shows_proxy_split_and_no_source():
     report = {'county': 'X', 'total': 10, 'dims': {}, 'archetypes': {
-        'weatherization': {'n': 5, 'known': 8, 'proxy': 3}, 'electrification': {'n': 0, 'known': 0, 'proxy': 0}}}
-    text = format_report(report, load_registry())
-    assert '5 of 8 known-enough (measured 2 · proxy 3)' in text and 'no measured source' in text
+        'weatherization': {'n': 5, 'known': 8, 'proxy': 3}, 'electrification': {'n': 0, 'known': 0, 'proxy': 0},
+        'bill_assistance': {'n': 0, 'known': 0, 'proxy': 0}}}
+    lines = format_report(report, load_registry()).splitlines()
+    assert any('5 of 8 known-enough (measured 2 · proxy 3)' in line for line in lines)
+    assert [line.split()[-3:] for line in lines if line.split()[-1] == 'source'] == [['no', 'measured', 'source']]
+    assert sum(line.endswith('no known-enough households') for line in lines) == 1
+    assert next(line for line in lines if 'Bill assistance' in line).endswith('no known-enough households')
 
 
 def test_build_all_lists_every_electrical_collection(monkeypatch):

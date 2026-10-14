@@ -46,9 +46,10 @@ def _positive(value: Any) -> Optional[float]:
     return number if number is not None and number > 0 else None
 
 
-def _senior_age(value: Any) -> Optional[bool]:
+def _senior_age(value: Any, min_age: float) -> Optional[bool]:
+    """True at or above min_age (rules.json params.senior, bound by the registry loader), else unknown."""
     number = _number(value)
-    return True if number is not None and number >= 65 else None
+    return True if number is not None and number >= min_age else None
 
 
 def _count(value: Any) -> Optional[int]:
@@ -106,7 +107,7 @@ def read_value(doc: Dict, source: Dict, tokens: Iterable[str]) -> Tuple[str, Any
                 unmapped = raw
                 continue
             return (ABSENT, None) if value_map[key] is None else (PRESENT, value_map[key])
-        value = TRANSFORMS[source['transform']](raw)
+        value = TRANSFORMS[source['transform']](raw, **source.get('args', {}))
         if value is None:
             state = BLANK
             continue

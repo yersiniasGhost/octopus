@@ -59,8 +59,9 @@ def format_report(report: Dict, reg: Registry) -> str:
         lines.append(f"  {name:<22} {levels} · proxy {entry['proxy']:,}")
     for name, entry in report['archetypes'].items():
         label = reg.rules['archetypes'][name]['label']
-        if not entry['known']:
-            lines.append(f"  {label:<42} no measured source")
+        if not entry['known']:  # only electrification lacks a source outright (measured heat fuel, spec §14.1-2)
+            gap = 'no measured source' if name == 'electrification' else 'no known-enough households'
+            lines.append(f"  {label:<42} {gap}")
             continue
         split = f" (measured {entry['n'] - entry['proxy']:,} · proxy {entry['proxy']:,})" if entry['proxy'] else ''
         lines.append(f"  {label:<42} {entry['n']:,} of {entry['known']:,} known-enough{split}")

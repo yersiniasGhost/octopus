@@ -16,7 +16,8 @@ from src.analysis_engine.ids import analysis_id, is_surrogate
 from src.analysis_engine.registry import Registry
 from src.analysis_engine.rules import Distributions, cutpoints, finalize, quantile, usable_fit, usage_ok
 from src.analysis_engine.report import county_report
-from src.analysis_engine.sources import CountySources, countykeys_collections, identity, iter_electrical, load_county_sources
+from src.analysis_engine.sources import (CountySources, countykeys_collections, identity, iter_electrical,
+                                         load_county_sources)
 from src.analysis_engine.store import MongoStore
 from src.analysis_engine.usage import is_fresh
 from src.utils.log_manager import LogManager
@@ -145,9 +146,11 @@ def build_county(db, store, county: str, reg: Registry, now: datetime, id_key: b
         build.update(sources_present=sorted(src.present), source_counts=src.counts, doc_count=len(sizes),
                      size_p50=quantile(sizes, 50), size_p99=quantile(sizes, 99),
                      cutpoints=cutpoints(dist, reg.rules['params']), unmapped_fields=src.tracker.unmapped())
-        failures = check_gates(len(sizes), src.counts['electrical'], sizes, surrogates, (nonres, build['stats']['nonres']),
-                            build.pop('wrong_county'), {'fields': build['unmapped_fields'],
-                                                        'values': build['unmapped_values']})
+        # assemble always sets county, so wrong_county is a backstop; store.swap's collision check is what
+        # protects other counties' households
+        failures = check_gates(len(sizes), src.counts['electrical'], sizes, surrogates,
+                               (nonres, build['stats']['nonres']), build.pop('wrong_county'),
+                               {'fields': build['unmapped_fields'], 'values': build['unmapped_values']})
         if failures:
             raise BuildError('; '.join(failures))
         try:
