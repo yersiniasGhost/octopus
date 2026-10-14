@@ -7,7 +7,7 @@ older delivery's doc into the newer one. Type (e): an unlinked doc that alone re
 no doc is linked in place. Series that disagree on a shared date are left alone (spec 20261008_1713 §15.3, §15.7).
 Skip counters count only documents that end up neither deleted nor promoted (a (d) survivor that stays unlinked
 still counts), each once, under the reason from the last pass that skipped it; (b)'s skipped_multi_preingest counts
-parcels.
+parcels. A fold survivor records every id it absorbed (and theirs) in `merged_ids`, so a re-ingest finds it by them.
 """
 from collections import defaultdict
 from datetime import datetime
@@ -24,11 +24,12 @@ COUNTERS = ['parcel_folds', 'address_folds', 'delivery_folds', 'promoted', 'util
             'skipped_multi_preingest', 'skipped_conflict', 'skipped_multi_candidate', 'skipped_none',
             'skipped_cross_delivery', 'skipped_promote_multi']
 FIELDS = {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1, 'utility': 1, 'source_delivery': 1,
-          'last_utility_ingest': 1, 'service_address': 1, 'service_zip5': 1}
+          'last_utility_ingest': 1, 'service_address': 1, 'service_zip5': 1, 'merged_ids': 1}
 
 
 class _Folds:
-    """Writes planned in memory: per target doc, the accumulated series and fields, and the docs absorbed."""
+    """Writes planned in memory: per target doc, the accumulated series and fields, the docs absorbed (deleted) and
+    the ids it will answer to (its own merged_ids plus each absorbed doc's _id and merged_ids)."""
 
     def __init__(self, st):
         self.plans, self.st, self.skips, self.promoted = {}, st, {}, set()
@@ -39,7 +40,8 @@ class _Folds:
 
     def _plan(self, target: Dict) -> Dict:
         return self.plans.setdefault(target['_id'], {'ts': dict(target.get('time_series_elec') or {}), 'set': {},
-                                                     'target': target, 'ids': []})
+                                                     'target': target, 'ids': [],
+                                                     'merged': set(target.get('merged_ids') or [])})
 
     def add(self, target: Dict, doc: Dict, counter: str):
         plan = self._plan(target)
@@ -53,6 +55,7 @@ class _Folds:
                 plan['set'][field] = doc[field]
                 self.st['utility_from_fold'] += field == 'utility'
         plan['ids'].append(doc['_id'])
+        plan['merged'] |= {doc['_id'], *(doc.get('merged_ids') or [])}
         self.st[counter] += 1
 
     def promote(self, doc: Dict, parcel: Dict):
@@ -62,7 +65,8 @@ class _Folds:
         self.st['promoted'] += 1
 
     def ops(self) -> List[UpdateOne]:
-        return [UpdateOne({'_id': tid}, {'$set': {**({'time_series_elec': p['ts'], **monthly_stats(p['ts'])}
+        return [UpdateOne({'_id': tid}, {'$set': {**({'time_series_elec': p['ts'], **monthly_stats(p['ts']),
+                                                      'merged_ids': sorted(p['merged'] - {tid}, key=str)}
                                                      if p['ids'] else {}), **p['set']}})
                 for tid, p in self.plans.items() if p['ids'] or p['set']]
 

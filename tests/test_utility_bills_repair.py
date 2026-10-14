@@ -306,3 +306,81 @@ def test_vanished_promote_only_target_raises_before_any_delete():
     with pytest.raises(RuntimeError):
         repair_county(db, 'Test', dry_run=False)
     assert coll.deleted == [] and 'n1' in coll.docs
+
+
+def test_delivery_fold_records_the_folded_id_and_a_second_fold_unions():
+    db = _db([_sur('AES::SMITH', 'jan2026', JAN), _sur('AES::77', 'aug2026', NEW)])
+    repair_county(db, 'Test', dry_run=False)
+    assert db['TestElectricalDB'].docs['AES::77']['merged_ids'] == ['AES::SMITH']
+    db['TestElectricalDB'].docs['AES::JONES'] = _sur('AES::JONES', 'jan2026', {'2025-11-15 00:00:00': 1.0})
+    repair_county(db, 'Test', dry_run=False)
+    assert db['TestElectricalDB'].docs['AES::77']['merged_ids'] == ['AES::JONES', 'AES::SMITH']
+
+
+def test_parcel_and_address_folds_record_merged_ids():
+    db = _db([{'_id': 'o1', 'parcel_key': '101', 'time_series_elec': dict(OLD)},
+              {'_id': 'n1', 'parcel_key': '101', 'time_series_elec': dict(NEW), 'source_delivery': 'aug2026'},
+              {'_id': 'o2', 'parcel_id': 'A', 'time_series_elec': dict(OLD)},
+              _sur('s1', 'aug2026', NEW, addr='12 MAIN ST')], [{'parcel_id': 'A', 'address': '12 Main St'}])
+    st = repair_county(db, 'Test', dry_run=False)
+    docs = db['TestElectricalDB'].docs
+    assert st['parcel_folds'] == st['address_folds'] == 1
+    assert docs['o1']['merged_ids'] == ['n1'] and docs['o2']['merged_ids'] == ['s1']
+
+
+def test_folding_a_doc_that_carries_merged_ids_carries_them_over():
+    db = _db([{**_sur('AES::77', 'aug2026', NEW), 'merged_ids': ['AES::SMITH']},
+              {'_id': 'o1', 'parcel_id': 'P', 'time_series_elec': dict(OLD)}], OAK)
+    st = repair_county(db, 'Test', dry_run=False)
+    assert st['address_folds'] == 1 and st['deleted'] == 1
+    assert db['TestElectricalDB'].docs['o1']['merged_ids'] == ['AES::77', 'AES::SMITH']
+
+
+def test_promotion_does_not_write_merged_ids():
+    db = _db([_sur('s1', 'aug2026', NEW)], OAK)
+    repair_county(db, 'Test', dry_run=False)
+    assert 'merged_ids' not in db['TestElectricalDB'].docs['s1']
+
+
+def _jan(account, addr='9 OAK ST'):
+    from src.tools.utility_bills.record import AccountRecord
+    return AccountRecord('AES', '', account, 'X', addr, 'Dayton', 'OH', '45402', [('2025-12-15', 300.0)])
+
+
+def _ingest_jan(db, recs):
+    from src.tools.utility_bills.ingest import process_county
+    return process_county(db, 'Test', recs, 'jan2026', False, set(db.list_collection_names()), log=lambda *_: None)
+
+
+def test_reingest_of_a_folded_key_resolves_through_merged_ids_and_repair_stays_quiet():
+    db = _db([_sur('AES::SMITH', 'jan2026', JAN), _sur('AES::77', 'aug2026', NEW)])
+    repair_county(db, 'Test', dry_run=False)
+    before = {k: dict(v) for k, v in db['TestElectricalDB'].docs.items()}
+    st = _ingest_jan(db, [_jan('SMITH')])
+    assert st.get('docs_created_unmatched', 0) == st.get('docs_updated', 0) == 0 and st['unchanged'] == 1
+    assert db['TestElectricalDB'].docs == before
+    st = repair_county(db, 'Test', dry_run=False)
+    assert {k: st[k] for k in ACTIONS} == dict.fromkeys(ACTIONS, 0)
+
+
+def test_alias_hit_at_another_address_is_a_collision():
+    db = _db([{**_sur('AES::77', 'aug2026', NEW), 'merged_ids': ['AES::SMITH']}])
+    st = _ingest_jan(db, [_jan('SMITH', addr='77 ASH ST')])
+    assert st['surrogate_collision'] == 1 and set(db['TestElectricalDB'].docs) == {'AES::77'}
+    assert db['TestElectricalDB'].docs['AES::77']['time_series_elec'] == NEW
+
+
+def test_alias_claimed_by_two_docs_is_not_used():
+    db = _db([{**_sur('AES::77', 'aug2026', NEW), 'merged_ids': ['AES::SMITH']},
+              {**_sur('AES::78', 'aug2026', OLD), 'merged_ids': ['AES::SMITH']}])
+    st = _ingest_jan(db, [_jan('SMITH')])
+    docs = db['TestElectricalDB'].docs
+    assert st['docs_created_unmatched'] == 1 and set(docs) == {'AES::77', 'AES::78', 'AES::SMITH'}
+    assert docs['AES::77']['time_series_elec'] == NEW and docs['AES::78']['time_series_elec'] == OLD
+
+
+def test_two_keys_aliasing_one_doc_at_a_no_doc_parcel_merge_once():
+    db = _db([{**_sur('AES::77', 'aug2026', {**JAN, **NEW}), 'merged_ids': ['AES::SMITH']}], OAK)
+    st = _ingest(db, [_jan('SMITH'), _aes('77', '9 OAK ST')])
+    assert st.get('skipped_promote_multi', 0) == 0 and st['unchanged'] == 1
+    assert set(db['TestElectricalDB'].docs) == {'AES::77'}

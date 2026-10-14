@@ -392,3 +392,7 @@ Approved by the user 2026-10-13.
 5. Ingest: a record matched to a parcel with no doc merges into the one existing doc whose `_id` is one of its
    surrogate keys, skips (`skipped_promote_multi`) when several exist, and creates a linked doc only when none does.
    A doc found by surrogate `_id` counts only if unlinked and at one of the record's addresses (else a collision).
+6. Every fold that deletes a doc ((b), (c), (d)) sets the survivor's `merged_ids` to the sorted union of its own,
+   the deleted doc's `_id` and the deleted doc's `merged_ids`; the ingest resolves a surrogate key through
+   `merged_ids` as an alias (a doc's own `_id` wins, an alias claimed by two docs is not used, the same-meter rule
+   applies), so re-ingesting a folded delivery re-creates nothing.

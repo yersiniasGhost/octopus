@@ -7,7 +7,8 @@ overwriting an existing date key; monthly_averages/minimums/maximums are
 recomputed from the merged series; matched docs also gain a missing `utility`.
 Existing docs are found by parcel_key or parcel_id (ParcelIndex); an address shared by
 several parcels resolves only when exactly one has a doc (resolve.py). A parcel with no
-doc first takes the unlinked doc already stored under the record's surrogate key. Re-runs are
+doc first takes the unlinked doc already stored under the record's surrogate key, or the one doc whose
+`merged_ids` (written by the repair's folds) holds that key. Re-runs are
 idempotent (parcel upserts for matched rows, deterministic surrogate _id upserts
 for unmatched rows).
 """
@@ -163,11 +164,21 @@ def index_groups(linked):
     return index
 
 
-def _load_existing(db, coll_name):
-    """ElectricalDB docs as a ParcelIndex of linked docs (lists per parcel) and every doc by _id."""
-    docs = list(db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1,
-                                        'utility': 1, 'source_delivery': 1, 'service_address': 1}))
-    return index_groups(group_by_identity(docs)[0]), {d['_id']: d for d in docs}
+def _load_existing(db, coll_name, log=print):
+    """ElectricalDB docs as a ParcelIndex of linked docs (lists per parcel) and every doc by _id, plus each id in a
+    doc's merged_ids as an alias for that doc. A doc's own _id beats an alias; an alias two docs claim maps to
+    neither."""
+    docs = list(db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1, 'utility': 1,
+                                        'source_delivery': 1, 'service_address': 1, 'merged_ids': 1}))
+    by_id, claims = {d['_id']: d for d in docs}, defaultdict(list)
+    for doc in docs:
+        for alias in set(doc.get('merged_ids') or []):
+            claims[alias].append(doc)
+    shared = sum(len(c) > 1 for a, c in claims.items() if a not in by_id)
+    by_id.update({a: c[0] for a, c in claims.items() if a not in by_id and len(c) == 1})
+    if shared:
+        log(f"  {coll_name}: {shared:,} merged_ids claimed by several docs, not used")
+    return index_groups(group_by_identity(docs)[0]), by_id
 
 
 def _same_meter(doc, slot):
@@ -215,7 +226,7 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
     # 3. existing docs: linked ones by parcel spelling, surrogates by _id
     existing, by_id = ParcelIndex(), {}
     if not st_meta['new_collection']:
-        existing, by_id = _load_existing(db, coll_name)
+        existing, by_id = _load_existing(db, coll_name, log)
 
     # 4. key every address: residential parcel when resolved, else surrogate _id
     keyed = {}
@@ -261,11 +272,11 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
             st['skipped_multi_preingest'] += 1  # readings stay in whichever doc already has them
             continue
         if kind == 'p' and not docs:  # a parcel with no doc: an unlinked doc the repair left under these keys (§15.7)
-            held = {k for k in slot['keys'] if k in by_id and _same_meter(by_id[k], slot)}
-            if len(held) > 1:
+            held = {by_id[k]['_id']: by_id[k] for k in slot['keys'] if k in by_id and _same_meter(by_id[k], slot)}
+            if len(held) > 1:  # keyed by doc: a key and its alias reaching one doc are one hit
                 st['skipped_promote_multi'] += 1
                 continue
-            target = by_id[held.pop()] if held else None
+            target = next(iter(held.values()), None)
         if target:
             prev = merges.setdefault(target['_id'], {'target': target, 'dates': {}, 'rec': rec})
             prev['dates'].update({k: v for k, v in dates.items() if k not in prev['dates']})
