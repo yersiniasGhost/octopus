@@ -156,11 +156,35 @@ def test_parse_excludes_rejects_bad_utility_and_undelivered_delivery():
     assert parse_excludes(['AES:jan2026'], ['jan2026', 'aug2026']) == {'jan2026': {'aes'}}
 
 
-def test_surrogate_key_matching_a_linked_doc_merges_without_overwriting():
+def test_surrogate_key_matching_a_linked_doc_is_a_collision_not_a_merge():
     db = _db([{'_id': 'FE:CEI:A1', 'parcel_id': 'P9', 'utility': 'FE', 'time_series_elec': {'2024-05-15 00:00:00': 400.0}}], [])
     st = _run(db, [_rec()])
     doc = db['TestElectricalDB'].docs['FE:CEI:A1']
-    assert doc['parcel_id'] == 'P9' and set(doc['time_series_elec']) == {'2024-05-15 00:00:00', D1}
-    assert st['docs_updated'] == 1 and len(db['TestElectricalDB'].docs) == 1
-    st = _run(db, [_rec()])
-    assert st.get('docs_updated', 0) == 0 and st['unchanged'] == 1
+    assert doc['parcel_id'] == 'P9' and set(doc['time_series_elec']) == {'2024-05-15 00:00:00'}
+    assert st['surrogate_collision'] == 1 and st.get('docs_updated', 0) == 0 and len(db['TestElectricalDB'].docs) == 1
+
+
+def test_no_doc_parcel_ignores_a_linked_doc_under_the_records_key():
+    old = {'_id': 'FE:CEI:A1', 'parcel_id': 'X', 'utility': 'FE', 'service_address': '12 MAIN ST',
+           'time_series_elec': {'2024-05-15 00:00:00': 400.0}}
+    db = _db([dict(old)], [{'_id': 'r1', 'parcel_id': 'Y', 'address': '99 Pine St'}])
+    st = _run(db, [_rec(addr='99 PINE ST')])
+    assert st['docs_created_parcel'] == 1 and db['TestElectricalDB'].docs['FE:CEI:A1'] == old
+    assert any(d.get('parcel_id') == 'Y' for d in db['TestElectricalDB'].docs.values())
+
+
+def test_no_doc_parcel_ignores_an_unlinked_doc_at_another_address():
+    old = {'_id': 'FE:CEI:A1', 'parcel_id': None, 'utility': 'FE', 'service_address': '12 MAIN ST',
+           'time_series_elec': {'2024-05-15 00:00:00': 400.0}}
+    db = _db([dict(old)], [{'_id': 'r1', 'parcel_id': 'Y', 'address': '99 Pine St'}])
+    st = _run(db, [_rec(addr='99 PINE ST')])
+    assert st['docs_created_parcel'] == 1 and db['TestElectricalDB'].docs['FE:CEI:A1'] == old
+
+
+def test_unmatched_record_whose_key_holds_another_address_is_a_collision():
+    old = {'_id': 'FE:CEI:A1', 'parcel_id': None, 'utility': 'FE', 'service_address': '12 MAIN ST',
+           'time_series_elec': {'2024-05-15 00:00:00': 400.0}}
+    db = _db([dict(old)], [])
+    st = _run(db, [_rec(addr='77 ASH ST')])
+    assert st['surrogate_collision'] == 1 and db['TestElectricalDB'].docs['FE:CEI:A1'] == old
+    assert len(db['TestElectricalDB'].docs) == 1 and st.get('readings_added_new', 0) == 0

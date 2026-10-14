@@ -391,3 +391,4 @@ Approved by the user 2026-10-13.
    `skipped_none` (no candidate parcel holds a doc) are not duplicates and stay unlinked.
 5. Ingest: a record matched to a parcel with no doc merges into the one existing doc whose `_id` is one of its
    surrogate keys, skips (`skipped_promote_multi`) when several exist, and creates a linked doc only when none does.
+   A doc found by surrogate `_id` counts only if unlinked and at one of the record's addresses (else a collision).

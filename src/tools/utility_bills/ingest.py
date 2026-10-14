@@ -166,8 +166,13 @@ def index_groups(linked):
 def _load_existing(db, coll_name):
     """ElectricalDB docs as a ParcelIndex of linked docs (lists per parcel) and every doc by _id."""
     docs = list(db[coll_name].find({}, {'parcel_id': 1, 'parcel_key': 1, 'time_series_elec': 1,
-                                        'utility': 1, 'source_delivery': 1}))
+                                        'utility': 1, 'source_delivery': 1, 'service_address': 1}))
     return index_groups(group_by_identity(docs)[0]), {d['_id']: d for d in docs}
+
+
+def _same_meter(doc, slot):
+    """True when a doc found by surrogate _id is this slot's meter: unlinked and at one of the slot's addresses."""
+    return identity(doc) is None and normalize_address(doc.get('service_address') or '') in slot['naddrs']
 
 
 def _target_for(docs, tag, dates):
@@ -195,7 +200,8 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
     by_addr = {}
     for rec in records:
         naddr = normalize_address(rec.service_address)
-        slot = by_addr.setdefault(naddr, {'dates': {}, 'rec': rec, 'naddr': naddr, 'keys': set()})
+        slot = by_addr.setdefault(naddr, {'dates': {}, 'rec': rec, 'naddr': naddr, 'keys': set(),
+                                       'naddrs': {naddr}})
         slot['keys'].add(rec.surrogate_key())
         st['reading_conflicts'] += _merge_readings(slot['dates'], rec.readings)
     st_meta['unique_addresses'] = len(by_addr)
@@ -220,7 +226,7 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
             st['surrogate_collision'] += 1  # one surrogate key, two service addresses: not the same meter
         elif prev is not slot:
             prev['dates'].update({k: v for k, v in slot['dates'].items() if k not in prev['dates']})
-            prev['keys'] = prev['keys'] | slot['keys']
+            prev['keys'], prev['naddrs'] = prev['keys'] | slot['keys'], prev['naddrs'] | slot['naddrs']
 
     for naddr, slot in by_addr.items():
         parcels = addr_parcels.get(naddr, [])
@@ -247,12 +253,15 @@ def process_county(db, county, records, tag, dry_run, existing_colls, log=print)
         last_date = max(last_date, hi) if last_date else hi
         parcel = slot.get('parcel')
         docs = (existing.resolve(parcel)[0] or []) if kind == 'p' else []
-        target = _target_for(docs, tag, dates) if kind == 'p' else by_id.get(key[1])  # any doc with this _id, linked or not
+        target = _target_for(docs, tag, dates) if kind == 'p' else by_id.get(key[1])
+        if kind == 's' and target and not _same_meter(target, slot):
+            st['surrogate_collision'] += 1  # the _id already holds another meter: leave these readings out
+            continue
         if kind == 'p' and not target and docs:
             st['skipped_multi_preingest'] += 1  # readings stay in whichever doc already has them
             continue
         if kind == 'p' and not docs:  # a parcel with no doc: an unlinked doc the repair left under these keys (§15.7)
-            held = {k for k in slot['keys'] if k in by_id}
+            held = {k for k in slot['keys'] if k in by_id and _same_meter(by_id[k], slot)}
             if len(held) > 1:
                 st['skipped_promote_multi'] += 1
                 continue
